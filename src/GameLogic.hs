@@ -1,5 +1,5 @@
 {-# LANGUAGE RecordWildCards, NamedFieldPuns #-}
-module Snake where
+module GameLogic where
 
 import Data.Sequence.NonEmpty (NESeq ((:||>), (:<||)), (|>))
 import qualified Data.Sequence.NonEmpty as S
