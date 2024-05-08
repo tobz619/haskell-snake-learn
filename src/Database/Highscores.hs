@@ -5,21 +5,33 @@ import Database.SQLite.Simple
 import Data.Time
 import Data.Text (Text)
 import qualified Data.Text as T 
+import Data.Foldable (forM_)
+import Database.SQLite.Simple.FromField (FromField, fromField)
 
 type Score = Int
-data Name = Name Text Text Text 
+type Name = Text
 type Time = UTCTime
 
-data ScoreField = ScoreField Name Int Time
+data ScoreField = ScoreField Name Score Time
 
 instance FromRow ScoreField where
-  fromRow = ScoreField <$> fromRow <*> field <*> field
+  fromRow = ScoreField <$> field <*> field <*> field
 
-instance FromRow Name where
-  fromRow = Name <$> field <*> field <*> field
 
 instance ToRow ScoreField where
-  toRow (ScoreField name score time) = toRow (name, score, time)
+  toRow (ScoreField name score time) = 
+    toRow (name, score, time)
 
-instance ToRow Name where
-  toRow (Name cha1 cha2 cha3) = toRow (cha1, cha2, cha3)
+
+scoreQuery = Query "Select TOP 10 name, score, time FROM scores ORDER BY score DESC"
+
+getScores :: Connection -> IO [ScoreField]
+getScores conn = query_ conn scoreQuery
+
+printScores conn = do
+  scores <- getScores conn
+  forM_ scores $ \(ScoreField n s d) ->
+    putStrLn $ show (n :: Name) <>
+      " " <> show (s :: Int) <> show (d :: UTCTime)
+
+addScore conn name score time = undefined
