@@ -34,9 +34,9 @@ data Stream a = a :| Stream a
 data Direction = U | D | L | R
   deriving (Eq, Show)
 
-height, width :: Int
-height = 20
-width = 20
+defaultHeight, defaultWidth :: Int
+defaultHeight = 20
+defaultWidth = 20
 
 
 -- | Step forward in time
@@ -61,7 +61,7 @@ advanceWorld w@World{..} = do
 -- | Die if the current head position is disallowed
 die :: World -> GameState
 die g@World{..} = 
-    let outOfBounds ((V2 x y ):<|| _) = or [x <= 0, x >= width, y <= 0, y >= height]
+    let outOfBounds ((V2 x y ):<|| _) = or [x <= 0, x >= defaultWidth, y <= 0, y >= defaultHeight]
         illegal (hd :<|| snakeTail)
           | hd `elem` snakeTail || outOfBounds snake = GameOver g
           | otherwise = Playing g
@@ -107,12 +107,12 @@ pauseToggle st = case st of
                   Paused g -> Playing g
                   s -> s
 
-initWorld :: IO World
-initWorld = do
+initWorld :: Int -> Int -> IO World
+initWorld height width = do
   (f :| fs) <-
-    fromList . randomRs (V2 1 1, V2 (width - 1) (height - 1)) <$> newStdGen
-  let xm = width `div` 2
-      ym = height `div` 2
+    fromList . randomRs (V2 1 1, V2 (height - 1) (width - 1)) <$> newStdGen
+  let xm = defaultWidth `div` 2
+      ym = defaultHeight `div` 2
       g  = World
         { snake  = S.singleton (V2 xm ym)
         , food   = f

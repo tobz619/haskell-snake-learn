@@ -14,7 +14,7 @@ common warnings
 
 library
     import:           warnings
-    exposed-modules:  SnakeApp, GameLogic, UI, Database.Highscores
+    exposed-modules:  SnakeApp, GameLogic, UI.Gameplay, Database.Highscores
     build-depends:    base >= 4.10 && < 5,
                       vty,
                       vty-crossplatform,

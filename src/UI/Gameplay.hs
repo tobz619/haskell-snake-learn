@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE RecordWildCards #-}
-module UI where
+module UI.Gameplay where
 
 import Control.Monad
 import Control.Monad.IO.Class
@@ -43,7 +43,7 @@ main = do
   _ <- forkIO $ forever $ do
     writeBChan chan Tick
     threadDelay 100000
-  w <- initWorld
+  w <- initWorld defaultHeight defaultWidth
   -- void $ defaultMain app g
   let initalVty =  V.mkVty V.defaultConfig
   buildVty <- initalVty
@@ -89,11 +89,11 @@ drawScore n = withBorderStyle BS.unicodeBold
 --                   _ -> emptyWidget
 
 drawGrid :: World -> Widget Name
-drawGrid World{..} = withBorderStyle BS.unicodeBold
+drawGrid  World{..} = withBorderStyle BS.unicodeBold
   $ B.borderWithLabel (str "Tobz-Snek")
   $ vBox rows
-  where rows = [hBox $ cellsInRow r | r <- [height-1, height-2 .. 0]]
-        cellsInRow y = [drawCoord (V2 x y) | x <- [0 .. width-1]]
+  where rows = [hBox $ cellsInRow r | r <- [defaultHeight-1, defaultHeight-2 .. 0]]
+        cellsInRow y = [drawCoord (V2 x y) | x <- [0 .. defaultWidth-1]]
         drawCoord = drawCell . cellAt
         cellAt c
           | c `elem` snake = Snake

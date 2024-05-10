@@ -72,14 +72,14 @@ promptAddHighScore conn s = do
             Nothing -> return True
             Just s' -> return (s > s')
 
-testDb :: IO ()
-testDb = do
-  db <- openDatabase ""
-  t <- round <$> getPOSIXTime
-  addScore db (ScoreField "Richard" 34 t)
-  addScore db (ScoreField "Thomas" 69 t)
-  addScore db (ScoreField "Henry" 420 t)
-  addScore db (ScoreField "Alice" 360 t)
-  addScore db (ScoreField "XXX" 99 t)
-  addScore db (ScoreField "Bamidele" 432 t)
-  printScores db
+-- testDb :: IO ()
+-- testDb = do
+--   db <- openDatabase ""
+--   t <- round <$> getPOSIXTime
+--   addScore db (ScoreField "Richard" 34 t)
+--   addScore db (ScoreField "Thomas" 69 t)
+--   addScore db (ScoreField "Henry" 420 t)
+--   addScore db (ScoreField "Alice" 360 t)
+--   addScore db (ScoreField "XXX" 99 t)
+--   addScore db (ScoreField "Bamidele" 432 t)
+--   printScores db
