@@ -7,7 +7,7 @@ import Control.Monad.IO.Class
 import Control.Concurrent
 import Data.Maybe
 
-import Snake
+import GameLogic
 
 import Brick
 import Brick.BChan
