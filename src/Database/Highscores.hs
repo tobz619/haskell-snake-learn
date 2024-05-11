@@ -3,7 +3,7 @@
 module Database.Highscores where
 
 import Database.SQLite.Simple
-import Data.Time.Clock.POSIX
+import Data.Time.Clock.POSIX (getPOSIXTime)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Foldable (forM_)
@@ -30,6 +30,9 @@ instance Eq ScoreField where
 instance Ord ScoreField  where
   (ScoreField _ s d) <= (ScoreField _ s' d') = s <= s' && d < d'
 
+maxDbSize :: Integer
+maxDbSize = 100
+
 openDatabase :: String -> IO Connection
 openDatabase path = do
   conn <- open path
@@ -40,10 +43,13 @@ initQuery :: Query
 initQuery = Query "CREATE TABLE IF NOT EXISTS scores (id INTEGER PRIMARY KEY, name TEXT NOT NULL, score NUMBER NOT NULL, time NUMBER NOT NULL);"
 
 scoreQuery :: Query
-scoreQuery = Query "SELECT name, score, time FROM scores ORDER BY score DESC LIMIT 10;"
+scoreQuery = Query "SELECT name, score, time FROM scores ORDER BY score DESC, time DESC LIMIT 10;"
 
 addQuery :: Query
 addQuery =  Query "INSERT INTO scores (name, score, time) VALUES (?,?,?);"
+
+pruneQuery :: Query
+pruneQuery = Query "DELETE from scores where id not in SELECT name, score, time FROM scores ORDER BY score DESC, time DESC LIMIT (?);"
 
 getScores :: Connection -> IO [ScoreField]
 getScores conn = query_ conn scoreQuery
@@ -55,10 +61,10 @@ printScores conn = do
     putStrLn $ show (n :: Name) <>
       " " <> show (s :: Int) <> " " <> show (d :: Int)
 
-addScore :: Connection -> ScoreField -> IO ScoreField
-addScore conn s@(ScoreField name score time) = do 
-  execute conn addQuery (T.take 3 . T.toUpper $ name, score, time)
-  pure s
+addScore :: Connection -> Name -> Score -> Time -> IO ScoreField
+addScore conn name score time = do 
+  execute conn addQuery (T.toUpper . T.take 3 $ name, score, time)
+  pure $ ScoreField name score time
 
 lowestScoreFromScoreList :: [ScoreField] -> Maybe ScoreField
 lowestScoreFromScoreList scores = NE.last <$> nonEmpty scores
@@ -72,14 +78,20 @@ promptAddHighScore conn s = do
             Nothing -> return True
             Just s' -> return (s > s')
 
+pruneAfterDbSize :: Connection -> IO ()
+pruneAfterDbSize = pruneAfter maxDbSize
+  where 
+        pruneAfter :: Integer -> Connection -> IO ()
+        pruneAfter num conn = execute conn pruneQuery (Only num)
+
 -- testDb :: IO ()
 -- testDb = do
---   db <- openDatabase ""
---   t <- round <$> getPOSIXTime
---   addScore db (ScoreField "Richard" 34 t)
---   addScore db (ScoreField "Thomas" 69 t)
---   addScore db (ScoreField "Henry" 420 t)
---   addScore db (ScoreField "Alice" 360 t)
---   addScore db (ScoreField "XXX" 99 t)
---   addScore db (ScoreField "Bamidele" 432 t)
+--   db <- openDatabase "highscores.db"
+--   t <- floor <$> getPOSIXTime
+--   addScore db "Richard" 34 t
+--   addScore db "Thomas" 69 t
+--   addScore db "Henry" 420 t
+--   addScore db "Alice" 360 t
+--   addScore db "XXX" 99 t
+--   addScore db "Bamidele" 432 t
 --   printScores db
