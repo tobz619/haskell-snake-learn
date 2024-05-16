@@ -1,15 +1,11 @@
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE CPP, TemplateHaskell, OverloadedStrings #-}
 module UI.MainMenu where
 
 import Lens.Micro ((^.))
 import Lens.Micro.Mtl
 import Control.Monad (void)
 import Control.Monad.State (modify)
-#if !(MIN_VERSION_base(4,11,0))
-import Data.Monoid
-#endif
 import Data.Text(Text)
-import qualified Data.Text as Text
 import qualified Graphics.Vty as V
 
 import qualified Brick.Main as M
@@ -17,6 +13,7 @@ import qualified Brick.Types as T
 import qualified Brick.Widgets.Border as B
 import qualified Brick.Widgets.List as L
 import qualified Brick.Widgets.Center as C
+import qualified Brick.Widgets.Dialog as D
 import qualified Brick.AttrMap as A
 import qualified Data.Vector as Vec
 import Brick.Types
@@ -24,61 +21,63 @@ import Brick.Types
   )
 import Brick.Widgets.Core
   ( (<+>)
-  , str
+  , txt
+  , padAll
   , vLimit
   , hLimit
   , vBox
   , withAttr
   )
-import Brick.Util (fg, on)
+import Brick.Util (fg, on, bg)
+import Brick.Widgets.Dialog (Dialog)
+import Lens.Micro.TH (makeLenses)
+import Brick (continueWithoutRedraw)
 
-drawUI ::  L.List () String -> [Widget ()]
-drawUI l = [ui]
+data Choice = PlayGame | HighScoresPage | QuitGame 
+    deriving Show
+
+data Name = Play | HighScores | Quit
+    deriving (Eq, Show, Ord)
+
+
+drawDialogUI :: D.Dialog Choice Name -> [Widget Name]
+drawDialogUI d = pure ui
     where
-        box = B.border $
-              hLimit 25 $
-              vLimit 12 $
-              L.renderList listDrawElement True l
-        ui = C.vCenter $ vBox [ C.hCenter box
-                              , str " "
-                              , C.hCenter $ str "Press Enter to select an option."
-                              , C.hCenter $ str "Press Esc to exit."
-                              ]
+        ui = D.renderDialog d $ C.hCenter $ padAll 1 $ txt "Choose an option"
 
-appEvent :: T.BrickEvent () e -> T.EventM () (L.List () String) ()
+
+appEvent :: T.BrickEvent Name e -> T.EventM Name (D.Dialog Choice Name) ()
 appEvent (T.VtyEvent e) =
     case e of
-        V.EvKey V.KEnter [] -> do
-            return ()
+        V.EvKey V.KEnter [] -> M.halt
 
         V.EvKey V.KEsc [] -> M.halt
 
-        ev -> L.handleListEvent ev
+        ev -> D.handleDialogEvent ev
+
+appEvent _ = return ()
     
 
-listDrawElement :: Bool -> String -> Widget ()
-listDrawElement sel a =
-    let selStr s = if sel
-                   then withAttr customAttr $ str s
-                   else str s
-    in C.hCenter . selStr $ a
-
-initialState :: L.List () String
-initialState = L.list () (Vec.fromList ["Play", "High scores", "Quit game"]) 3
+initialState :: D.Dialog Choice Name
+initialState = D.dialog (Just $ txt " Main Menu ") (Just (Play, options)) 75
+    where options = [ ("play", Play, PlayGame)
+                    , ("high scores", HighScores, HighScoresPage)
+                    , ("quit game", Quit, QuitGame)
+                    ]
 
 customAttr :: A.AttrName
-customAttr = L.listSelectedAttr <> A.attrName "custom"
+customAttr = D.buttonSelectedAttr <> A.attrName "custom"
 
 theMap :: A.AttrMap
 theMap = A.attrMap V.defAttr
-    [ (L.listAttr,            V.white `on` V.black)
-    , (L.listSelectedAttr,    V.white `on` V.red)
-    , (customAttr,            fg V.blue)
+    [ (D.dialogAttr,    V.white `on` V.black)
+    , (D.buttonAttr,    V.white `on` V.red)
+    , (D.buttonSelectedAttr,      bg V.blue)
     ]
 
-mainMenuApp :: M.App (L.List () String) e ()
-mainMenuApp =
-    M.App { M.appDraw = drawUI
+mainMenuApp :: M.App (Dialog Choice Name) e Name
+mainMenuApp = 
+    M.App { M.appDraw = drawDialogUI
           , M.appChooseCursor = M.showFirstCursor
           , M.appHandleEvent = appEvent
           , M.appStartEvent = return ()
@@ -86,4 +85,6 @@ mainMenuApp =
           }
 
 main :: IO ()
-main = void $ M.defaultMain mainMenuApp initialState
+main = do 
+    sel <- M.defaultMain mainMenuApp initialState
+    putStrLn $ "Selection " <> show (D.dialogSelection sel)
