@@ -3,19 +3,13 @@ module UI.MainMenu where
 
 import Lens.Micro ((^.))
 import Lens.Micro.Mtl
-import Control.Monad (void)
-import Control.Monad.State (modify)
-import Data.Text(Text)
 import qualified Graphics.Vty as V
 
 import qualified Brick.Main as M
 import qualified Brick.Types as T
-import qualified Brick.Widgets.Border as B
-import qualified Brick.Widgets.List as L
 import qualified Brick.Widgets.Center as C
 import qualified Brick.Widgets.Dialog as D
 import qualified Brick.AttrMap as A
-import qualified Data.Vector as Vec
 import Brick.Types
   ( Widget
   )
@@ -27,34 +21,43 @@ import Brick.Widgets.Core
   , hLimit
   , vBox
   , withAttr
+  , emptyWidget, reportExtent
   )
 import Brick.Util (fg, on, bg)
 import Brick.Widgets.Dialog (Dialog)
-import Lens.Micro.TH (makeLenses)
-import Brick (continueWithoutRedraw)
+import Data.Maybe (fromMaybe)
+import Brick (clickable)
+import qualified Graphics.Vty as T
 
-data Choice = PlayGame | HighScoresPage | QuitGame 
-    deriving Show
 
-data Name = Play | HighScores | Quit
+
+data Choice = Play | HighScores | Quit
     deriving (Eq, Show, Ord)
 
 
-drawDialogUI :: D.Dialog Choice Name -> [Widget Name]
+drawDialogUI :: D.Dialog Choice Choice -> [Widget Choice]
 drawDialogUI d = pure ui
     where
         ui =  D.renderDialog d . C.hCenter . padAll 1 $ focus
-        focus = maybe (txt "") nameWidget $ D.getDialogFocus d
+        focus = 
+            maybe 
+            emptyWidget 
+            (\n -> reportExtent n . (clickable <*> nameWidget) $ n) 
+            $ D.getDialogFocus d
 
-nameWidget :: Name -> Widget n
+nameWidget :: Choice -> Widget n
 nameWidget Play = txt "Play the game"
 nameWidget HighScores = txt "View highscores"
 nameWidget Quit = txt "Quit the game" 
 
-appEvent :: T.BrickEvent Name e -> T.EventM Name (D.Dialog Choice Name) ()
+appEvent :: T.BrickEvent Choice e -> T.EventM Choice (D.Dialog Choice Choice) ()
+appEvent (T.MouseDown _ V.BLeft _  _) = appEvent (T.VtyEvent (V.EvKey V.KEnter []))
 appEvent (T.VtyEvent e) =
     case e of
-        V.EvKey V.KEnter [] -> M.halt
+        V.EvKey V.KEnter [] -> do
+            dialog <- T.get
+            let (n,_) = fromMaybe (Quit, Quit) $ D.dialogSelection dialog
+            M.halt
 
         V.EvKey V.KEsc [] -> M.halt
 
@@ -63,11 +66,11 @@ appEvent (T.VtyEvent e) =
 appEvent _ = return ()
     
 
-initialState :: D.Dialog Choice Name
-initialState = D.dialog (Just $ txt " Main Menu ") (Just (Play, options)) 75
-    where options = [ ("play", Play, PlayGame)
-                    , ("high scores", HighScores, HighScoresPage)
-                    , ("quit game", Quit, QuitGame)
+initialState :: D.Dialog Choice Choice
+initialState = D.dialog (Just $ txt " Main Menu ") (Just (Play, options)) 125
+    where options = [ ("play", Play, Play)
+                    , ("high scores", HighScores, HighScores)
+                    , ("quit game", Quit, Quit)
                     ]
 
 theMap :: A.AttrMap
@@ -77,7 +80,7 @@ theMap = A.attrMap V.defAttr
     , (D.buttonSelectedAttr,      bg V.red  )
     ]
 
-mainMenuApp :: M.App (Dialog Choice Name) e Name
+mainMenuApp :: M.App (Dialog Choice Choice) e Choice
 mainMenuApp = 
     M.App { M.appDraw = drawDialogUI
           , M.appChooseCursor = M.neverShowCursor
