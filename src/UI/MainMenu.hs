@@ -43,8 +43,13 @@ data Name = Play | HighScores | Quit
 drawDialogUI :: D.Dialog Choice Name -> [Widget Name]
 drawDialogUI d = pure ui
     where
-        ui = D.renderDialog d $ C.hCenter $ padAll 1 $ txt "Choose an option"
+        ui =  D.renderDialog d . C.hCenter . padAll 1 $ focus
+        focus = maybe (txt "") nameWidget $ D.getDialogFocus d
 
+nameWidget :: Name -> Widget n
+nameWidget Play = txt "Play the game"
+nameWidget HighScores = txt "View highscores"
+nameWidget Quit = txt "Quit the game" 
 
 appEvent :: T.BrickEvent Name e -> T.EventM Name (D.Dialog Choice Name) ()
 appEvent (T.VtyEvent e) =
@@ -65,20 +70,17 @@ initialState = D.dialog (Just $ txt " Main Menu ") (Just (Play, options)) 75
                     , ("quit game", Quit, QuitGame)
                     ]
 
-customAttr :: A.AttrName
-customAttr = D.buttonSelectedAttr <> A.attrName "custom"
-
 theMap :: A.AttrMap
 theMap = A.attrMap V.defAttr
     [ (D.dialogAttr,    V.white `on` V.black)
-    , (D.buttonAttr,    V.white `on` V.red)
-    , (D.buttonSelectedAttr,      bg V.blue)
+    , (D.buttonAttr,    V.red `on` V.white)
+    , (D.buttonSelectedAttr,      bg V.red  )
     ]
 
 mainMenuApp :: M.App (Dialog Choice Name) e Name
 mainMenuApp = 
     M.App { M.appDraw = drawDialogUI
-          , M.appChooseCursor = M.showFirstCursor
+          , M.appChooseCursor = M.neverShowCursor
           , M.appHandleEvent = appEvent
           , M.appStartEvent = return ()
           , M.appAttrMap = const theMap
