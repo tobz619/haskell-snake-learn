@@ -100,8 +100,8 @@ mainMenuApp =
           , M.appAttrMap = const theMap
           }
 
-main :: IO (Maybe Choice)
-main = do
+runMainMenu :: IO (Maybe Choice)
+runMainMenu = do
     res <- dialogChoice <$> M.defaultMain mainMenuApp initialState
     putStrLn $ "You chose: " ++ maybe "INVALID" show res
     return res
