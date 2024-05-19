@@ -29,16 +29,16 @@ type Name = ()
 
 data Cell = Snake | Food | Empty
 
-app :: App GameState Tick Name
-app = App { appDraw = drawUI
+gameApp :: App GameState Tick Name
+gameApp = App { appDraw = drawUI
           , appChooseCursor = neverShowCursor
           , appHandleEvent = handleEvent
           , appStartEvent = return ()
           , appAttrMap = const theMap
           }
 
-main :: IO ()
-main = do
+gameplay :: IO ()
+gameplay = do
   chan <- newBChan 10
   _ <- forkIO $ forever $ do
     writeBChan chan Tick
@@ -47,7 +47,7 @@ main = do
   -- void $ defaultMain app g
   let initalVty =  V.mkVty V.defaultConfig
   buildVty <- initalVty
-  void $ customMain buildVty initalVty (Just chan) app (Paused w)
+  void $ customMain buildVty initalVty (Just chan) gameApp (Paused w)
 
 handleEvent :: BrickEvent Name Tick
             -> EventM Name GameState ()
