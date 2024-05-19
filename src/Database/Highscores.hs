@@ -30,7 +30,7 @@ instance Eq ScoreField where
 instance Ord ScoreField  where
   (ScoreField _ s d) <= (ScoreField _ s' d') = s <= s' && d < d'
 
-maxDbSize :: Integer
+maxDbSize :: Int
 maxDbSize = 100
 
 openDatabase :: String -> IO Connection
@@ -54,8 +54,8 @@ pruneQuery = Query "DELETE from scores where id not in SELECT name, score, time 
 getScores :: Connection -> IO [ScoreField]
 getScores conn = query_ conn scoreQuery
 
-printScores :: Connection -> IO ()
-printScores conn = do
+debugPrintScores :: Connection -> IO ()
+debugPrintScores conn = do
   scores <- getScores conn
   forM_ scores $ \(ScoreField n s d) ->
     putStrLn $ show (n :: Name) <>
@@ -72,7 +72,7 @@ lowestScoreFromScoreList scores = NE.last <$> nonEmpty scores
 promptAddHighScore :: Connection -> ScoreField -> IO Bool
 promptAddHighScore conn s = do
   scores <- getScores conn
-  if length scores < 10
+  if length scores < maxDbSize
     then return True
     else case lowestScoreFromScoreList scores of
             Nothing -> return True
@@ -81,7 +81,7 @@ promptAddHighScore conn s = do
 pruneAfterDbSize :: Connection -> IO ()
 pruneAfterDbSize = pruneAfter maxDbSize
   where 
-        pruneAfter :: Integer -> Connection -> IO ()
+        pruneAfter :: Int -> Connection -> IO ()
         pruneAfter num conn = execute conn pruneQuery (Only num)
 
 -- testDb :: IO ()
