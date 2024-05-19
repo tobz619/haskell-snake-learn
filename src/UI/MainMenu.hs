@@ -1,8 +1,10 @@
 {-# LANGUAGE CPP, TemplateHaskell, OverloadedStrings #-}
 module UI.MainMenu where
 
-import Lens.Micro ((^.))
+import Lens.Micro ((^.), set)
 import Lens.Micro.Mtl
+import Lens.Micro.TH(makeLenses)
+
 import qualified Graphics.Vty as V
 
 import qualified Brick.Main as M
@@ -25,50 +27,59 @@ import Brick.Widgets.Core
   )
 import Brick.Util (fg, on, bg)
 import Brick.Widgets.Dialog (Dialog)
-import Data.Maybe (fromMaybe)
 import Brick (clickable)
-import qualified Graphics.Vty as T
-
 
 
 data Choice = Play | HighScores | Quit
     deriving (Eq, Show, Ord)
+
+data DialogState = DialogState { dialog :: D.Dialog Choice Choice
+                               , dialogChoice :: Maybe Choice
+                               }
 
 
 drawDialogUI :: D.Dialog Choice Choice -> [Widget Choice]
 drawDialogUI d = pure ui
     where
         ui =  D.renderDialog d . C.hCenter . padAll 1 $ focus
-        focus = 
-            maybe 
-            emptyWidget 
-            (\n -> reportExtent n . (clickable <*> nameWidget) $ n) 
+        focus =
+            maybe
+            emptyWidget
+            (\n -> reportExtent n . (clickable <*> nameWidget) $ n)
             $ D.getDialogFocus d
 
 nameWidget :: Choice -> Widget n
 nameWidget Play = txt "Play the game"
 nameWidget HighScores = txt "View highscores"
-nameWidget Quit = txt "Quit the game" 
+nameWidget Quit = txt "Quit the game"
 
-appEvent :: T.BrickEvent Choice e -> T.EventM Choice (D.Dialog Choice Choice) ()
+
+appEvent :: T.BrickEvent Choice e -> T.EventM Choice DialogState ()
 appEvent (T.MouseDown _ V.BLeft _  _) = appEvent (T.VtyEvent (V.EvKey V.KEnter []))
 appEvent (T.VtyEvent e) =
     case e of
         V.EvKey V.KEnter [] -> do
-            dialog <- T.get
-            let (n,_) = fromMaybe (Quit, Quit) $ D.dialogSelection dialog
+            d <- T.gets dialog
+            let res = fst <$> D.dialogSelection d
+            T.modify $ \st -> st {dialogChoice = res}
             M.halt
+
 
         V.EvKey V.KEsc [] -> M.halt
 
-        ev -> D.handleDialogEvent ev
+        ev -> do d <- T.gets dialog
+                 res <- T.nestEventM' d (D.handleDialogEvent ev)
+                 T.modify $ \st -> st { dialog = res }
 
 appEvent _ = return ()
-    
 
-initialState :: D.Dialog Choice Choice
-initialState = D.dialog (Just $ txt " Main Menu ") (Just (Play, options)) 125
-    where options = [ ("play", Play, Play)
+defaultDialogChoice :: Dialog Choice Choice -> DialogState
+defaultDialogChoice d = DialogState d Nothing
+
+initialState :: DialogState
+initialState = defaultDialogChoice d
+    where d = D.dialog (Just $ txt " Main Menu ") (Just (Play, options)) 125
+          options = [ ("play", Play, Play)
                     , ("high scores", HighScores, HighScores)
                     , ("quit game", Quit, Quit)
                     ]
@@ -80,16 +91,17 @@ theMap = A.attrMap V.defAttr
     , (D.buttonSelectedAttr,      bg V.red  )
     ]
 
-mainMenuApp :: M.App (Dialog Choice Choice) e Choice
-mainMenuApp = 
-    M.App { M.appDraw = drawDialogUI
+mainMenuApp :: M.App DialogState e Choice
+mainMenuApp =
+    M.App { M.appDraw = drawDialogUI . dialog
           , M.appChooseCursor = M.neverShowCursor
           , M.appHandleEvent = appEvent
           , M.appStartEvent = return ()
           , M.appAttrMap = const theMap
           }
 
-main :: IO ()
-main = do 
-    sel <- M.defaultMain mainMenuApp initialState
-    putStrLn $ "Selection " <> show (D.dialogSelection sel)
+main :: IO (Maybe Choice)
+main = do
+    res <- dialogChoice <$> M.defaultMain mainMenuApp initialState
+    putStrLn $ "You chose: " ++ maybe "INVALID" show res
+    return res
