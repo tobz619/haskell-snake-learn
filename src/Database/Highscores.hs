@@ -43,7 +43,7 @@ initQuery :: Query
 initQuery = Query "CREATE TABLE IF NOT EXISTS scores (id INTEGER PRIMARY KEY, name TEXT NOT NULL, score NUMBER NOT NULL, time NUMBER NOT NULL);"
 
 scoreQuery :: Query
-scoreQuery = Query "SELECT name, score, time FROM scores ORDER BY score DESC, time DESC LIMIT 10;"
+scoreQuery = Query "SELECT name, score, time FROM scores ORDER BY score DESC, time DESC LIMIT (?);"
 
 addQuery :: Query
 addQuery =  Query "INSERT INTO scores (name, score, time) VALUES (?,?,?);"
@@ -52,7 +52,7 @@ pruneQuery :: Query
 pruneQuery = Query "DELETE from scores where id not in SELECT name, score, time FROM scores ORDER BY score DESC, time DESC LIMIT (?);"
 
 getScores :: Connection -> IO [ScoreField]
-getScores conn = query_ conn scoreQuery
+getScores conn = query conn scoreQuery (Only maxDbSize)
 
 debugPrintScores :: Connection -> IO ()
 debugPrintScores conn = do

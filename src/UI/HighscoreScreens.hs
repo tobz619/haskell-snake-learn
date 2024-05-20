@@ -17,31 +17,42 @@ import qualified Graphics.Vty as V
 import Data.Text(Text)
 import qualified Data.Text as Text
 import Data.List (mapAccumL)
+import Data.Time 
 
-ui :: [ScoreField] -> Widget ()
-ui scores = C.center $ renderTable (allTable (scoresTable scores))
+data ScoreTable = ScoreTable
+  deriving (Show, Eq, Ord)
 
-scoresTable :: [ScoreField] -> Table ()
+ui :: [ScoreField] -> Widget ScoreTable
+ui scores = C.center $ allTable (scoresTable scores)
+
+scoresTable :: [ScoreField] -> Table ScoreTable
 scoresTable scores =
   
-  let scoreTable = mapAccumL incCount (1 :: Integer) scores
+  let scoreTable = mapAccumL mkIndex (1 :: Integer) scores
       
-      incCount num s = (num+1 ,[txt . Text.pack . show $ num] <> handleScoreField s)
+      mkIndex num s = (num+1 ,[txt . Text.pack . show $ num] <> handleScoreField s)
       
-      handleScoreField (ScoreField n s d) = map (padLeftRight 5) [txt n, handleScore s, handleDate d]
+      handleScoreField (ScoreField n s d) = map (padLeftRight 4) [txt n, handleScore s, handleDate d]
       
       handleScore = txt . Text.pack . show
       
-      handleDate =  txt . Text.pack . show
+      handleDate = txt . formatDbIntToTime
    
    in surroundingBorder False $ table . snd $ scoreTable
 
 
-allTable s = setDefaultColAlignment AlignCenter $ table [[txt "HIGH SCORES"], [renderTable s]]
+allTable :: Table ScoreTable -> Widget ScoreTable
+allTable s = renderTable $ setDefaultColAlignment AlignCenter $ table [[txt "HIGH SCORES"], [renderTable s]]
+
+formatDbIntToTime :: Int -> Text
+formatDbIntToTime posixTime = let
+  utcTime = secondsToNominalDiffTime (fromIntegral posixTime) `addUTCTime` UTCTime (ModifiedJulianDay 0) 0
+  
+  in Text.pack $ formatTime defaultTimeLocale "%T %u %b" utcTime
+
 
 highScores :: IO ()
 highScores = do
   db <- openDatabase "highscores.db"
   scores <- getScores db
-  -- debugPrintScores db
   simpleMain (ui scores)
