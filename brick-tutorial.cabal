@@ -14,7 +14,7 @@ common warnings
 
 library
     import:           warnings
-    exposed-modules:  SnakeApp, GameLogic, UI.Gameplay, Database.Highscores
+    exposed-modules:  SnakeApp, GameLogic, UI.Gameplay, UI.HighscoreScreens, UI.MainMenu, DB.Highscores
     build-depends:    base >= 4.10 && < 5,
                       vty,
                       vty-crossplatform,
@@ -30,7 +30,8 @@ library
                       sqlite-simple,
                       time,
                       text,
-                      vector
+                      vector,
+                      word-wrap
 
     hs-source-dirs:   src
     default-language: Haskell2010

@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings, BangPatterns #-}
 {-# OPTIONS_GHC -Wno-unused-do-bind #-}
-module Database.Highscores where
+module DB.Highscores where
 
 import Database.SQLite.Simple
 import Data.Time.Clock.POSIX (getPOSIXTime)

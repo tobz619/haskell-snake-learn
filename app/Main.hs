@@ -1,6 +1,6 @@
 module Main where
 
-import UI.Gameplay as UI
+import SnakeApp as S
 
 main :: IO ()
-main = UI.main
+main = S.main
