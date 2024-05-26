@@ -111,15 +111,15 @@ formatDbIntToTime posixTime = let
 inputHandler :: BrickEvent HSPageName e -> EventM HSPageName HighScoreState ()
 inputHandler (T.VtyEvent (V.EvKey V.KDown  [])) = M.vScrollBy tableVpScroll 2
 inputHandler (T.VtyEvent (V.EvKey V.KUp    [])) = M.vScrollBy tableVpScroll (-2)
-inputHandler (T.VtyEvent (V.EvKey V.KLeft  [])) = M.vScrollBy tableVpScroll (-20)
-inputHandler (T.VtyEvent (V.EvKey V.KRight [])) = M.vScrollBy tableVpScroll 20
+inputHandler (T.VtyEvent (V.EvKey V.KLeft  [])) = M.vScrollBy tableVpScroll . negate =<< use height
+inputHandler (T.VtyEvent (V.EvKey V.KRight [])) = M.vScrollBy tableVpScroll =<< use height
 inputHandler (T.VtyEvent (V.EvKey V.KEsc   [])) = M.halt
 
 inputHandler (T.VtyEvent (V.EvKey (V.KChar 'h') [])) = do
-  put . set selectScore (Just defMenuState) =<< get
-  M.halt
+  selectScore .= Just defMenuState
   ret <- (liftIO . defaultMain highScoresSelectApp) =<< get
   put ret
+  selectScore .= Nothing
 
 inputHandler _ = return ()
 
@@ -127,7 +127,7 @@ inputHandler _ = return ()
 dialogHandler :: BrickEvent HSDialogName e -> EventM HSDialogName HighScoreState ()
 dialogHandler (T.VtyEvent (V.EvKey V.KEnter [])) = do
   d <- fromMaybe defDialog . preview (selectScore . _Just . menuDialog) <$> get
-  (selectScore ._Just . menuChoice)  .= (maybe defHeight snd . D.dialogSelection $ d)
+  height  .= (maybe defHeight snd . D.dialogSelection $ d)
   M.halt
 
 
