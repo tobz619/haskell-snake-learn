@@ -6,9 +6,8 @@ import DB.Highscores
 
 import Lens.Micro
 import Lens.Micro.TH
-import Lens.Micro.Extras
 import Lens.Micro.Extras (view)
-import Lens.Micro.Mtl (use)
+import Lens.Micro.Mtl hiding (view)
 
 import Brick
 import Brick.Widgets.Table
@@ -51,15 +50,15 @@ defHeight :: Int
 defHeight = 20
 
 ui :: HighScoreState -> [Widget HSPageName]
-ui hss = [ C.center $ allTable hei (scoresTable scos)
-         ]
+ui hss = perPage (view selectScore hss)
+        <> [ C.center $ allTable hei (scoresTable scos)]
 
          where hei = view height hss
                scos = view highscores hss
 
-perPage :: HighScoreState -> [Widget HSPageName]
-perPage hss = [ D.renderDialog dia emptyWidget ]
-        where dia = view (selectScore . menuDialog) hss
+perPage :: Maybe MenuState -> [Widget HSPageName]
+perPage Nothing = []
+perPage (Just (MenuState dia _)) = [D.renderDialog dia emptyWidget]
 
 scoresTable :: [ScoreField] -> Table HSPageName
 scoresTable scores =
@@ -107,12 +106,27 @@ inputHandler (T.VtyEvent (V.EvKey V.KLeft  [])) = M.vScrollBy tableVpScroll (-20
 inputHandler (T.VtyEvent (V.EvKey V.KRight [])) = M.vScrollBy tableVpScroll 20
 inputHandler (T.VtyEvent (V.EvKey V.KEsc   [])) = M.halt
 
-inputHandler (T.VtyEvent (V.EvKey V.KBackTab [])) = do
-  undefined
+inputHandler key@(T.VtyEvent (V.EvKey (V.KChar 'h') [])) = do
+  put . set selectScore (Just defMenuState) =<< get
+  return ()
+  -- put . set selectScore Nothing =<< get
 
 inputHandler _ = return ()
 
 
+dialogHandler :: BrickEvent HSPageName e -> EventM HSPageName MenuState ()
+dialogHandler (T.VtyEvent (V.EvKey V.KEnter [])) = do
+  d <- use menuDialog
+  menuChoice .= (maybe defHeight snd . D.dialogSelection $ d)
+  M.halt
+
+
+dialogHandler (T.VtyEvent (V.EvKey V.KEsc [])) =
+  M.halt
+
+dialogHandler (T.VtyEvent ev) = zoom menuDialog $ D.handleDialogEvent ev
+
+dialogHandler _ = return ()
 
 theMap :: AttrMap
 theMap = A.attrMap V.defAttr
@@ -135,8 +149,8 @@ highScoresApp = M.App { M.appDraw = ui
                         }
 
 
-selDialog :: Dialog Int HSPageName
-selDialog = D.dialog (Just $ txtWrap "How many scores to show per page?")
+defDialog :: Dialog Int HSPageName
+defDialog = D.dialog (Just $ txtWrap "How many scores to show per page?")
                    (Just (ScoreDialogNum defHeight, options))
                    125
   where options = [ ("5", ScoreDialogNum 10, 10)
@@ -147,7 +161,7 @@ selDialog = D.dialog (Just $ txtWrap "How many scores to show per page?")
 
 
 defMenuState :: MenuState
-defMenuState = MenuState selDialog defHeight
+defMenuState = MenuState defDialog defHeight
 
 highScores :: IO ()
 highScores = do
