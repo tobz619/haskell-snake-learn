@@ -36,6 +36,9 @@ import Data.Maybe (fromMaybe)
 data HSPageName = ScoreTable | ScoreDialogNum Int
   deriving (Show, Eq, Ord)
 
+data HSDialogName = HSDialogName
+  deriving (Show, Eq, Ord)
+
 data MenuState = MenuState { _menuDialog :: Dialog Int HSPageName
                            , _menuChoice :: Int
                            }
@@ -50,14 +53,15 @@ defHeight :: Int
 defHeight = 20
 
 ui :: HighScoreState -> [Widget HSPageName]
-ui hss = [perPage (view selectScore hss) $ C.center $ allTable hei (scoresTable scos)]
+ui hss = [mDiaWidget (view selectScore hss)]
+         <> [C.center $ allTable hei (scoresTable scos)]
 
          where hei = view height hss
                scos = view highscores hss
 
-perPage :: Maybe MenuState -> (Widget HSPageName -> Widget HSPageName)
-perPage Nothing = seq emptyWidget
-perPage (Just (MenuState dia _)) = D.renderDialog dia
+mDiaWidget :: Maybe MenuState -> Widget HSPageName
+mDiaWidget Nothing = emptyWidget
+mDiaWidget (Just (MenuState dia _)) = D.renderDialog dia emptyWidget
 
 scoresTable :: [ScoreField] -> Table HSPageName
 scoresTable scores =
@@ -132,9 +136,9 @@ theMap = A.attrMap V.defAttr
     [ (headerAttr,  fg V.white)
     , (cellAttr  ,  V.red `on` V.white)
     , (bgAttr    ,  bg V.red)
-    , (D.dialogAttr, V.white `on` V.red)
+    , (D.dialogAttr, fg V.white)
     , (D.buttonAttr, V.red `on` V.white)
-    , (D.buttonSelectedAttr, bg V.yellow)
+    , (D.buttonSelectedAttr, bg V.red)
     ]
 
 headerAttr, cellAttr, bgAttr :: AttrName
@@ -153,7 +157,7 @@ highScoresApp = M.App { M.appDraw = ui
 
 defDialog :: Dialog Int HSPageName
 defDialog = D.dialog (Just $ txt "How many scores to show per page?")
-                   (Just (ScoreDialogNum defHeight, options))
+                   (Just (ScoreDialogNum 10, options))
                    125
   where options = [ ("5", ScoreDialogNum 10, 10)
                   , ("10", ScoreDialogNum 20, 20)

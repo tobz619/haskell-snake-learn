@@ -75,7 +75,7 @@ initialState = defaultDialogChoice d
 
 theMap :: A.AttrMap
 theMap = A.attrMap V.defAttr
-    [ (D.dialogAttr,    V.white `on` V.black)
+    [ (D.dialogAttr,    fg V.white)
     , (D.buttonAttr,    V.red `on` V.white)
     , (D.buttonSelectedAttr,      bg V.red  )
     ]
