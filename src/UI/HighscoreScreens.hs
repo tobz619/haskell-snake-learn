@@ -117,8 +117,7 @@ inputHandler (T.VtyEvent (V.EvKey V.KEsc   [])) = M.halt
 
 inputHandler (T.VtyEvent (V.EvKey (V.KChar 'h') [])) = do
   selectScore .= Just defMenuState
-  ret <- (liftIO . defaultMain highScoresSelectApp) =<< get
-  put ret
+  suspendAndResume . defaultMain highScoresSelectApp =<< get
   selectScore .= Nothing
 
 inputHandler _ = return ()
