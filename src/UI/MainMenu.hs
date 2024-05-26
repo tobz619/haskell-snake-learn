@@ -37,13 +37,13 @@ drawDialogUI d = pure ui
         focus =
             maybe
             emptyWidget
-            (\n -> reportExtent n . (clickable <*> nameWidget) $ n)
+            (\n -> reportExtent n . (clickable <*> widgetTitle) $ n)
             $ D.getDialogFocus d
 
-nameWidget :: Choice -> Widget n
-nameWidget Play = txt "Play the game"
-nameWidget HighScores = txt "View highscores"
-nameWidget Quit = txt "Quit the game"
+widgetTitle :: Choice -> Widget n
+widgetTitle Play = txt "Play the game"
+widgetTitle HighScores = txt "View highscores"
+widgetTitle Quit = txt "Quit the game"
 
 
 appEvent :: T.BrickEvent Choice e -> T.EventM Choice DialogState ()

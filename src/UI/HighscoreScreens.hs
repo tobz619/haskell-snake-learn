@@ -50,15 +50,14 @@ defHeight :: Int
 defHeight = 20
 
 ui :: HighScoreState -> [Widget HSPageName]
-ui hss = perPage (view selectScore hss)
-        <> [ C.center $ allTable hei (scoresTable scos)]
+ui hss = [perPage (view selectScore hss) $ C.center $ allTable hei (scoresTable scos)]
 
          where hei = view height hss
                scos = view highscores hss
 
-perPage :: Maybe MenuState -> [Widget HSPageName]
-perPage Nothing = []
-perPage (Just (MenuState dia _)) = [D.renderDialog dia emptyWidget]
+perPage :: Maybe MenuState -> (Widget HSPageName -> Widget HSPageName)
+perPage Nothing = seq emptyWidget
+perPage (Just (MenuState dia _)) = D.renderDialog dia
 
 scoresTable :: [ScoreField] -> Table HSPageName
 scoresTable scores =
@@ -108,7 +107,7 @@ inputHandler (T.VtyEvent (V.EvKey V.KEsc   [])) = M.halt
 
 inputHandler key@(T.VtyEvent (V.EvKey (V.KChar 'h') [])) = do
   put . set selectScore (Just defMenuState) =<< get
-  return ()
+  zoom (selectScore . _Just) $ dialogHandler key
   -- put . set selectScore Nothing =<< get
 
 inputHandler _ = return ()
@@ -133,6 +132,9 @@ theMap = A.attrMap V.defAttr
     [ (headerAttr,  fg V.white)
     , (cellAttr  ,  V.red `on` V.white)
     , (bgAttr    ,  bg V.red)
+    , (D.dialogAttr, V.white `on` V.red)
+    , (D.buttonAttr, V.red `on` V.white)
+    , (D.buttonSelectedAttr, bg V.yellow)
     ]
 
 headerAttr, cellAttr, bgAttr :: AttrName
@@ -150,7 +152,7 @@ highScoresApp = M.App { M.appDraw = ui
 
 
 defDialog :: Dialog Int HSPageName
-defDialog = D.dialog (Just $ txtWrap "How many scores to show per page?")
+defDialog = D.dialog (Just $ txt "How many scores to show per page?")
                    (Just (ScoreDialogNum defHeight, options))
                    125
   where options = [ ("5", ScoreDialogNum 10, 10)
