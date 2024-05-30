@@ -4,8 +4,6 @@ import UI.MainMenu ( Choice(..), runMainMenu )
 import UI.Gameplay ( gameplay )
 import UI.HighscoreScreens (highScores)
 
-import qualified Brick.Main as M
-
 newtype AppState r =  AppState { runApp :: IO r}
 
 main :: IO ()

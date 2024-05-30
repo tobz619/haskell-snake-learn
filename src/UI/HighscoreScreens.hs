@@ -26,7 +26,6 @@ import Data.Text(Text)
 import qualified Data.Text as Text
 import Data.List (mapAccumL)
 import Data.Time
-import UI.MainMenu(runMainMenu)
 import Brick.Widgets.Dialog (Dialog)
 import qualified Brick.Widgets.Dialog as D
 import Data.Maybe (fromMaybe)
@@ -70,7 +69,7 @@ scoresTable _ scores =
 
   let scoreTable = mapAccumL mkIndex (1 :: Integer) scores
 
-      mkIndex num s = (num+1 ,[txt . Text.pack . show $ num] <> handleScoreField s)
+      mkIndex num s = (num+1, [txt . Text.pack . show $ num] <> handleScoreField s)
 
       handleScoreField (ScoreField n s d) = map (padLeftRight 3) [txt n, handleScore s, handleDate d]
 
@@ -168,11 +167,7 @@ defDialog :: Dialog Int HSPageName
 defDialog = D.dialog (Just $ txt "How many scores to show per page?")
                    (Just (HSDialogNum 10, options))
                    125
-  where options = [ ("5", HSDialogNum 10, 10)
-                  , ("10", HSDialogNum 20, 20)
-                  , ("25", HSDialogNum 50, 50)
-                  , ("50", HSDialogNum 100,100)
-                  ]
+  where options = (\n -> (show n, HSDialogNum (n*2), n*2)) <$> [5 , 10, 25]
 
 
 defMenuState :: MenuState
