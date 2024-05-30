@@ -1,9 +1,8 @@
 module SnakeApp where
 
-import UI.MainMenu
+import UI.MainMenu ( Choice(..), runMainMenu )
 import UI.Gameplay ( gameplay )
-
-import qualified Brick.Main as M
+import UI.HighscoreScreens (highScores)
 
 newtype AppState r =  AppState { runApp :: IO r}
 
@@ -11,6 +10,6 @@ main :: IO ()
 main = do
   choice <- runMainMenu
   case choice of
-    Play -> gameplay
-    HighScores -> return ()
+    Play -> gameplay >> main
+    HighScores -> highScores >> main
     Quit -> return ()

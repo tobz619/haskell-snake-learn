@@ -14,6 +14,9 @@ data GameState = Playing {getWorld :: World}
                | Paused {getWorld :: World}
                | Frozen {getWorld :: World}
                | GameOver {getWorld :: World}
+               | ToMenu
+               | Starting {getWorld :: World}
+               | Restarting
                deriving (Show)
 
 data World = World

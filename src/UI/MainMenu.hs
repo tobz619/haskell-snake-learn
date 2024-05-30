@@ -37,13 +37,13 @@ drawDialogUI d = pure ui
         focus =
             maybe
             emptyWidget
-            (\n -> reportExtent n . (clickable <*> nameWidget) $ n)
+            (\n -> reportExtent n . (clickable <*> widgetTitle) $ n)
             $ D.getDialogFocus d
 
-nameWidget :: Choice -> Widget n
-nameWidget Play = txt "Play the game"
-nameWidget HighScores = txt "View highscores"
-nameWidget Quit = txt "Quit the game"
+widgetTitle :: Choice -> Widget n
+widgetTitle Play = txt "Play the game"
+widgetTitle HighScores = txt "View highscores"
+widgetTitle Quit = txt "Quit the game"
 
 
 appEvent :: T.BrickEvent Choice e -> T.EventM Choice DialogState ()
@@ -75,9 +75,9 @@ initialState = defaultDialogChoice d
 
 theMap :: A.AttrMap
 theMap = A.attrMap V.defAttr
-    [ (D.dialogAttr,    V.white `on` V.black)
+    [ (D.dialogAttr,    fg V.white)
     , (D.buttonAttr,    V.red `on` V.white)
-    , (D.buttonSelectedAttr,      bg V.red  )
+    , (D.buttonSelectedAttr, V.white `on` V.red  )
     ]
 
 mainMenuApp :: M.App DialogState e Choice
