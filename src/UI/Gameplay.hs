@@ -70,7 +70,7 @@ dialogHandler (GameOver _) = Just $ D.dialog (Just (txt "REPLAY GAME?")) (Just (
                   , ("No", No, ToMenu)
                   ]
 
-dialogHandler (Starting w) = Just $ D.dialog (Just (txt "PRESS ENTER TO START")) (Just (Yes, options)) 40
+dialogHandler (Starting w) = Just $ D.dialog (Just (txt "PRESS A DIRECTION OR ENTER TO START THE GAME")) (Just (Yes, options)) 70
   where options = [ ("GO", Yes, Playing w)
                   ]
 
@@ -97,6 +97,11 @@ eventHandler ev = do
     ToMenu -> M.halt
     Frozen _ -> do zoom gameState $ handleGameplayEvent ev
     Playing _ -> do zoom gameState $ handleGameplayEvent ev
+    Starting w -> do
+      dia <- use runDialog
+      case dia of
+        Nothing -> runDialog .= dialogHandler (Starting w)
+        _ -> handleStartGameEvent ev
     p -> do
       dia <- use runDialog
       case dia of
@@ -123,6 +128,14 @@ handleMenuEvent (VtyEvent ev) = do
 
 handleMenuEvent _ = return ()
 
+handleStartGameEvent :: BrickEvent PauseMenuOptions Tick -> EventM PauseMenuOptions GameplayState ()
+handleStartGameEvent ev@(VtyEvent (V.EvKey k _))
+  | k `elem` [V.KUp, V.KDown, V.KLeft, V.KRight] = do
+    handleMenuEvent (VtyEvent (V.EvKey V.KEnter [])) 
+    zoom gameState $ handleGameplayEvent ev
+  | k == V.KEnter = handleMenuEvent ev
+  | otherwise = return ()
+handleStartGameEvent _ = return ()
 
 handleGameplayEvent :: BrickEvent PauseMenuOptions Tick -> EventM PauseMenuOptions GameState ()
 handleGameplayEvent (AppEvent Tick) = modify stepGameState
