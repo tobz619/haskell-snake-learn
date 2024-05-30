@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell, OverloadedStrings #-}
 {-# LANGUAGE BangPatterns #-}
-module UI.HighscoreScreens where
+module UI.HighscoreScreens456 where
 
 import DB.Highscores
 
@@ -34,36 +34,40 @@ import Control.Monad.IO.Class (MonadIO(liftIO))
 
 
 
-data HSPageName = ScoreTable | HSDialogNum Int
+data HSPageName = ScoreTable
   deriving (Show, Eq, Ord)
 
-data Mode = Page | ShowingDialog
+data HSDialogName = HSDialogName | HSDialogNum Int
+  deriving (Show, Eq, Ord)
 
-data MenuState = MenuState { _menuDialog :: Dialog Int HSPageName
+data MenuState = MenuState { _menuDialog :: Dialog Int HSDialogName
                            , _menuChoice :: Int
                            }
 
 data HighScoreState = HighScoreState { _highscores :: ![ScoreField]
                                      , _height :: !Int
-                                     , _selectScore :: MenuState
-                                     , _mode :: Mode
+                                     , _selectScore :: Maybe MenuState
                                      }
 concat <$> mapM makeLenses [''HighScoreState, ''MenuState]
 
 defHeight :: Int
 defHeight = 20
 
+dialogUI :: HighScoreState -> [Widget HSDialogName]
+dialogUI hss = [ mDiaWidget (view selectScore hss)
+               , C.center $ allTable hei HSDialogName (scoresTable HSDialogName scos)]
+         where hei = view height hss
+               scos = view highscores hss
+
 ui :: HighScoreState -> [Widget HSPageName]
-ui hss =  case hss ^. mode of
-          Page -> [C.center $ allTable hei ScoreTable (scoresTable ScoreTable scos)]
-          ShowingDialog -> diaWidget (view selectScore hss) <>
-                           [C.center $ allTable hei ScoreTable (scoresTable ScoreTable scos)]
+ui hss = [C.center $ allTable hei ScoreTable (scoresTable ScoreTable scos)]
 
          where hei = view height hss
                scos = view highscores hss
 
-diaWidget :: MenuState -> [Widget HSPageName]
-diaWidget ((MenuState dia _)) = [D.renderDialog dia emptyWidget]
+mDiaWidget :: Maybe MenuState -> Widget HSDialogName
+mDiaWidget Nothing = emptyWidget
+mDiaWidget (Just (MenuState dia _)) = D.renderDialog dia emptyWidget
 
 scoresTable :: n -> [ScoreField] -> Table n
 scoresTable _ scores =
@@ -90,7 +94,7 @@ allTable h name scoreTab = renderTable
             $ table [ [withAttr headerAttr
                        $ hLimit 40
                        $ txtWrap "               HIGH SCORES"]
-                    , [ setAvailableSize (40, h)
+                    , [ setAvailableSize (40,h)
                         $ viewport name Vertical
                         $ renderTable
                         $ columnBorders False
@@ -105,40 +109,34 @@ formatDbIntToTime posixTime = let
   in Text.pack $ formatTime defaultTimeLocale "%T %u %b" utcTime
 
 inputHandler :: BrickEvent HSPageName e -> EventM HSPageName HighScoreState ()
-inputHandler ev = do
-  !m <- use mode
-  case m of 
-    ShowingDialog -> handleEventDialog ev
-    Page -> handleEventMain ev
-    
+inputHandler (T.VtyEvent (V.EvKey V.KDown  [])) = M.vScrollBy tableVpScroll 2
+inputHandler (T.VtyEvent (V.EvKey V.KUp    [])) = M.vScrollBy tableVpScroll (-2)
+inputHandler (T.VtyEvent (V.EvKey V.KLeft  [])) = M.vScrollBy tableVpScroll . negate =<< use height
+inputHandler (T.VtyEvent (V.EvKey V.KRight [])) = M.vScrollBy tableVpScroll =<< use height
+inputHandler (T.VtyEvent (V.EvKey V.KEsc   [])) = M.halt
 
-handleEventMain :: BrickEvent HSPageName e -> EventM HSPageName HighScoreState ()
-handleEventMain (T.VtyEvent (V.EvKey V.KDown  [])) = M.vScrollBy tableVpScroll 2
-handleEventMain (T.VtyEvent (V.EvKey V.KUp    [])) = M.vScrollBy tableVpScroll (-2)
-handleEventMain (T.VtyEvent (V.EvKey V.KLeft  [])) = M.vScrollBy tableVpScroll . negate =<< use height
-handleEventMain (T.VtyEvent (V.EvKey V.KRight [])) = M.vScrollBy tableVpScroll =<< use height
-handleEventMain (T.VtyEvent (V.EvKey V.KEsc   [])) = M.halt
+inputHandler (T.VtyEvent (V.EvKey (V.KChar 'h') [])) = do
+  selectScore .= Just defMenuState
+  suspendAndResume . defaultMain highScoresSelectApp =<< get
+  selectScore .= Nothing
 
-handleEventMain (T.VtyEvent (V.EvKey (V.KChar 'h') [])) = do
-  mode .= ShowingDialog
-  selectScore .= defMenuState
-
-handleEventMain _ = return ()
+inputHandler _ = return ()
 
 
-handleEventDialog :: BrickEvent HSPageName e -> EventM HSPageName HighScoreState ()
-handleEventDialog (T.VtyEvent (V.EvKey V.KEnter [])) = do
-  d <- fromMaybe defDialog . preview (selectScore . menuDialog) <$> get
+dialogHandler :: BrickEvent HSDialogName e -> EventM HSDialogName HighScoreState ()
+dialogHandler (T.VtyEvent (V.EvKey V.KEnter [])) = do
+  d <- fromMaybe defDialog . preview (selectScore . _Just . menuDialog) <$> get
   height  .= (maybe defHeight snd . D.dialogSelection $ d)
-  mode .= Page
+  M.halt
 
 
-handleEventDialog (T.VtyEvent (V.EvKey V.KEsc [])) = do
-  mode .= Page
+dialogHandler (T.VtyEvent (V.EvKey V.KEsc [])) = do
+  selectScore .= Nothing 
+  M.halt
 
-handleEventDialog (T.VtyEvent ev) = zoom (selectScore . menuDialog) $ D.handleDialogEvent ev
+dialogHandler (T.VtyEvent ev) = zoom (selectScore . _Just . menuDialog) $ D.handleDialogEvent ev
 
-handleEventDialog _ = return ()
+dialogHandler _ = return ()
 
 theMap :: AttrMap
 theMap = A.attrMap V.defAttr
@@ -163,8 +161,16 @@ highScoresApp = M.App { M.appDraw = ui
                         , M.appAttrMap = const theMap
                         }
 
+highScoresSelectApp :: App HighScoreState e HSDialogName
+highScoresSelectApp = M.App { M.appDraw = dialogUI
+                            , M.appChooseCursor = M.neverShowCursor
+                            , M.appHandleEvent = dialogHandler
+                            , M.appStartEvent = return ()
+                            , M.appAttrMap = const theMap
+                            }
 
-defDialog :: Dialog Int HSPageName
+
+defDialog :: Dialog Int HSDialogName
 defDialog = D.dialog (Just $ txt "How many scores to show per page?")
                    (Just (HSDialogNum 10, options))
                    125
@@ -182,5 +188,5 @@ highScores :: IO ()
 highScores = do
   db <- openDatabase "highscores.db"
   scores <- getScores db
-  _ <- defaultMain highScoresApp (HighScoreState scores defHeight defMenuState Page)
+  _ <- defaultMain highScoresApp (HighScoreState scores defHeight Nothing)
   return ()

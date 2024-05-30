@@ -77,7 +77,7 @@ theMap :: A.AttrMap
 theMap = A.attrMap V.defAttr
     [ (D.dialogAttr,    fg V.white)
     , (D.buttonAttr,    V.red `on` V.white)
-    , (D.buttonSelectedAttr,      bg V.red  )
+    , (D.buttonSelectedAttr, V.white `on` V.red  )
     ]
 
 mainMenuApp :: M.App DialogState e Choice

@@ -12,6 +12,6 @@ main :: IO ()
 main = do
   choice <- runMainMenu
   case choice of
-    Play -> gameplay
-    HighScores -> highScores
+    Play -> gameplay >> main
+    HighScores -> highScores >> main
     Quit -> return ()

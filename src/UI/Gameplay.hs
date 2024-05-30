@@ -1,41 +1,81 @@
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE RecordWildCards, OverloadedStrings #-}
 module UI.Gameplay where
+
+import Linear.V2 (V2(..))
+
+import Lens.Micro
+import Lens.Micro.TH
+import Lens.Micro.Mtl
 
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Concurrent
 import Data.Maybe
+import Data.Text (Text)
+import qualified Data.Text as Text
 
 import GameLogic
 
 import Brick
+import qualified Brick.Main as M
 import Brick.BChan
 import qualified Brick.Widgets.Border as B
 import qualified Brick.Widgets.Border.Style as BS
 import qualified Brick.Widgets.Center as C
+import Brick.Widgets.Dialog(Dialog)
+import qualified Brick.Widgets.Dialog as D
 import qualified Graphics.Vty.CrossPlatform as V
-import Linear.V2 (V2(..))
-import Lens.Micro ((^.))
 import qualified Graphics.Vty as V
-import Lens.Micro.TH (makeLenses)
+
+
 
 -- | Marks passing of time.  
 --   Each delta is fed into the app.
 data Tick = Tick
 
--- | Named resource
-type Name = ()
-
 data Cell = Snake | Food | Empty
 
-gameApp :: App GameState Tick Name
+data PauseMenuOptions = Resume | Restart | Quit | Yes | No
+  deriving (Show, Eq, Ord)
+
+
+data GameplayState = GameplayState { _gameState :: GameState
+                                   , _runDialog :: Maybe (Dialog GameState PauseMenuOptions)
+                                   }
+
+makeLenses ''GameplayState
+
+gameApp :: M.App GameplayState Tick PauseMenuOptions
 gameApp = App { appDraw = drawUI
-          , appChooseCursor = neverShowCursor
-          , appHandleEvent = handleEvent
-          , appStartEvent = return ()
-          , appAttrMap = const theMap
-          }
+              , appChooseCursor = neverShowCursor
+              , appHandleEvent = eventHandler
+              , appStartEvent = return ()
+              , appAttrMap = const theMap
+              }
+
+defState :: GameplayState
+defState = GameplayState Restarting Nothing
+
+
+dialogHandler :: GameState -> Maybe (Dialog GameState PauseMenuOptions)
+dialogHandler (Paused w) = Just $ D.dialog (Just (txt "PAUSE MENU")) (Just (Resume, options)) 40
+  where options = [ ("Resume", Resume, Playing w)
+                  , ("Restart", Restart, Restarting)
+                  , ("Quit", Quit, ToMenu)
+                  ]
+
+dialogHandler (GameOver _) = Just $ D.dialog (Just (txt "REPLAY GAME?")) (Just (Yes, options)) 40
+  where options = [ ("Yes", Yes, Restarting)
+                  , ("No", No, ToMenu)
+                  ]
+
+dialogHandler (Starting w) = Just $ D.dialog (Just (txt "PRESS ENTER TO START")) (Just (Yes, options)) 40
+  where options = [ ("GO", Yes, Playing w)
+                  ]
+
+dialogHandler _ = Nothing
+
 
 gameplay :: IO ()
 gameplay = do
@@ -43,54 +83,91 @@ gameplay = do
   _ <- forkIO $ forever $ do
     writeBChan chan Tick
     threadDelay 100000
-  w <- initWorld defaultHeight defaultWidth
-  -- void $ defaultMain app g
   let initalVty =  V.mkVty V.defaultConfig
   buildVty <- initalVty
-  void $ customMain buildVty initalVty (Just chan) gameApp (Paused w)
+  void $ customMain buildVty initalVty (Just chan) gameApp defState
 
-handleEvent :: BrickEvent Name Tick
-            -> EventM Name GameState ()
-handleEvent (AppEvent Tick) = modify stepGameState
-handleEvent (VtyEvent (V.EvKey V.KUp [])) = modify (chDir U)
-handleEvent (VtyEvent (V.EvKey V.KDown [])) = modify (chDir D)
-handleEvent (VtyEvent (V.EvKey V.KLeft [])) = modify (chDir L)
-handleEvent (VtyEvent (V.EvKey V.KRight [])) = modify (chDir R)
-handleEvent (VtyEvent (V.EvKey (V.KChar 'q') [])) = halt
-handleEvent (VtyEvent (V.EvKey (V.KChar 'p') [])) = modify pauseToggle
-handleEvent (VtyEvent (V.EvKey V.KEsc [])) = halt
-handleEvent _ = pure ()
+eventHandler :: BrickEvent PauseMenuOptions Tick -> EventM PauseMenuOptions GameplayState ()
+eventHandler (VtyEvent (V.EvKey (V.KChar 'c') [V.MCtrl])) = M.halt
+eventHandler ev = do
+  gs <- use gameState
+  case gs of
+    Restarting -> do w <- liftIO $ initWorld defaultHeight defaultWidth
+                     gameState .= Starting w 
+    ToMenu -> M.halt
+    Frozen _ -> do zoom gameState $ handleGameplayEvent ev
+    Playing _ -> do zoom gameState $ handleGameplayEvent ev
+    p -> do
+      dia <- use runDialog
+      case dia of
+        Nothing -> runDialog .= dialogHandler p
+        _ -> handleMenuEvent ev
+
+handleMenuEvent :: BrickEvent PauseMenuOptions Tick -> EventM PauseMenuOptions GameplayState ()
+handleMenuEvent (VtyEvent (V.EvKey V.KEsc [])) = do
+  gs <- use gameState
+  case gs of
+    Paused w -> gameState .= Playing w
+    _ -> return ()
+
+handleMenuEvent (VtyEvent (V.EvKey V.KEnter [])) = do
+  gs <- use gameState
+  dia <- use runDialog
+  case dia of
+    Nothing -> return ()
+    Just d -> do gameState .=  maybe gs snd (D.dialogSelection d)
+  runDialog .= Nothing
+
+handleMenuEvent (VtyEvent ev) = do
+  zoom (runDialog ._Just) $ D.handleDialogEvent ev
+
+handleMenuEvent _ = return ()
 
 
-drawUI :: GameState -> [Widget Name]
-drawUI (GameOver gs) = [C.hCenterLayer (padRight (Pad 2) (drawStats gs) <=> str "GAME OVER")
+handleGameplayEvent :: BrickEvent PauseMenuOptions Tick -> EventM PauseMenuOptions GameState ()
+handleGameplayEvent (AppEvent Tick) = modify stepGameState
+handleGameplayEvent (VtyEvent (V.EvKey V.KUp [])) = modify (chDir U)
+handleGameplayEvent (VtyEvent (V.EvKey V.KDown [])) = modify (chDir D)
+handleGameplayEvent (VtyEvent (V.EvKey V.KLeft [])) = modify (chDir L)
+handleGameplayEvent (VtyEvent (V.EvKey V.KRight [])) = modify (chDir R)
+handleGameplayEvent (VtyEvent (V.EvKey (V.KChar 'p') [])) = do modify pauseToggle
+handleGameplayEvent _ = pure ()
+
+
+drawUI :: GameplayState -> [Widget PauseMenuOptions]
+drawUI gps = dia <> drawGS gs
+          where gs = gps ^. gameState
+                dia = maybe [] (pure . (`D.renderDialog` emptyWidget)) (gps ^. runDialog)
+
+
+drawGS :: GameState -> [Widget PauseMenuOptions]
+drawGS Restarting = [emptyWidget]
+drawGS ToMenu = [emptyWidget]
+drawGS (GameOver gs) = [C.hCenterLayer (padRight (Pad 2) (drawStats gs) <=> withAttr gameOverAttr (txt "GAME OVER"))
                        <+> drawGrid gs
                      ]
-drawUI (Paused gs) = [C.hCenterLayer (padRight (Pad 2) (drawStats gs) <=> str "PAUSED")
+drawGS (Paused gs) = [ vLimit defaultHeight $ C.centerLayer (padLeft (Pad 12) $ txt "PAUSED")
+                     , C.hCenterLayer (padRight (Pad 2) (drawStats gs))
                        <+> drawGrid gs
                      ]
-drawUI gs = [C.hCenter $ padRight (Pad 2) (drawStats (getWorld gs)) <+> drawGrid (getWorld gs)]
+drawGS gs = [C.hCenter $ padRight (Pad 2) (drawStats (getWorld gs)) <+> drawGrid (getWorld gs)]
 
-drawStats :: World -> Widget Name
+drawStats :: World -> Widget PauseMenuOptions
 drawStats w = hLimit 11 $
                         vBox [ drawScore $ score w
                         ]
 
-drawScore :: Int -> Widget Name
+drawScore :: Int -> Widget PauseMenuOptions
 drawScore n = withBorderStyle BS.unicodeBold
-  $ B.borderWithLabel (str "Score")
+  $ B.borderWithLabel (txt "Score")
   $ C.hCenter
   $ padAll 1
-  $ str $ show n
+  $ txt $ Text.pack $ show n
 
--- drawGameOver :: GameState -> Widget Name
--- drawGameOver st = case st of
---                   GameOver -> withAttr gameOverAttr $ C.hCenter $ str "GameState OVER"
---                   _ -> emptyWidget
 
-drawGrid :: World -> Widget Name
+drawGrid :: World -> Widget PauseMenuOptions
 drawGrid  World{..} = withBorderStyle BS.unicodeBold
-  $ B.borderWithLabel (str "Tobz-Snek")
+  $ B.borderWithLabel (txt "Tobz-Snek")
   $ vBox rows
   where rows = [hBox $ cellsInRow r | r <- [defaultHeight-1, defaultHeight-2 .. 0]]
         cellsInRow y = [drawCoord (V2 x y) | x <- [0 .. defaultWidth-1]]
@@ -100,7 +177,7 @@ drawGrid  World{..} = withBorderStyle BS.unicodeBold
           | c == food = Food
           | otherwise = Empty
 
-drawCell :: Cell -> Widget Name
+drawCell :: Cell -> Widget PauseMenuOptions
 drawCell Snake = withAttr snakeAttr cw
 drawCell Food  = withAttr foodAttr cw
 drawCell Empty = withAttr emptyAttr cw
@@ -111,12 +188,15 @@ foodAttr  = attrName "foodAttr"
 emptyAttr = attrName "emptyAttr"
 gameOverAttr = attrName "gameOver"
 
-cw :: Widget Name
-cw = str "  "
+cw :: Widget PauseMenuOptions
+cw = txt "  "
 
 theMap :: AttrMap
 theMap = attrMap V.defAttr
   [ (snakeAttr, V.white `on` V.white)
   , (foodAttr, V.red `on` V.red)
   , (gameOverAttr, fg V.red `V.withStyle` V.bold)
+  , (D.buttonSelectedAttr, V.white `on` V.red)
+  , (D.buttonAttr, V.red `on` V.white)
+  , (D.dialogAttr, fg V.white)
   ]
