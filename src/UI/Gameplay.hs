@@ -34,7 +34,11 @@ import qualified Graphics.Vty as V
 --   Each delta is fed into the app.
 data Tick = Tick
 
+-- | The type of the cell
 data Cell = Snake | Food | Empty
+
+-- | The mode to of the page to activate different dialogs
+data Mode = Game | NewHighScore | Menu
 
 data PauseMenuOptions = Resume | Restart | Quit | Yes | No
   deriving (Show, Eq, Ord)
@@ -56,7 +60,6 @@ gameApp = App { appDraw = drawUI
 
 defState :: GameplayState
 defState = GameplayState Restarting Nothing
-
 
 dialogHandler :: GameState -> Maybe (Dialog GameState PauseMenuOptions)
 dialogHandler (Paused w) = Just $ D.dialog (Just (txt "PAUSE MENU")) (Just (Resume, options)) 40
@@ -167,8 +170,8 @@ drawGS gs = [C.hCenter $ padRight (Pad 2) (drawStats (getWorld gs)) <+> drawGrid
 
 drawStats :: World -> Widget PauseMenuOptions
 drawStats w = hLimit 11 $
-                        vBox [ drawScore $ score w
-                        ]
+                vBox [ drawScore $ score w
+                     ]
 
 drawScore :: Int -> Widget PauseMenuOptions
 drawScore n = withBorderStyle BS.unicodeBold
