@@ -16,6 +16,7 @@ import Data.Text (Text)
 import qualified Data.Text as Text
 
 import GameLogic
+import DB.Highscores (promptAddHighScore, openDatabase, Name)
 
 import Brick
 import qualified Brick.Main as M
@@ -25,6 +26,9 @@ import qualified Brick.Widgets.Border.Style as BS
 import qualified Brick.Widgets.Center as C
 import Brick.Widgets.Dialog(Dialog)
 import qualified Brick.Widgets.Dialog as D
+import Brick.Forms (Form, (@@=))
+import qualified Brick.Forms as F
+
 import qualified Graphics.Vty.CrossPlatform as V
 import qualified Graphics.Vty as V
 
@@ -38,7 +42,7 @@ data Tick = Tick
 data Cell = Snake | Food | Empty
 
 -- | The mode to of the page to activate different dialogs
-data Mode = Game | NewHighScore | Menu
+data Mode = Game | Menu
 
 data PauseMenuOptions = Resume | Restart | Quit | Yes | No
   deriving (Show, Eq, Ord)
@@ -46,9 +50,15 @@ data PauseMenuOptions = Resume | Restart | Quit | Yes | No
 
 data GameplayState = GameplayState { _gameState :: GameState
                                    , _runDialog :: Maybe (Dialog GameState PauseMenuOptions)
+                                   , _runForm :: Maybe (Form HighScoreForm Tick Char)
                                    }
 
+data HighScoreForm = HighScoreForm { _cha1 :: Char, _cha2 :: Char, _cha3 :: Char }
+
 makeLenses ''GameplayState
+makeLenses ''HighScoreForm
+
+
 
 gameApp :: M.App GameplayState Tick PauseMenuOptions
 gameApp = App { appDraw = drawUI
@@ -59,7 +69,7 @@ gameApp = App { appDraw = drawUI
               }
 
 defState :: GameplayState
-defState = GameplayState Restarting Nothing
+defState = GameplayState Restarting Nothing Nothing
 
 dialogHandler :: GameState -> Maybe (Dialog GameState PauseMenuOptions)
 dialogHandler (Paused w) = Just $ D.dialog (Just (txt "PAUSE MENU")) (Just (Resume, options)) 40
@@ -68,17 +78,36 @@ dialogHandler (Paused w) = Just $ D.dialog (Just (txt "PAUSE MENU")) (Just (Resu
                   , ("Quit", Quit, ToMenu)
                   ]
 
+dialogHandler (NewHighScorePrompt w) = Just $ D.dialog (Just (txt $ Text.concat [ "NEW HIGH SCORE OF "
+                                                                                , Text.pack . show $ score w
+                                                                                ," ACHIEVED.", " ADD TO LEADERBOARD?"]
+                                                             )
+                                                       )
+                                       (Just (Yes, options))
+                                       120
+  where options = [ ("Yes", Yes, NewHighScorePrompt w)
+                  , ("No", No, GameOver w)
+                  ]
+
 dialogHandler (GameOver _) = Just $ D.dialog (Just (txt "REPLAY GAME?")) (Just (Yes, options)) 40
   where options = [ ("Yes", Yes, Restarting)
                   , ("No", No, ToMenu)
                   ]
 
 dialogHandler (Starting w) = Just $ D.dialog (Just (txt "PRESS A DIRECTION OR ENTER TO START THE GAME")) (Just (Yes, options)) 70
-  where options = [ ("GO", Yes, Playing w)
-                  ]
+  where options = [ ("GO", Yes, Playing w) ]
 
 dialogHandler _ = Nothing
 
+
+highScoreMkForm :: HighScoreForm -> Form HighScoreForm Tick Char
+highScoreMkForm = F.newForm
+  [ label "1" @@= F.radioField cha1 [(c,c, Text.pack [c]) | c <- ['a'..'z']]
+  , label "2" @@= F.radioField cha2 [(c,c, Text.pack [c]) | c <- ['a'..'z']]
+  , label "3" @@= F.radioField cha3 [(c,c, Text.pack [c]) | c <- ['a'..'z']]
+  ]
+  where label s w = padBottom (Pad 1) $
+                      vLimit 1 (hLimit 15 $ str s <+> fill ' ') <+> w
 
 gameplay :: IO ()
 gameplay = do
@@ -96,15 +125,31 @@ eventHandler ev = do
   gs <- use gameState
   case gs of
     Restarting -> do w <- liftIO $ initWorld defaultHeight defaultWidth
-                     gameState .= Starting w 
+                     gameState .= Starting w
     ToMenu -> M.halt
     Frozen _ -> do zoom gameState $ handleGameplayEvent ev
     Playing _ -> do zoom gameState $ handleGameplayEvent ev
+
     Starting w -> do
       dia <- use runDialog
       case dia of
         Nothing -> runDialog .= dialogHandler (Starting w)
         _ -> handleStartGameEvent ev
+
+    NewHighScore w -> do
+      conn <- liftIO $ openDatabase "highscores.db"
+      hs <- liftIO $ promptAddHighScore conn (score w)
+      if hs
+        then gameState .= NewHighScorePrompt w
+        else gameState .= GameOver w
+
+    NewHighScorePrompt w -> do
+      dia <- use runDialog
+      case dia of
+        Nothing -> runDialog .= dialogHandler (NewHighScorePrompt w)
+        _ -> handleMenuEvent ev
+
+
     p -> do
       dia <- use runDialog
       case dia of
@@ -134,7 +179,7 @@ handleMenuEvent _ = return ()
 handleStartGameEvent :: BrickEvent PauseMenuOptions Tick -> EventM PauseMenuOptions GameplayState ()
 handleStartGameEvent ev@(VtyEvent (V.EvKey k _))
   | k `elem` [V.KUp, V.KDown, V.KLeft, V.KRight] = do
-    handleMenuEvent (VtyEvent (V.EvKey V.KEnter [])) 
+    handleMenuEvent (VtyEvent (V.EvKey V.KEnter []))
     zoom gameState $ handleGameplayEvent ev
   | k == V.KEnter = handleMenuEvent ev
   | otherwise = return ()
