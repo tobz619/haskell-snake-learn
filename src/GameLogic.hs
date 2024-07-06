@@ -9,6 +9,8 @@ import System.Random (Random(..), newStdGen)
 import Control.Monad.State
 import Control.Monad.Reader
 import Lens.Micro (over)
+import DB.Highscores (Score)
+import System.IO.Unsafe
 
 data GameState = Playing {getWorld :: World}
                | Paused {getWorld :: World}
@@ -17,6 +19,8 @@ data GameState = Playing {getWorld :: World}
                | ToMenu
                | Starting {getWorld :: World}
                | Restarting
+               | NewHighScore {getWorld :: World}
+               | NewHighScorePrompt {getWorld :: World}
                deriving (Show)
 
 data World = World
@@ -49,13 +53,11 @@ stepGameState (Frozen w) = advanceWorld w
 stepGameState gs = gs
 
 advanceWorld :: World -> GameState
-advanceWorld w@World{..} = do
-  case die w of
+advanceWorld w@World{..} = case die w of
     Playing _ -> let newSnake = if eatFood food snake
                                  then execState nextFood $ 
-                                          w { snake = 
-                                              (moveSnake dir . growSnake) snake,
-                                              score = score + 1
+                                          w { snake = (moveSnake dir . growSnake) snake
+                                            , score = score + 1
                                             }
                                  else w { snake = moveSnake dir snake }
                  in Playing newSnake
@@ -66,7 +68,7 @@ die :: World -> GameState
 die g@World{..} = 
     let outOfBounds ((V2 x y ):<|| _) = or [x <= 0, x >= defaultWidth, y <= 0, y >= defaultHeight]
         illegal (hd :<|| snakeTail)
-          | hd `elem` snakeTail || outOfBounds snake = GameOver g
+          | hd `elem` snakeTail || outOfBounds snake = NewHighScore g
           | otherwise = Playing g
 
   in illegal snake

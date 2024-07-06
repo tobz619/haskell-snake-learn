@@ -14,7 +14,7 @@ type Score = Int
 type Name = Text
 type Time = Int
 
-data ScoreField = ScoreField !Name !Score !Time
+data ScoreField = ScoreField {getScoreFieldName :: !Name, getScoreFieldScore :: !Score, getScoreFieldTime :: !Time}
 
 instance FromRow ScoreField where
   fromRow = ScoreField <$> field <*> field <*> field
@@ -31,7 +31,7 @@ instance Ord ScoreField  where
   (ScoreField _ s d) <= (ScoreField _ s' d') = s <= s' && d < d'
 
 maxDbSize :: Int
-maxDbSize = 100
+maxDbSize = 200
 
 openDatabase :: String -> IO Connection
 openDatabase path = do
@@ -66,15 +66,19 @@ addScore conn name score time = do
   execute conn addQuery (T.toUpper . T.take 3 $ name, score, time)
   pure $ ScoreField name score time
 
-lowestScoreFromScoreList :: [ScoreField] -> Maybe ScoreField
-lowestScoreFromScoreList scores = NE.last <$> nonEmpty scores
+lowestScoreFromScoreList :: [ScoreField] -> Maybe Int
+{- | Gets the maxDbSize'th score from the array of scores. If there is no score, then we return nothing.
+     Otherwise, return the score, wrapped in a Just.
+-}
+lowestScoreFromScoreList scores = 
+  case NE.drop (maxDbSize - 1) <$> nonEmpty scores of
+    Nothing -> Nothing
+    Just xs -> getScoreFieldScore. NE.head <$> nonEmpty xs
 
-promptAddHighScore :: Connection -> ScoreField -> IO Bool
+promptAddHighScore :: Connection -> Score -> IO Bool
 promptAddHighScore conn s = do
   scores <- getScores conn
-  if length scores < maxDbSize
-    then return True
-    else case lowestScoreFromScoreList scores of
+  case lowestScoreFromScoreList scores of
             Nothing -> return True
             Just s' -> return (s > s')
 
