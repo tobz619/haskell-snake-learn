@@ -11,6 +11,7 @@ import Control.Monad.Reader
 import Lens.Micro (over)
 import DB.Highscores (Score)
 import System.IO.Unsafe
+import Database.SQLite.Simple (Connection)
 
 data GameState = Playing {getWorld :: World}
                | Paused {getWorld :: World}
@@ -20,8 +21,7 @@ data GameState = Playing {getWorld :: World}
                | Starting {getWorld :: World}
                | Restarting
                | NewHighScore {getWorld :: World}
-               | NewHighScorePrompt {getWorld :: World}
-               deriving (Show)
+               | NewHighScorePrompt { getWorld :: World, getConnect :: Connection }
 
 data World = World
   {

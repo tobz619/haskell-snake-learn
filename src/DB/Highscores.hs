@@ -61,10 +61,9 @@ debugPrintScores conn = do
     putStrLn $ show (n :: Name) <>
       " " <> show (s :: Int) <> " " <> show (d :: Int)
 
-addScore :: Connection -> Name -> Score -> Time -> IO ScoreField
+addScore :: Connection -> Name -> Score -> Time -> IO ()
 addScore conn name score time = do 
   execute conn addQuery (T.toUpper . T.take 3 $ name, score, time)
-  pure $ ScoreField name score time
 
 lowestScoreFromScoreList :: [ScoreField] -> Maybe Int
 {- | Gets the maxDbSize'th score from the array of scores. If there is no score, then we return nothing.
