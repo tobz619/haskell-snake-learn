@@ -35,7 +35,6 @@ import qualified Graphics.Vty.CrossPlatform as V
 import qualified Graphics.Vty as V
 import GHC.IO (unsafePerformIO)
 import Control.Monad.State (evalStateT, evalState)
-import Control.Monad.State.Strict (modify')
 import Database.SQLite.Simple (Connection)
 import Data.Time.Clock.POSIX (getPOSIXTime)
 
@@ -73,7 +72,7 @@ gameplay = do
   chan <- newBChan 10
   _ <- forkIO $ forever $ do
     writeBChan chan Tick
-    threadDelay 100000
+    threadDelay 100000 -- 10 ticks per second
   let initalVty =  V.mkVty V.defaultConfig
   buildVty <- initalVty
   void $ customMain buildVty initalVty (Just chan) gameApp defState
@@ -121,12 +120,12 @@ highScoreAskDialog w = D.dialog (Just (txt $ Text.concat [ "NEW HIGH SCORE OF "
 
 highScoreMkForm :: Form HighScoreForm () MenuOptions
 highScoreMkForm = F.setFormConcat hBox $ F.newForm
-  [ label "CHA1: " @@= F.listField fieldy cha1 listDrawElement 2 (OpChar 1)
-  , label "CHA2: " @@= F.listField fieldy cha2 listDrawElement 2 (OpChar 2)
-  , label "CHA3: " @@= F.listField fieldy cha3 listDrawElement 2 (OpChar 3)
+  [ label "CHA1: " @@= F.listField fieldy cha1 listDrawElement 1 (OpChar 1)
+  , label "CHA2: " @@= F.listField fieldy cha2 listDrawElement 1 (OpChar 2)
+  , label "CHA3: " @@= F.listField fieldy cha3 listDrawElement 1 (OpChar 3)
   ] (HighScoreForm (Just 'A') (Just 'A') (Just 'A'))
-  where label s w = C.centerLayer $ hLimit 14 $ padLeftRight 1 $ padTopBottom 3 $
-                      txt s <=> fill ' ' <+> vLimit 3 w
+  where label s w = hLimit 10 $ padLeftRight 1 $ padTopBottom 3 $
+                      txt s <+> fill ' ' <+> vLimit 3 w
         fieldy = const $ Vector.iterateN 26 succ 'A'
         listDrawElement sel a =
           let selStr s = if sel
@@ -222,10 +221,10 @@ handleMenuEvent _ = return ()
 
 
 handleStartGameEvent :: BrickEvent MenuOptions Tick -> EventM MenuOptions GameplayState ()
-handleStartGameEvent ev@(VtyEvent (V.EvKey k _))
+handleStartGameEvent ev@(VtyEvent (V.EvKey k _)) -- Start the game and move the Snake in the desired direction.
   | k `elem` [V.KUp, V.KDown, V.KLeft, V.KRight] =
     do handleMenuEvent (VtyEvent (V.EvKey V.KEnter []))
-       zoom gameState $ handleGameplayEvent ev
+       zoom gameState $ handleGameplayEvent ev 
 
   | k == V.KEnter = handleMenuEvent ev
   | otherwise = return ()
@@ -242,24 +241,24 @@ handleGameplayEvent _ = pure ()
 
 
 drawUI :: GameplayState -> [Widget MenuOptions]
-drawUI gps = gpdia <> hsdia <> form <> drawGS gs
+drawUI gps = gpdia <> hsdia <> form <> (C.centerLayer <$> drawGS gs)
           where gs = gps ^. gameState
-                gpdia = maybe [] (pure . (`D.renderDialog` emptyWidget)) (gps ^. gameStateDialog)
-                hsdia = maybe [] (pure . (`D.renderDialog` emptyWidget)) (gps ^. highScoreDialogs. hsDialog)
-                form = maybe [] (pure . F.renderForm) (gps ^. highScoreDialogs . hsForm)
+                gpdia = maybe [] (pure . C.centerLayer . (`D.renderDialog` emptyWidget)) (gps ^. gameStateDialog)
+                hsdia = maybe [] (pure . C.centerLayer . (`D.renderDialog` emptyWidget)) (gps ^. highScoreDialogs. hsDialog)
+                form = maybe [] (pure . C.center . F.renderForm) (gps ^. highScoreDialogs . hsForm)
 
 
 drawGS :: GameState -> [Widget MenuOptions]
 drawGS Restarting = [emptyWidget]
 drawGS ToMenu = [emptyWidget]
-drawGS (GameOver gs) = [C.centerLayer (padRight (Pad 2) (drawStats gs) <=> withAttr gameOverAttr (txt "GAME OVER"))
+drawGS (GameOver gs) = [padRight (Pad 2) (drawStats gs) <=> withAttr gameOverAttr (txt "GAME OVER")
                        <+> drawGrid gs
                      ]
 drawGS (Paused gs) = [ vLimit defaultHeight $ C.centerLayer (padLeft (Pad 12) $ txt "PAUSED")
-                     , C.centerLayer (padRight (Pad 2) (drawStats gs))
+                     , padRight (Pad 2) (drawStats gs)
                        <+> drawGrid gs
                      ]
-drawGS gs = [C.center $ padRight (Pad 2) (drawStats (getWorld gs)) <+> drawGrid (getWorld gs)]
+drawGS gs = [padRight (Pad 2) (drawStats (getWorld gs)) <+> drawGrid (getWorld gs)]
 
 drawStats :: World -> Widget MenuOptions
 drawStats w = hLimit 11 $
@@ -287,9 +286,9 @@ drawGrid  World{..} = withBorderStyle BS.unicodeBold
           | otherwise = Empty
 
 drawCell :: Cell -> Widget MenuOptions
-drawCell Snake = withAttr snakeAttr cw
-drawCell Food  = withAttr foodAttr cw
-drawCell Empty = withAttr emptyAttr cw
+drawCell Snake = withAttr snakeAttr cell
+drawCell Food  = withAttr foodAttr cell
+drawCell Empty = withAttr emptyAttr cell
 
 snakeAttr, foodAttr, emptyAttr, gameOverAttr :: AttrName
 snakeAttr = attrName "snakeAttr"
@@ -297,8 +296,8 @@ foodAttr  = attrName "foodAttr"
 emptyAttr = attrName "emptyAttr"
 gameOverAttr = attrName "gameOver"
 
-cw :: Widget MenuOptions
-cw = txt "  "
+cell :: Widget MenuOptions
+cell = txt "  "
 
 theMap :: AttrMap
 theMap = attrMap V.defAttr

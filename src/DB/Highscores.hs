@@ -66,7 +66,7 @@ addScore conn name score time = do
   execute conn addQuery (T.toUpper . T.take 3 $ name, score, time)
 
 lowestScoreFromScoreList :: [ScoreField] -> Maybe Int
-{- | Gets the maxDbSize'th score from the array of scores. If there is no score, then we return nothing.
+{- | Gets the maxDbSize'th score from the array of scores. If there is no score, then we return Nothing.
      Otherwise, return the score, wrapped in a Just.
 -}
 lowestScoreFromScoreList scores = 
@@ -78,7 +78,7 @@ promptAddHighScore :: Connection -> Score -> IO Bool
 promptAddHighScore conn s = do
   scores <- getScores conn
   case lowestScoreFromScoreList scores of
-            Nothing -> return True
+            Nothing -> return (s > 0) -- Don't add 0 scores
             Just s' -> return (s > s')
 
 pruneAfterDbSize :: Connection -> IO ()
