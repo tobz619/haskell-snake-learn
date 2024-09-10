@@ -58,15 +58,14 @@ appEvent (T.VtyEvent e) =
 
         V.EvKey V.KEsc [] -> M.halt
 
+        V.EvKey (V.KChar 'c') [V.MCtrl] -> M.halt
+
         ev -> zoom dialog $ D.handleDialogEvent ev
 
 appEvent _ = return ()
 
-defaultDialogChoice :: Dialog Choice Choice -> DialogState
-defaultDialogChoice d = DialogState d Nothing
-
 initialState :: DialogState
-initialState = defaultDialogChoice d
+initialState = DialogState d Nothing
     where d = D.dialog (Just $ txt " Main Menu ") (Just (Play, options)) 125
           options = [ ("play", Play, Play)
                     , ("high scores", HighScores, HighScores)

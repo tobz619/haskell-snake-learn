@@ -21,7 +21,7 @@ data GameState = Playing {getWorld :: World}
                | Starting {getWorld :: World}
                | Restarting
                | NewHighScore {getWorld :: World}
-               | NewHighScorePrompt { getWorld :: World, getConnect :: Connection }
+               | NewHighScorePrompt { getWorld :: World, getConn :: Connection }
 
 data World = World
   {
