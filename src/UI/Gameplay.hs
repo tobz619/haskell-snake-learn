@@ -12,8 +12,6 @@ import Lens.Micro.Mtl
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Concurrent
-import Data.Maybe
-import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Vector as Vector
 
@@ -21,22 +19,23 @@ import GameLogic
 import DB.Highscores as DBHS (promptAddHighScore, openDatabase, Name, addScore)
 
 import Brick
+import Brick.BChan ( newBChan, writeBChan )
+import Brick.Focus (FocusRing, focusGetCurrent, focusRingCursor)
 import qualified Brick.Main as M
-import Brick.BChan
 import qualified Brick.Widgets.Border as B
 import qualified Brick.Widgets.Border.Style as BS
 import qualified Brick.Widgets.Center as C
 import Brick.Widgets.Dialog(Dialog)
 import qualified Brick.Widgets.Dialog as D
+import qualified Brick.Widgets.List as L
 import Brick.Forms (Form, (@@=))
 import qualified Brick.Forms as F
 
 import qualified Graphics.Vty.CrossPlatform as V
 import qualified Graphics.Vty as V
-import GHC.IO (unsafePerformIO)
-import Control.Monad.State (evalStateT, evalState)
 import Database.SQLite.Simple (Connection)
 import Data.Time.Clock.POSIX (getPOSIXTime)
+import Data.Maybe (fromMaybe)
 
 
 
@@ -79,11 +78,12 @@ gameplay = do
 
 gameApp :: M.App GameplayState Tick MenuOptions
 gameApp = App { appDraw = drawUI
-              , appChooseCursor = neverShowCursor
+              , appChooseCursor = focusRingCursor F.formFocus . fromMaybe highScoreMkForm . _hsForm . _highScoreDialogs
               , appHandleEvent = eventHandler
               , appStartEvent = return ()
               , appAttrMap = const theMap
               }
+
 
 defState :: GameplayState
 defState = GameplayState Restarting Nothing (HighScoreFormState Nothing Nothing)
@@ -118,20 +118,17 @@ highScoreAskDialog w = D.dialog (Just (txt $ Text.concat [ "NEW HIGH SCORE OF "
                   , ("No", No, HighScoreFormState Nothing Nothing)
                   ]
 
+
+-- | Creates the form for the high score entry
 highScoreMkForm :: Form HighScoreForm () MenuOptions
 highScoreMkForm = F.setFormConcat hBox $ F.newForm
-  [ label "CHA1: " @@= F.listField fieldy cha1 listDrawElement 1 (OpChar 1)
-  , label "CHA2: " @@= F.listField fieldy cha2 listDrawElement 1 (OpChar 2)
-  , label "CHA3: " @@= F.listField fieldy cha3 listDrawElement 1 (OpChar 3)
+  [ setup @@= F.listField fieldy cha1 listDrawElement 1 (OpChar 1)
+  , setup @@= F.listField fieldy cha2 listDrawElement 1 (OpChar 2)
+  , setup @@= F.listField fieldy cha3 listDrawElement 1 (OpChar 3)
   ] (HighScoreForm (Just 'A') (Just 'A') (Just 'A'))
-  where label s w = hLimit 10 $ padLeftRight 1 $ padTopBottom 3 $
-                      txt s <+> fill ' ' <+> vLimit 3 w
+  where setup w = hLimit 8 $ padLeftRight 2 $ vLimit 1 w
         fieldy = const $ Vector.iterateN 26 succ 'A'
-        listDrawElement sel a =
-          let selStr s = if sel
-                          then withAttr D.buttonSelectedAttr (txt $ Text.singleton s)
-                          else withAttr D.buttonAttr $ txt $ Text.singleton s
-           in selStr a
+        listDrawElement _ a = txt $ Text.singleton a
 
 eventHandler :: BrickEvent MenuOptions Tick -> EventM MenuOptions GameplayState ()
 eventHandler (VtyEvent (V.EvKey (V.KChar 'c') [V.MCtrl])) = M.halt
@@ -192,13 +189,13 @@ handleHighScorePromptEvent (VtyEvent (V.EvKey V.KEnter [])) conn w time = do
 handleHighScorePromptEvent (VtyEvent ev) _ _ _ = do
   st <- get
   case st of
-    HighScoreFormState (Just _) Nothing -> zoom (hsDialog ._Just) $ D.handleDialogEvent ev
-    HighScoreFormState Nothing (Just _) -> zoom (hsForm ._Just) $ F.handleFormEvent (VtyEvent ev)
+    HighScoreFormState (Just _) Nothing -> zoom (hsDialog . _Just) $ D.handleDialogEvent ev
+    HighScoreFormState Nothing (Just _) -> zoom (hsForm . _Just) $ F.handleFormEvent (VtyEvent ev)
     _ -> return ()
 
-handleHighScorePromptEvent _ _ _ _= return ()
+handleHighScorePromptEvent _ _ _ _ = return ()
 
-
+-- | Handles controls for most dialogue menus
 handleMenuEvent :: BrickEvent MenuOptions Tick -> EventM MenuOptions GameplayState ()
 handleMenuEvent (VtyEvent (V.EvKey V.KEsc [])) = do
   gs <- use gameState
@@ -219,7 +216,7 @@ handleMenuEvent (VtyEvent ev) = do
 
 handleMenuEvent _ = return ()
 
-
+-- | Starts the game in the direction the user specifies
 handleStartGameEvent :: BrickEvent MenuOptions Tick -> EventM MenuOptions GameplayState ()
 handleStartGameEvent ev@(VtyEvent (V.EvKey k _)) -- Start the game and move the Snake in the desired direction.
   | k `elem` [V.KUp, V.KDown, V.KLeft, V.KRight] =
@@ -230,6 +227,7 @@ handleStartGameEvent ev@(VtyEvent (V.EvKey k _)) -- Start the game and move the 
   | otherwise = return ()
 handleStartGameEvent _ = return ()
 
+-- | Controls the game and steps the game forward.
 handleGameplayEvent :: BrickEvent MenuOptions Tick -> EventM MenuOptions GameState ()
 handleGameplayEvent (AppEvent Tick) = modify stepGameState
 handleGameplayEvent (VtyEvent (V.EvKey V.KUp [])) = modify (chDir U)
@@ -239,7 +237,7 @@ handleGameplayEvent (VtyEvent (V.EvKey V.KRight [])) = modify (chDir R)
 handleGameplayEvent (VtyEvent (V.EvKey (V.KChar 'p') [])) = do modify pauseToggle
 handleGameplayEvent _ = pure ()
 
-
+-- | Draws the overall UI of the game
 drawUI :: GameplayState -> [Widget MenuOptions]
 drawUI gps = gpdia <> hsdia <> form <> (C.centerLayer <$> drawGS gs)
           where gs = gps ^. gameState
@@ -248,6 +246,7 @@ drawUI gps = gpdia <> hsdia <> form <> (C.centerLayer <$> drawGS gs)
                 form = maybe [] (pure . C.center . F.renderForm) (gps ^. highScoreDialogs . hsForm)
 
 
+-- | Draws the game depending on the state of the game
 drawGS :: GameState -> [Widget MenuOptions]
 drawGS Restarting = [emptyWidget]
 drawGS ToMenu = [emptyWidget]
@@ -307,4 +306,7 @@ theMap = attrMap V.defAttr
   , (D.buttonSelectedAttr, V.white `on` V.red)
   , (D.buttonAttr, V.red `on` V.white)
   , (D.dialogAttr, fg V.white)
+  , (L.listSelectedFocusedAttr, bg V.green)
+  , (L.listSelectedAttr, bg V.red)
+  -- , (L.listAttr, bg V.blue)
   ]
