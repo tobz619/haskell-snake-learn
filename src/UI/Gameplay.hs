@@ -122,11 +122,11 @@ highScoreAskDialog w = D.dialog (Just (txt $ Text.concat [ "NEW HIGH SCORE OF "
 -- | Creates the form for the high score entry
 highScoreMkForm :: Form HighScoreForm () MenuOptions
 highScoreMkForm = F.setFormConcat hBox $ F.newForm
-  [ setup @@= F.listField fieldy cha1 listDrawElement 1 (OpChar 1)
-  , setup @@= F.listField fieldy cha2 listDrawElement 1 (OpChar 2)
-  , setup @@= F.listField fieldy cha3 listDrawElement 1 (OpChar 3)
+  [ setup "1. " @@= F.listField fieldy cha1 listDrawElement 1 (OpChar 1)
+  , setup "2. " @@= F.listField fieldy cha2 listDrawElement 1 (OpChar 2)
+  , setup "3. " @@= F.listField fieldy cha3 listDrawElement 1 (OpChar 3)
   ] (HighScoreForm (Just 'A') (Just 'A') (Just 'A'))
-  where setup w = hLimit 8 $ padLeftRight 2 $ vLimit 1 w
+  where setup s w = (withAttr L.listAttr $ vLimit 3 $ hLimit 3 $ padBottom Max $ txt s) <+> (hLimit 4 $ vLimit 3 w)
         fieldy = const $ Vector.iterateN 26 succ 'A'
         listDrawElement _ a = txt $ Text.singleton a
 
@@ -306,7 +306,7 @@ theMap = attrMap V.defAttr
   , (D.buttonSelectedAttr, V.white `on` V.red)
   , (D.buttonAttr, V.red `on` V.white)
   , (D.dialogAttr, fg V.white)
-  , (L.listSelectedFocusedAttr, bg V.green)
-  , (L.listSelectedAttr, bg V.red)
-  -- , (L.listAttr, bg V.blue)
+  , (L.listSelectedFocusedAttr, V.white `on` V.red)
+  , (L.listSelectedAttr, V.green `on` V.white)
+  , (L.listAttr, bg V.magenta)
   ]
