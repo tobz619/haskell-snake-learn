@@ -170,7 +170,6 @@ eventHandler ev = do
         Nothing -> gameStateDialog .= dialogHandler p
         _ -> handleMenuEvent ev
 
--- processHighScoreEntry f = undefined
 
 handleHighScorePromptEvent :: BrickEvent MenuOptions Tick -> Connection -> World -> Int -> EventM MenuOptions HighScoreFormState ()
 handleHighScorePromptEvent (VtyEvent (V.EvKey V.KEnter [])) conn w time = do
