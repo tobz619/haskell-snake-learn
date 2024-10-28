@@ -14,29 +14,37 @@ import UI.Gameplay
 
 type TickNumber = Int
 
+data LogAction = MovedUp | MovedDown | MovedLeft | MovedRight 
+  deriving (Show, Eq)
+
+convertToMovement :: EventM n GameState a -> LogAction
+convertToMovement _ = undefined
+
 -- | Pairing of tick events to significant moves
-data GameEvent n a = GameEvent TickNumber (EventM n GameState a)
+data GameEvent = GameEvent TickNumber LogAction
 
-newtype EventHistory n a e = EventHistory (Writer (EventList n a) e)
+type EventHistory e = Writer EventList e
 
-type EventList n a = [GameEvent n a]
-
-newtype GameCounter e = GameCounter (State TickNumber e)
+type EventList = [GameEvent]
 
 -- newtype Event n s a = Event { runEvent :: ReaderT }
 
 data Logger n a es = Logger
-  { log :: Writer (EventList n a) es,
-    events :: Stream (GameEvent n a) es,
+  { log :: Writer EventList es,
+    events :: Stream GameEvent es,
     ticks :: State TickNumber es
   }
 
-appendGameEvent :: [GameEvent n a] -> (TickNumber, EventM n GameState a) -> [GameEvent n a]
+appendGameEvent :: EventList -> (TickNumber, LogAction) -> EventList
 appendGameEvent gs = (: gs) . uncurry GameEvent
 
-incTicks :: (e :> es) => GameCounter e -> Eff es ()
-incTicks (GameCounter st) = modify st (+ 1)
+incTicks :: (e :> es) => State TickNumber e -> Eff es ()
+incTicks st = modify st (+ 1)
 
-addToLog :: (e :> es) => EventHistory n a e -> GameEvent n a -> Eff es ()
-addToLog (EventHistory hist) ev = tell hist (pure ev)
+addToLog :: (e :> es) => Writer EventList e -> GameEvent -> Eff es ()
+addToLog hist ev = tell hist (pure ev)
 
+getEvents = yieldToList $ \s -> do
+  (tick ,action) <- undefined
+  let conv = convertToMovement action
+  yield s (GameEvent tick conv)
