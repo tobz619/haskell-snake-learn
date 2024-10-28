@@ -4,16 +4,19 @@
 
 let
   pname = builtins.baseNameOf (builtins.toString shell-dir);
+  haskell-packages = pkgs.haskellPackages;
 
 in
 
 pkgs.mkShell{
 
+  imports =  [ ./brick-tutorial.nix ];
+
   buildInputs = with pkgs; [
-    cabal-install
-    haskell.packages.ghc96.haskell-language-server
-    cabal2nix
-    stack
+    haskell-packages.cabal-install
+    haskell-packages.haskell-language-server
+    haskell-packages.cabal2nix
+    haskell-packages.stack
   ];
 
   shellHook = '' 

@@ -16,6 +16,7 @@ library
     import:           warnings
     exposed-modules:  SnakeApp, GameLogic, UI.Gameplay, UI.HighscoreScreens, UI.MainMenu, DB.Highscores, Logging.Logger
     build-depends:    base >= 4.10 && < 5,
+                      bluefin,
                       vty,
                       vty-crossplatform,
                       brick,
