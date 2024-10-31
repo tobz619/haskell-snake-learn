@@ -11,6 +11,8 @@ import Bluefin.Writer
 import Brick.Types (EventM)
 import GameLogic (GameState)
 import UI.Gameplay
+import Bluefin.IO (IOE)
+import Unsafe.Coerce (unsafeCoerce)
 
 type TickNumber = Int
 
@@ -27,7 +29,7 @@ type EventHistory e = Writer EventList e
 
 type EventList = [GameEvent]
 
--- newtype Event n s a = Event { runEvent :: ReaderT }
+data Event n s a es = Event (EventM n s a) es
 
 data Logger n a es = Logger
   { log :: Writer EventList es,
@@ -41,10 +43,17 @@ appendGameEvent gs = (: gs) . uncurry GameEvent
 incTicks :: (e :> es) => State TickNumber e -> Eff es ()
 incTicks st = modify st (+ 1)
 
-addToLog :: (e :> es) => Writer EventList e -> GameEvent -> Eff es ()
+addToLog :: (e :> es) => EventHistory e -> GameEvent -> Eff es ()
 addToLog hist ev = tell hist (pure ev)
 
-getEvents = yieldToList $ \s -> do
-  (tick ,action) <- undefined
+getEvents = runEff $ \ioe -> yieldToList $ \s -> do
+  (tick , action) <- undefined
   let conv = convertToMovement action
   yield s (GameEvent tick conv)
+
+eventMtoEvent :: EventM n s a -> Event n s a e
+eventMtoEvent = unsafeCoerce
+
+convertEvent :: Event n s a e -> LogAction
+convertEvent ev = case runEvent ev of
+  undefined -> undefined
