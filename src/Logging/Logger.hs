@@ -3,29 +3,22 @@
 module Logging.Logger where
 
 import Bluefin
-import Bluefin.Compound
-import Bluefin.Eff ( type (:>), Eff, (:&) )
+import Bluefin.Eff (Eff, (:&), type (:>))
 import Bluefin.IO (IOE)
-import Bluefin.Reader ( ask, Reader )
+import Bluefin.Reader (Reader, ask)
 import Bluefin.State
 import Bluefin.Stream
-import Bluefin.Writer ( tell, Writer )
+import Bluefin.Writer (Writer, tell)
+-------------------
+import Brick (BrickEvent (..))
 import qualified Brick.Keybindings as K
-import Brick.Types (BrickEvent (VtyEvent), EventM)
-import Control.Applicative ((<|>))
-import Data.Maybe (fromJust)
-import GameLogic (GameState)
+-------------------
 import Graphics.Vty.CrossPlatform as V ()
 import qualified Graphics.Vty.Input as V
 import Lens.Micro ((^.))
-import UI.Gameplay (GameplayState, tickNo, Tick (..))
+-------------------
+import UI.Gameplay (GameplayState, Tick (..), gameState, tickNo)
 import UI.Keybinds
-  ( KeyEvent,
-    gameplayDispatcher,
-    handleGameplayEvent',
-  )
-import Unsafe.Coerce (unsafeCoerce)
-import Brick (BrickEvent(..))
 
 type TickNumber = Int
 
@@ -38,7 +31,7 @@ type EventList = [GameEvent]
 
 data Logger n a es = Logger
   { log :: Writer EventList es,
-    gameState :: Reader GameplayState es,
+    gState :: Reader GameplayState es,
     tickNum :: State TickNumber es
   }
 
@@ -62,7 +55,6 @@ getKeyEvent (VtyEvent (V.EvKey k mods)) = do
         Nothing -> Nothing
 getKeyEvent _ = Nothing
 
-
 handleMovement :: (e :> es) => BrickEvent n Tick -> Logger n a e -> Eff es ()
 handleMovement ev l@(Logger writ readstate _) = do
   handleTick ev l
@@ -71,8 +63,6 @@ handleMovement ev l@(Logger writ readstate _) = do
       tick = gameplaystate ^. tickNo
   addToLog writ tick logaction
 
-
 handleTick :: (e :> es) => BrickEvent n Tick -> Logger n a e -> Eff es ()
-handleTick (AppEvent Tick) (Logger _ _ tn) = modify tn (+1)
-handleTick _ _ =  pure ()
-
+handleTick (AppEvent Tick) (Logger _ _ tn) = modify tn (+ 1)
+handleTick _ _ = pure ()

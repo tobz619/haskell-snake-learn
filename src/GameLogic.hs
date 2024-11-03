@@ -25,14 +25,6 @@ data GameState
   | NewHighScore {getWorld :: World}
   | NewHighScorePrompt {getWorld :: World, getConn :: Connection}
 
-data World = World
-  { snake :: Snake,
-    dir :: Direction,
-    food :: Coord,
-    foods :: Stream Coord,
-    score :: Int
-  }
-  deriving (Show)
 
 type Coord = V2 Int
 
@@ -43,6 +35,16 @@ data Stream a = a :| Stream a
 
 data Direction = U | D | L | R
   deriving (Eq, Show)
+
+data World = World
+  { snake :: Snake,
+    dir :: Direction,
+    food :: Coord,
+    foods :: Stream Coord,
+    score :: Int
+    }
+  deriving (Show)
+
 
 defaultHeight, defaultWidth :: Int
 defaultHeight = 20
