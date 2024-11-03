@@ -37,7 +37,6 @@ import Lens.Micro
 import Lens.Micro.Mtl
 import Lens.Micro.TH
 import Linear.V2 (V2 (..))
-import System.Exit (exitFailure)
 
 import UI.Keybinds
 
