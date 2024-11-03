@@ -11,7 +11,6 @@ import Brick.BChan (newBChan, writeBChan)
 import Brick.Focus (FocusRing, focusGetCurrent, focusRingCursor)
 import Brick.Forms (Form, (@@=))
 import qualified Brick.Forms as F
-import qualified Brick.Keybindings as K
 import qualified Brick.Main as M
 import qualified Brick.Widgets.Border as B
 import qualified Brick.Widgets.Border.Style as BS
@@ -40,55 +39,11 @@ import Lens.Micro.TH
 import Linear.V2 (V2 (..))
 import System.Exit (exitFailure)
 
+import UI.Keybinds
+
 -- | Marks passing of time.
 --   Each delta is fed into the app.
 data Tick = Tick
-
-data KeyEvent = MoveUp | MoveDown | MoveLeft | MoveRight | Back | Select | Pause | Stop | Halt
-  deriving (Show, Eq, Ord)
-
-allKeyEvents :: K.KeyEvents KeyEvent
-allKeyEvents =
-  K.keyEvents
-    [ ("up", MoveUp),
-      ("down", MoveDown),
-      ("left", MoveLeft),
-      ("right", MoveRight),
-      ("back", Back),
-      ("select", Select),
-      ("pause", Pause),
-      ("halt", Halt)
-    ]
-
-keyBindings :: [(KeyEvent, [K.Binding])]
-keyBindings =
-  [ (MoveUp, [K.bind V.KUp]),
-    (MoveDown, [K.bind V.KDown]),
-    (MoveLeft, [K.bind V.KLeft]),
-    (MoveRight, [K.bind V.KRight]),
-    (Select, [K.bind V.KEnter]),
-    (Back, [K.bind V.KEsc]),
-    (Pause, [K.bind 'p']),
-    (Halt, [K.ctrl 'c'])
-  ]
-
-keyConfig :: [(KeyEvent, K.BindingState)] -> K.KeyConfig KeyEvent
-keyConfig = K.newKeyConfig allKeyEvents keyBindings
-
-dialogDispatcher :: [(KeyEvent, K.BindingState)] -> Either [(K.Binding, [K.KeyHandler KeyEvent (EventM n (Dialog a n))])] (K.KeyDispatcher KeyEvent (EventM n (Dialog a n)))
-dialogDispatcher new = K.keyDispatcher (keyConfig new) [upHandler, downHandler]
-  where
-    upHandler = K.onEvent MoveUp "up" (D.handleDialogEvent (V.EvKey V.KUp []))
-    downHandler = K.onEvent MoveDown "down" (D.handleDialogEvent (V.EvKey V.KDown []))
-
-gameplayDispatcher :: [(KeyEvent, K.BindingState)] -> Either [(K.Binding, [K.KeyHandler KeyEvent (EventM n GameState)])] (K.KeyDispatcher KeyEvent (EventM n GameState))
-gameplayDispatcher new = K.keyDispatcher (keyConfig new) [upHandler, downHandler, leftHandler, rightHandler, pauseHandler]
-  where
-    upHandler = K.onEvent MoveUp "up" (modify (chDir U))
-    downHandler = K.onEvent MoveDown "down" (modify (chDir D))
-    leftHandler = K.onEvent MoveLeft "left" (modify (chDir L))
-    rightHandler = K.onEvent MoveRight "right" (modify (chDir R))
-    pauseHandler = K.onEvent Pause "pause" (modify pauseToggle)
 
 -- | The type of the cell
 data Cell = Snake | Food | Empty
@@ -290,16 +245,6 @@ handleGameplayEvent (VtyEvent (V.EvKey V.KLeft [])) = modify (chDir L)
 handleGameplayEvent (VtyEvent (V.EvKey V.KRight [])) = modify (chDir R)
 handleGameplayEvent (VtyEvent (V.EvKey (V.KChar 'p') [])) = do modify pauseToggle
 handleGameplayEvent _ = pure ()
-
-handleGameplayEvent' :: BrickEvent n1 e -> EventM n2 GameState ()
-handleGameplayEvent' (VtyEvent (V.EvKey k mods)) = do
-  disp <- case gameplayDispatcher [] of
-    Right disp -> return disp
-    Left _ -> undefined
-
-  _ <- K.handleKey disp k mods
-  return ()
-handleGameplayEvent' _ = return ()
 
 -- | Draws the overall UI of the game
 drawUI :: GameplayState -> [Widget MenuOptions]
