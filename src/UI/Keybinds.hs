@@ -9,7 +9,7 @@ import Brick.Widgets.Dialog(Dialog(..))
 import Brick.Widgets.Dialog as D
 import Graphics.Vty as V
 
-data KeyEvent = MoveUp | MoveDown | MoveLeft | MoveRight | Back | Select | Pause | Stop | Halt
+data KeyEvent = MoveUp | MoveDown | MoveLeft | MoveRight | Back | Select | Pause | Stop | Halt 
   deriving (Show, Eq, Ord)
 
 allKeyEvents :: K.KeyEvents KeyEvent
