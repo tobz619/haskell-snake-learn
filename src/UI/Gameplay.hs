@@ -33,12 +33,16 @@ import Database.SQLite.Simple (Connection)
 import GameLogic
 import qualified Graphics.Vty as V
 import qualified Graphics.Vty.CrossPlatform as V
+----------------------
 import Lens.Micro
 import Lens.Micro.Mtl
 import Lens.Micro.TH
+---------------------
 import Linear.V2 (V2 (..))
-
+---------------------
+---------------------
 import UI.Keybinds
+import qualified Brick.Keybindings as K
 
 -- | Marks passing of time.
 --   Each delta is fed into the app.
@@ -54,8 +58,7 @@ data GameplayState = GameplayState
   { _gameState :: GameState,
     _gameStateDialog :: Maybe (Dialog GameState MenuOptions),
     _highScoreDialogs :: HighScoreFormState,
-    _tickNo :: Int,
-    _moveEvent :: Maybe KeyEvent
+    _tickNo :: Int
   }
 
 data HighScoreFormState = HighScoreFormState
@@ -90,7 +93,7 @@ gameApp =
     }
 
 defState :: GameplayState
-defState = GameplayState Restarting Nothing (HighScoreFormState Nothing Nothing) 0 Nothing
+defState = GameplayState Restarting Nothing (HighScoreFormState Nothing Nothing) 0
 
 dialogShower :: GameState -> Maybe (Dialog GameState MenuOptions)
 dialogShower (Paused w) = Just $ D.dialog (Just (txt "PAUSE MENU")) (Just (Resume, options)) 40
@@ -154,10 +157,12 @@ eventHandler ev = do
   case gs of
     Restarting -> do
       w <- liftIO $ initWorld defaultHeight defaultWidth
+      tickNo .= 0 -- Reset the tick number to 0.
       gameState .= Starting w
     ToMenu -> M.halt
-    Frozen _ -> do zoom gameState $ handleGameplayEvent ev
-    Playing _ -> do zoom gameState $ handleGameplayEvent ev
+    Frozen _ -> do zoom gameState $ handleGameplayEvent' ev
+    Playing _ -> do zoom gameState $ handleGameplayEvent' ev
+                    tickNo %= (+1)
     Starting w -> do
       dia <- use gameStateDialog
       case dia of
@@ -206,6 +211,17 @@ handleHighScorePromptEvent (VtyEvent ev) _ _ _ = do
     _ -> return ()
 handleHighScorePromptEvent _ _ _ _ = return ()
 
+-- | Handles changes in Gameplay
+handleGameplayEvent' :: BrickEvent n1 Tick -> EventM n2 GameState ()
+handleGameplayEvent' (AppEvent Tick) = modify stepGameState
+handleGameplayEvent' (VtyEvent (V.EvKey k mods)) = do
+  disp <- case gameplayDispatcher [] of
+    Right disp -> return disp
+    Left _ -> undefined
+  _ <- K.handleKey disp k mods
+  return ()
+handleGameplayEvent' _ = return ()
+
 -- | Handles controls for most dialogue menus
 handleMenuEvent :: BrickEvent MenuOptions Tick -> EventM MenuOptions GameplayState ()
 handleMenuEvent (VtyEvent (V.EvKey V.KEsc [])) = do
@@ -230,7 +246,7 @@ handleStartGameEvent ev@(VtyEvent (V.EvKey k _)) -- Start the game and move the 
   | k `elem` [V.KUp, V.KDown, V.KLeft, V.KRight] =
       do
         handleMenuEvent (VtyEvent (V.EvKey V.KEnter []))
-        zoom gameState $ handleGameplayEvent ev
+        zoom gameState $ handleGameplayEvent' ev
   | k == V.KEnter = handleMenuEvent ev
   | otherwise = return ()
 handleStartGameEvent _ = return ()
@@ -247,7 +263,7 @@ handleGameplayEvent _ = pure ()
 
 -- | Draws the overall UI of the game
 drawUI :: GameplayState -> [Widget MenuOptions]
-drawUI gps = gpdia <> hsdia <> form <> (C.centerLayer <$> drawGS gs)
+drawUI gps = [drawDebug gps] <> gpdia <> hsdia <> form <> (C.centerLayer <$> drawGS gs)
   where
     gs = gps ^. gameState
     gpdia = maybe [] (pure . C.centerLayer . (`D.renderDialog` emptyWidget)) (gps ^. gameStateDialog)
@@ -269,6 +285,9 @@ drawGS (Paused gs) =
       <+> drawGrid gs
   ]
 drawGS gs = [padRight (Pad 2) (drawStats (getWorld gs)) <+> drawGrid (getWorld gs)]
+
+drawDebug :: GameplayState -> Widget n
+drawDebug gps = hLimit 11 $ vBox [ txt $ Text.pack $ show $ gps ^. tickNo ]
 
 drawStats :: World -> Widget MenuOptions
 drawStats w =
