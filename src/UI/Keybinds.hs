@@ -6,10 +6,14 @@ import qualified Brick.Keybindings as K
 import Brick.Types (BrickEvent (..), EventM, modify)
 import Brick.Widgets.Dialog (Dialog (..))
 import Brick.Widgets.Dialog as D
+import Control.Monad ((>=>))
+import Data.Maybe (listToMaybe)
+import qualified Data.Set as Set
+import Data.Text (Text)
 import GameLogic (Direction (..), GameState, chDir, pauseToggle)
 import Graphics.Vty as V
 
-data KeyEvent = MoveUp | MoveDown | MoveLeft | MoveRight | Back | Select | Pause | Stop | Halt
+data KeyEvent = MoveUp | MoveDown | MoveLeft | MoveRight | Back | Select | Pause | Stop | Halt | Quit
   deriving (Show, Eq, Ord)
 
 allKeyEvents :: K.KeyEvents KeyEvent
@@ -34,23 +38,36 @@ keyBindings =
     (Select, [K.bind V.KEnter]),
     (Back, [K.bind V.KEsc]),
     (Pause, [K.bind 'p']),
-    (Halt, [K.ctrl 'c'])
+    (Halt, [K.ctrl 'c']),
+    (Quit, [K.bind 'q'])
   ]
+
+getKey :: K.KeyConfig KeyEvent -> KeyEvent -> Event
+getKey keyConf = maybe (V.EvKey KEsc []) (\(k, mods) -> V.EvKey k (Set.toList mods)) . (K.lookupKeyConfigBindings keyConf >=> handleBindState)
+  where
+    handleBindState K.Unbound = pure (KEsc, Set.empty)
+    handleBindState (K.BindingList xs) = listToMaybe xs >>= \(K.Binding key mods) -> pure (key, mods)
+
+mkHandler :: Text -> (Event -> EventM n s ()) -> K.KeyConfig KeyEvent -> KeyEvent -> K.KeyEventHandler KeyEvent (EventM n s)
+mkHandler name handler keyConf keyEvent = K.onEvent keyEvent name (handler (getKey keyConf keyEvent))
+
+mkGameplayHandlers :: [(KeyEvent, K.BindingState)] -> [(Text, KeyEvent, EventM n s ())] -> [K.KeyEventHandler KeyEvent (EventM n s)]
+mkGameplayHandlers new = map (\(t, kev, f) -> gameplayHandler new t (pure f) kev)
+  where
+    gameplayHandler newConf label f = mkHandler label f (keyConfig newConf)
 
 keyConfig :: [(KeyEvent, K.BindingState)] -> K.KeyConfig KeyEvent
 keyConfig = K.newKeyConfig allKeyEvents keyBindings
 
-dialogDispatcher :: [(KeyEvent, K.BindingState)] -> Either [(K.Binding, [K.KeyHandler KeyEvent (EventM n (Dialog a n))])] (K.KeyDispatcher KeyEvent (EventM n (Dialog a n)))
-dialogDispatcher new = K.keyDispatcher (keyConfig new) [upHandler, downHandler]
-  where
-    upHandler = K.onEvent MoveUp "up" (D.handleDialogEvent (V.EvKey V.KUp []))
-    downHandler = K.onEvent MoveDown "down" (D.handleDialogEvent (V.EvKey V.KDown []))
-
 gameplayDispatcher :: [(KeyEvent, K.BindingState)] -> Either [(K.Binding, [K.KeyHandler KeyEvent (EventM n GameState)])] (K.KeyDispatcher KeyEvent (EventM n GameState))
-gameplayDispatcher new = K.keyDispatcher (keyConfig new) [upHandler, downHandler, leftHandler, rightHandler, pauseHandler]
+gameplayDispatcher new = K.keyDispatcher (keyConfig new) gameplayHandlers
   where
-    upHandler = K.onEvent MoveUp "up" (modify (chDir U))
-    downHandler = K.onEvent MoveDown "down" (modify (chDir D))
-    leftHandler = K.onEvent MoveLeft "left" (modify (chDir L))
-    rightHandler = K.onEvent MoveRight "right" (modify (chDir R))
-    pauseHandler = K.onEvent Pause "pause" (modify pauseToggle)
+    gameplayHandlers =
+      mkGameplayHandlers
+        new
+        [ ("up", MoveUp, modify (chDir U)),
+          ("down", MoveDown, modify (chDir D)),
+          ("left", MoveLeft, modify (chDir L)),
+          ("right", MoveRight, modify (chDir R)),
+          ("pause", Pause, modify pauseToggle)
+        ]

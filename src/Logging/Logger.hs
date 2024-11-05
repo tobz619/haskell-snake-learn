@@ -17,7 +17,7 @@ import Graphics.Vty.CrossPlatform as V ()
 import qualified Graphics.Vty.Input as V
 import Lens.Micro ((^.))
 -------------------
-import UI.Gameplay (GameplayState, Tick (..), gameState, tickNo)
+import UI.Gameplay (GameplayState, Tick (..), tickNo)
 import UI.Keybinds
 
 type TickNumber = Int
@@ -31,8 +31,7 @@ type EventList = [GameEvent]
 
 data Logger n a es = Logger
   { log :: Writer EventList es,
-    gState :: Reader GameplayState es,
-    tickNum :: State TickNumber es
+    gState :: Reader GameplayState es
   }
 
 addToLog :: (e :> es) => EventHistory e -> TickNumber -> Maybe KeyEvent -> Eff es ()
@@ -56,13 +55,8 @@ getKeyEvent (VtyEvent (V.EvKey k mods)) = do
 getKeyEvent _ = Nothing
 
 handleMovement :: (e :> es) => BrickEvent n Tick -> Logger n a e -> Eff es ()
-handleMovement ev l@(Logger writ readstate _) = do
-  handleTick ev l
+handleMovement ev (Logger writ readstate) = do
   gameplaystate <- ask readstate
   let logaction = getKeyEvent ev
       tick = gameplaystate ^. tickNo
   addToLog writ tick logaction
-
-handleTick :: (e :> es) => BrickEvent n Tick -> Logger n a e -> Eff es ()
-handleTick (AppEvent Tick) (Logger _ _ tn) = modify tn (+ 1)
-handleTick _ _ = pure ()
