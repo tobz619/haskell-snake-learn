@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -8,9 +9,10 @@ module UI.Gameplay where
 
 import Brick
 import Brick.BChan (newBChan, writeBChan)
-import Brick.Focus (FocusRing, focusGetCurrent, focusRingCursor)
+import Brick.Focus (focusRingCursor)
 import Brick.Forms (Form, (@@=))
 import qualified Brick.Forms as F
+import qualified Brick.Keybindings as K
 import qualified Brick.Main as M
 import qualified Brick.Widgets.Border as B
 import qualified Brick.Widgets.Border.Style as BS
@@ -18,13 +20,10 @@ import qualified Brick.Widgets.Center as C
 import Brick.Widgets.Dialog (Dialog)
 import qualified Brick.Widgets.Dialog as D
 import qualified Brick.Widgets.List as L
-----------
-import Control.Concurrent
-import Control.Monad
-import Control.Monad.IO.Class
-import DB.Highscores as DBHS (Name, addScore, openDatabase, promptAddHighScore)
--------------
-
+import Control.Concurrent ( forkIO, threadDelay )
+import Control.Monad ( forever, void )
+import Control.Monad.IO.Class ( MonadIO(liftIO) )
+import DB.Highscores as DBHS (addScore, openDatabase, promptAddHighScore)
 import Data.Maybe (fromMaybe)
 import qualified Data.Text as Text
 import Data.Time.Clock.POSIX (getPOSIXTime)
@@ -33,16 +32,11 @@ import Database.SQLite.Simple (Connection)
 import GameLogic
 import qualified Graphics.Vty as V
 import qualified Graphics.Vty.CrossPlatform as V
-----------------------
 import Lens.Micro
 import Lens.Micro.Mtl
-import Lens.Micro.TH
----------------------
+import Lens.Micro.TH ( makeLenses )
 import Linear.V2 (V2 (..))
----------------------
----------------------
-import UI.Keybinds
-import qualified Brick.Keybindings as K
+import UI.Keybinds ( gameplayDispatcher )
 
 -- | Marks passing of time.
 --   Each delta is fed into the app.
@@ -72,12 +66,14 @@ makeLenses ''GameplayState
 makeLenses ''HighScoreForm
 makeLenses ''HighScoreFormState
 
+altConfig = []
+
 gameplay :: IO ()
 gameplay = do
   chan <- newBChan 10
   _ <- forkIO $ forever $ do
     writeBChan chan Tick
-    threadDelay 100000 -- 10 ticks per second
+    threadDelay 1_000_000 -- 10 ticks per second
   let initalVty = V.mkVty V.defaultConfig
   buildVty <- initalVty
   void $ customMain buildVty initalVty (Just chan) gameApp defState
@@ -161,8 +157,9 @@ eventHandler ev = do
       gameState .= Starting w
     ToMenu -> M.halt
     Frozen _ -> do zoom gameState $ handleGameplayEvent' ev
-    Playing _ -> do zoom gameState $ handleGameplayEvent' ev
-                    tickNo %= (+1)
+    Playing _ -> do
+      zoom gameState $ handleGameplayEvent' ev
+      tickNo %= (+ 1)
     Starting w -> do
       dia <- use gameStateDialog
       case dia of
@@ -215,7 +212,7 @@ handleHighScorePromptEvent _ _ _ _ = return ()
 handleGameplayEvent' :: BrickEvent n1 Tick -> EventM n2 GameState ()
 handleGameplayEvent' (AppEvent Tick) = modify stepGameState
 handleGameplayEvent' (VtyEvent (V.EvKey k mods)) = do
-  disp <- case gameplayDispatcher [] of
+  disp <- case gameplayDispatcher altConfig of
     Right disp -> return disp
     Left _ -> undefined
   _ <- K.handleKey disp k mods
@@ -287,7 +284,7 @@ drawGS (Paused gs) =
 drawGS gs = [padRight (Pad 2) (drawStats (getWorld gs)) <+> drawGrid (getWorld gs)]
 
 drawDebug :: GameplayState -> Widget n
-drawDebug gps = hLimit 11 $ vBox [ txt $ Text.pack $ show $ gps ^. tickNo ]
+drawDebug gps = hLimit 11 $ vBox [txt $ Text.pack $ show $ gps ^. tickNo]
 
 drawStats :: World -> Widget MenuOptions
 drawStats w =
