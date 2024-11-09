@@ -1,23 +1,24 @@
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeOperators #-}
 
 module Logging.Logger where
 
 import Bluefin
-import Bluefin.Eff (Eff, (:&), type (:>))
+import Bluefin.Compound (Handle (..), useImplIn)
+import Bluefin.Eff (Eff, runPureEff, (:&), type (:>))
 import Bluefin.IO (IOE)
-import Bluefin.Reader (Reader, ask)
+import Bluefin.Reader (Reader, ask, runReader)
 import Bluefin.State
 import Bluefin.Stream
-import Bluefin.Writer (Writer, tell)
--------------------
+import Bluefin.Writer (Writer, execWriter, runWriter, tell)
 import Brick (BrickEvent (..))
 import qualified Brick.Keybindings as K
--------------------
+import Brick.Types (EventM)
+import GameLogic (GameState)
 import Graphics.Vty.CrossPlatform as V ()
 import qualified Graphics.Vty.Input as V
 import Lens.Micro ((^.))
--------------------
-import UI.Gameplay (GameplayState, Tick (..), tickNo)
+import UI.Gameplay (GameplayState, Tick, tickNo)
 import UI.Keybinds
 
 type TickNumber = Int
@@ -25,22 +26,15 @@ type TickNumber = Int
 -- | Pairing of tick events to significant moves
 data GameEvent = GameEvent TickNumber KeyEvent
 
-type EventHistory e = Writer EventList e
-
 type EventList = [GameEvent]
 
-data Logger n a es = Logger
-  { log :: Writer EventList es,
-    gState :: Reader GameplayState es
+data Logger e = Logger
+  { writeLog :: Writer EventList e,
+    onGameplayState :: Reader GameplayState e
   }
 
-addToLog :: (e :> es) => EventHistory e -> TickNumber -> Maybe KeyEvent -> Eff es ()
-addToLog hist tn (Just ev) = tell hist (pure (GameEvent tn ev))
-addToLog _ _ Nothing = pure ()
-
-getKeyEvent :: BrickEvent n e -> Maybe KeyEvent
-getKeyEvent (VtyEvent (V.EvKey k mods)) = do
-  disp <- case gameplayDispatcher [] of
+getKeyEvent dispatcher altConfig (VtyEvent (V.EvKey k mods)) = do
+  disp <- case dispatcher altConfig of
     Right disp -> return disp
     Left _ -> undefined
   matchKey k mods disp -- get the event that corresponds to the key on successful execution
@@ -52,11 +46,26 @@ getKeyEvent (VtyEvent (V.EvKey k mods)) = do
         Just (K.ByKey _) -> Nothing
         Just (K.ByEvent e) -> Just e
         Nothing -> Nothing
-getKeyEvent _ = Nothing
+getKeyEvent _ _ _ = Nothing
 
-handleMovement :: (e :> es) => BrickEvent n Tick -> Logger n a e -> Eff es ()
-handleMovement ev (Logger writ readstate) = do
+handleMovement disp altConfig ev (Logger writ readstate) = do
   gameplaystate <- ask readstate
-  let logaction = getKeyEvent ev
+  let logaction = getKeyEvent disp altConfig ev
       tick = gameplaystate ^. tickNo
   addToLog writ tick logaction
+
+addToLog :: (e :> es) => Writer EventList e -> TickNumber -> Maybe KeyEvent -> Eff es ()
+addToLog writ tick = maybe (pure ()) (tell writ . pure . GameEvent tick)
+
+runLogger :: (forall e. Logger e -> Eff (e :& es) r) -> GameplayState -> Eff es EventList
+runLogger f gps =
+  execWriter $ \writ -> do
+    runReader gps $ \rea -> do
+      useImplIn f $ Logger (mapHandle writ) (mapHandle rea)
+
+
+-- execLogger (Logger l g) = runPureEff $ execWriter l $ ()
+
+-- example :: GameplayState -> BrickEvent n e -> ()
+-- example gps ev = runPureEff $ flip runLogger gps $ \l -> do
+--   handleMovement gameplayDispatcher ev l

@@ -66,6 +66,7 @@ makeLenses ''GameplayState
 makeLenses ''HighScoreForm
 makeLenses ''HighScoreFormState
 
+altConfig :: [a]
 altConfig = []
 
 gameplay :: IO ()
@@ -159,7 +160,7 @@ eventHandler ev = do
     Frozen _ -> do zoom gameState $ handleGameplayEvent' ev
     Playing _ -> do
       zoom gameState $ handleGameplayEvent' ev
-      tickNo %= (+ 1)
+      tickNo %= (+ 1) -- advance the ticknumber by one
     Starting w -> do
       dia <- use gameStateDialog
       case dia of
@@ -208,7 +209,7 @@ handleHighScorePromptEvent (VtyEvent ev) _ _ _ = do
     _ -> return ()
 handleHighScorePromptEvent _ _ _ _ = return ()
 
--- | Handles changes in Gameplay
+-- | Handles changes in Gameplay and steps the game forward.
 handleGameplayEvent' :: BrickEvent n1 Tick -> EventM n2 GameState ()
 handleGameplayEvent' (AppEvent Tick) = modify stepGameState
 handleGameplayEvent' (VtyEvent (V.EvKey k mods)) = do
@@ -247,16 +248,6 @@ handleStartGameEvent ev@(VtyEvent (V.EvKey k _)) -- Start the game and move the 
   | k == V.KEnter = handleMenuEvent ev
   | otherwise = return ()
 handleStartGameEvent _ = return ()
-
--- | Controls the game and steps the game forward.
-handleGameplayEvent :: BrickEvent n Tick -> EventM n GameState ()
-handleGameplayEvent (AppEvent Tick) = modify stepGameState
-handleGameplayEvent (VtyEvent (V.EvKey V.KUp [])) = modify (chDir U)
-handleGameplayEvent (VtyEvent (V.EvKey V.KDown [])) = modify (chDir D)
-handleGameplayEvent (VtyEvent (V.EvKey V.KLeft [])) = modify (chDir L)
-handleGameplayEvent (VtyEvent (V.EvKey V.KRight [])) = modify (chDir R)
-handleGameplayEvent (VtyEvent (V.EvKey (V.KChar 'p') [])) = do modify pauseToggle
-handleGameplayEvent _ = pure ()
 
 -- | Draws the overall UI of the game
 drawUI :: GameplayState -> [Widget MenuOptions]
