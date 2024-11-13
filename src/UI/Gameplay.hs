@@ -8,7 +8,7 @@
 
 module UI.Gameplay where
 
-import Bluefin.Eff (Eff, (:>))
+import Bluefin.Eff (Eff, (:>), runPureEff)
 import Bluefin.Reader
 import Brick
 import Brick.BChan (newBChan, writeBChan)
@@ -56,7 +56,8 @@ data GameplayState = GameplayState
   { _gameState :: GameState,
     _gameStateDialog :: Maybe (Dialog GameState MenuOptions),
     _highScoreDialogs :: HighScoreFormState,
-    _tickNo :: Int
+    _tickNo :: Int,
+    _gameLog :: EventList
   }
 
 data HighScoreFormState = HighScoreFormState
@@ -78,7 +79,7 @@ gameplay = do
   chan <- newBChan 10
   _ <- forkIO $ forever $ do
     writeBChan chan Tick
-    threadDelay 1_000_000 -- 10 ticks per second
+    threadDelay 100_000 -- 10 ticks per second
   let initalVty = V.mkVty V.defaultConfig
   buildVty <- initalVty
   void $ customMain buildVty initalVty (Just chan) gameApp defState
@@ -94,7 +95,7 @@ gameApp =
     }
 
 defState :: GameplayState
-defState = GameplayState Restarting Nothing (HighScoreFormState Nothing Nothing) 0
+defState = GameplayState Restarting Nothing (HighScoreFormState Nothing Nothing) 0 []
 
 dialogShower :: GameState -> Maybe (Dialog GameState MenuOptions)
 dialogShower (Paused w) = Just $ D.dialog (Just (txt "PAUSE MENU")) (Just (Resume, options)) 40
@@ -153,8 +154,9 @@ highScoreMkForm =
 
 eventHandler :: BrickEvent MenuOptions Tick -> EventM MenuOptions GameplayState ()
 eventHandler (VtyEvent (V.EvKey (V.KChar 'c') [V.MCtrl])) = M.halt
-eventHandler ev = do
+eventHandler  ev = do
   gs <- use gameState
+  gps <- get
   case gs of
     Restarting -> do
       w <- liftIO $ initWorld defaultHeight defaultWidth
@@ -164,6 +166,7 @@ eventHandler ev = do
     Frozen _ -> do zoom gameState $ handleGameplayEvent' ev
     Playing _ -> do
       zoom gameState $ handleGameplayEvent' ev
+      gameLog .= logInGame ev gps 
       tickNo %= (+ 1) -- advance the ticknumber by one
     Starting w -> do
       dia <- use gameStateDialog
@@ -279,7 +282,9 @@ drawGS (Paused gs) =
 drawGS gs = [padRight (Pad 2) (drawStats (getWorld gs)) <+> drawGrid (getWorld gs)]
 
 drawDebug :: GameplayState -> Widget n
-drawDebug gps = hLimit 11 $ vBox [txt $ Text.pack $ show $ gps ^. tickNo]
+drawDebug gps = hLimit 20 $ vBox [txt $ Text.pack $ show $ gps ^. tickNo] <=> currentLog
+  where currentLog = vBox $ txt . Text.pack . show <$> gps ^. gameLog
+
 
 drawStats :: World -> Widget MenuOptions
 drawStats w =
@@ -347,3 +352,6 @@ handleMovement disp ev (Logger writ readstate) = do
   let logaction = getKeyEvent disp altConfig ev
       tick = gameplaystate ^. tickNo
   addToLog writ tick logaction
+
+logInGame :: BrickEvent n e2 -> GameplayState -> EventList
+logInGame ev gs = runPureEff $ runLogger (handleMovement gameplayDispatcher ev) $ gs
