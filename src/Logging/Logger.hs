@@ -24,6 +24,7 @@ type TickNumber = Int
 
 -- | Pairing of tick events to significant moves
 data GameEvent = GameEvent TickNumber KeyEvent
+  deriving Show
 
 type EventList = [GameEvent]
 
@@ -48,10 +49,14 @@ getKeyEvent dispatcher altConfig (VtyEvent (V.EvKey k mods)) = do
 getKeyEvent _ _ _ = Nothing
 
 addToLog :: (e :> es) => Writer EventList e -> TickNumber -> Maybe KeyEvent -> Eff es ()
-addToLog writ tick = maybe (pure ()) (tell writ . pure . GameEvent tick)
+addToLog writ tick = maybe 
+                      (pure ()) -- Do nothing if the key is not found
+                      (tell writ . pure . GameEvent tick) -- otherwise, write it to the logger
 
 runLogger :: (forall e. Logger g e -> Eff (e :& es) r) -> g -> Eff es EventList
 runLogger f gps =
   execWriter $ \writ -> do
     runReader gps $ \rea -> do
       useImplIn f $ Logger (mapHandle writ) (mapHandle rea)
+
+  
