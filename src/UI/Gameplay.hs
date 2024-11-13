@@ -3,10 +3,13 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeOperators #-}
 {-# OPTIONS_GHC -Wno-unused-do-bind #-}
 
 module UI.Gameplay where
 
+import Bluefin.Eff (Eff, (:>))
+import Bluefin.Reader
 import Brick
 import Brick.BChan (newBChan, writeBChan)
 import Brick.Focus (focusRingCursor)
@@ -20,9 +23,9 @@ import qualified Brick.Widgets.Center as C
 import Brick.Widgets.Dialog (Dialog)
 import qualified Brick.Widgets.Dialog as D
 import qualified Brick.Widgets.List as L
-import Control.Concurrent ( forkIO, threadDelay )
-import Control.Monad ( forever, void )
-import Control.Monad.IO.Class ( MonadIO(liftIO) )
+import Control.Concurrent (forkIO, threadDelay)
+import Control.Monad (forever, void)
+import Control.Monad.IO.Class (MonadIO (liftIO))
 import DB.Highscores as DBHS (addScore, openDatabase, promptAddHighScore)
 import Data.Maybe (fromMaybe)
 import qualified Data.Text as Text
@@ -34,9 +37,10 @@ import qualified Graphics.Vty as V
 import qualified Graphics.Vty.CrossPlatform as V
 import Lens.Micro
 import Lens.Micro.Mtl
-import Lens.Micro.TH ( makeLenses )
+import Lens.Micro.TH (makeLenses)
 import Linear.V2 (V2 (..))
-import UI.Keybinds ( gameplayDispatcher )
+import Logging.Logger
+import UI.Keybinds (KeyEvent, gameplayDispatcher)
 
 -- | Marks passing of time.
 --   Each delta is fed into the app.
@@ -336,3 +340,10 @@ theMap =
       (L.listSelectedAttr, V.green `on` V.white),
       (L.listAttr, bg V.magenta)
     ]
+
+handleMovement :: (e1 :> es) => ([a1] -> Either a2 (K.KeyDispatcher KeyEvent m)) -> BrickEvent n e2 -> Logger GameplayState e1 -> Eff es ()
+handleMovement disp ev (Logger writ readstate) = do
+  gameplaystate <- ask readstate
+  let logaction = getKeyEvent disp altConfig ev
+      tick = gameplaystate ^. tickNo
+  addToLog writ tick logaction
