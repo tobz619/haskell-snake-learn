@@ -18,7 +18,6 @@ import GameLogic (GameState)
 import Graphics.Vty.CrossPlatform as V ()
 import qualified Graphics.Vty.Input as V
 import Lens.Micro ((^.))
-import UI.Gameplay (GameplayState, Tick, tickNo)
 import UI.Keybinds
 
 type TickNumber = Int
@@ -28,9 +27,9 @@ data GameEvent = GameEvent TickNumber KeyEvent
 
 type EventList = [GameEvent]
 
-data Logger e = Logger
+data Logger g e = Logger
   { writeLog :: Writer EventList e,
-    onGameplayState :: Reader GameplayState e
+    onGameplayState :: Reader g e
   }
 
 getKeyEvent dispatcher altConfig (VtyEvent (V.EvKey k mods)) = do
@@ -48,24 +47,11 @@ getKeyEvent dispatcher altConfig (VtyEvent (V.EvKey k mods)) = do
         Nothing -> Nothing
 getKeyEvent _ _ _ = Nothing
 
-handleMovement disp altConfig ev (Logger writ readstate) = do
-  gameplaystate <- ask readstate
-  let logaction = getKeyEvent disp altConfig ev
-      tick = gameplaystate ^. tickNo
-  addToLog writ tick logaction
-
 addToLog :: (e :> es) => Writer EventList e -> TickNumber -> Maybe KeyEvent -> Eff es ()
 addToLog writ tick = maybe (pure ()) (tell writ . pure . GameEvent tick)
 
-runLogger :: (forall e. Logger e -> Eff (e :& es) r) -> GameplayState -> Eff es EventList
+runLogger :: (forall e. Logger g e -> Eff (e :& es) r) -> g -> Eff es EventList
 runLogger f gps =
   execWriter $ \writ -> do
     runReader gps $ \rea -> do
       useImplIn f $ Logger (mapHandle writ) (mapHandle rea)
-
-
--- execLogger (Logger l g) = runPureEff $ execWriter l $ ()
-
--- example :: GameplayState -> BrickEvent n e -> ()
--- example gps ev = runPureEff $ flip runLogger gps $ \l -> do
---   handleMovement gameplayDispatcher ev l
