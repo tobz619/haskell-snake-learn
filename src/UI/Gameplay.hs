@@ -153,10 +153,11 @@ highScoreMkForm =
     fieldy = const $ Vector.iterateN 26 succ 'A'
     listDrawElement _ a = txt $ Text.singleton a
 
-eventHandler :: BrickEvent MenuOptions Tick -> EventM MenuOptions GameplayState ()
+eventHandler :: BrickEvent MenuOptions Tick -> EventM MenuOptions (GameplayState) ()
 eventHandler (VtyEvent (V.EvKey (V.KChar 'c') [V.MCtrl])) = M.halt
 eventHandler ev = do
   gs <- use gameState
+  glf <- use gameLog
   gps <- get
   case gs of
     Restarting -> do
@@ -167,7 +168,7 @@ eventHandler ev = do
     Frozen _ -> do zoom gameState $ handleGameplayEvent' ev
     Playing _ -> do
       zoom gameState $ handleGameplayEvent' ev
-      gameLog .= fst (logInGame ev gps)
+      gameLog .= (logMove ev gps ++ gps ^. gameLog)
       tickNo %= (+ 1) -- advance the ticknumber by one
     Starting w -> do
       dia <- use gameStateDialog
@@ -229,7 +230,7 @@ handleGameplayEvent' (VtyEvent (V.EvKey k mods)) = do
 handleGameplayEvent' _ = return ()
 
 -- | Handles controls for most dialogue menus
-handleMenuEvent :: BrickEvent MenuOptions Tick -> EventM MenuOptions GameplayState ()
+handleMenuEvent :: BrickEvent MenuOptions Tick -> EventM MenuOptions (GameplayState) ()
 handleMenuEvent (VtyEvent (V.EvKey V.KEsc [])) = do
   gs <- use gameState
   case gs of
@@ -247,7 +248,7 @@ handleMenuEvent (VtyEvent ev) = do
 handleMenuEvent _ = return ()
 
 -- | Starts the game in the direction the user specifies
-handleStartGameEvent :: BrickEvent MenuOptions Tick -> EventM MenuOptions GameplayState ()
+handleStartGameEvent :: BrickEvent MenuOptions Tick -> EventM MenuOptions (GameplayState) ()
 handleStartGameEvent ev@(VtyEvent (V.EvKey k _)) -- Start the game and move the Snake in the desired direction.
   | k `elem` [V.KUp, V.KDown, V.KLeft, V.KRight] =
       do
@@ -258,7 +259,7 @@ handleStartGameEvent ev@(VtyEvent (V.EvKey k _)) -- Start the game and move the 
 handleStartGameEvent _ = return ()
 
 -- | Draws the overall UI of the game
-drawUI :: GameplayState -> [Widget MenuOptions]
+drawUI :: (GameplayState) -> [Widget MenuOptions]
 drawUI gps = [drawDebug gps] <> gpdia <> hsdia <> form <> (C.centerLayer <$> drawGS gs)
   where
     gs = gps ^. gameState
@@ -355,5 +356,5 @@ handleMovement disp ev (Logger writ readstate) = do
       tick = gameplaystate ^. tickNo
   addToLog writ tick logaction
 
-logInGame ::BrickEvent n e2 -> GameplayState -> (EventList, ())
-logInGame ev gs = runPureEff $ yieldToList $ \y -> runLogger y (handleMovement gameplayDispatcher ev) $ gs
+logMove :: BrickEvent n e2 -> GameplayState -> EventList
+logMove ev gs = fst $ runPureEff $ yieldToList $ \y -> runLogger y (handleMovement gameplayDispatcher ev) $ gs
