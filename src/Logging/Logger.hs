@@ -4,7 +4,7 @@
 module Logging.Logger where
 
 import Bluefin
-import Bluefin.Compound (Handle (..), useImplIn)
+import Bluefin.Compound (Handle (..), useImplIn, useImpl)
 import Bluefin.Eff (Eff, runPureEff, (:&), type (:>))
 import Bluefin.IO (IOE)
 import Bluefin.Reader (Reader, ask, runReader)
@@ -29,7 +29,7 @@ data GameEvent = GameEvent TickNumber KeyEvent
 type EventList = [GameEvent]
 
 data Logger g e = Logger
-  { writeLog :: Writer EventList e,
+  { writeLog :: Stream GameEvent e,
     onGameplayState :: Reader g e
   }
 
@@ -48,15 +48,14 @@ getKeyEvent dispatcher altConfig (VtyEvent (V.EvKey k mods)) = do
         Nothing -> Nothing
 getKeyEvent _ _ _ = Nothing
 
-addToLog :: (e :> es) => Writer EventList e -> TickNumber -> Maybe KeyEvent -> Eff es ()
-addToLog writ tick = maybe 
+addToLog :: (e :> es) => Stream GameEvent e -> TickNumber -> Maybe KeyEvent -> Eff es ()
+addToLog strm tick = maybe
                       (pure ()) -- Do nothing if the key is not found
-                      (tell writ . pure . GameEvent tick) -- otherwise, write it to the logger
+                      (yield strm . GameEvent tick) -- otherwise, write it to the logger
 
-runLogger :: (forall e. Logger g e -> Eff (e :& es) r) -> g -> Eff es EventList
-runLogger f gps =
-  execWriter $ \writ -> do
+runLogger :: (e1 :> es) => Stream GameEvent e1 -> (forall e. Logger g e -> Eff (e :& es) r) -> g -> Eff es r
+runLogger y f gps  = do
     runReader gps $ \rea -> do
-      useImplIn f $ Logger (mapHandle writ) (mapHandle rea)
+      useImplIn f $ Logger (mapHandle y) (mapHandle rea)
 
-  
+
