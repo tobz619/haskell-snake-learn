@@ -10,6 +10,7 @@ module UI.Gameplay where
 
 import Bluefin.Eff (Eff, (:>), runPureEff)
 import Bluefin.Reader
+import Bluefin.Stream
 import Brick
 import Brick.BChan (newBChan, writeBChan)
 import Brick.Focus (focusRingCursor)
@@ -32,7 +33,7 @@ import qualified Data.Text as Text
 import Data.Time.Clock.POSIX (getPOSIXTime)
 import qualified Data.Vector as Vector
 import Database.SQLite.Simple (Connection)
-import GameLogic
+import GameLogic hiding (Stream)
 import qualified Graphics.Vty as V
 import qualified Graphics.Vty.CrossPlatform as V
 import Lens.Micro
@@ -154,7 +155,7 @@ highScoreMkForm =
 
 eventHandler :: BrickEvent MenuOptions Tick -> EventM MenuOptions GameplayState ()
 eventHandler (VtyEvent (V.EvKey (V.KChar 'c') [V.MCtrl])) = M.halt
-eventHandler  ev = do
+eventHandler ev = do
   gs <- use gameState
   gps <- get
   case gs of
@@ -166,7 +167,7 @@ eventHandler  ev = do
     Frozen _ -> do zoom gameState $ handleGameplayEvent' ev
     Playing _ -> do
       zoom gameState $ handleGameplayEvent' ev
-      gameLog .= logInGame ev gps 
+      gameLog .= fst (logInGame ev gps)
       tickNo %= (+ 1) -- advance the ticknumber by one
     Starting w -> do
       dia <- use gameStateDialog
@@ -282,8 +283,9 @@ drawGS (Paused gs) =
 drawGS gs = [padRight (Pad 2) (drawStats (getWorld gs)) <+> drawGrid (getWorld gs)]
 
 drawDebug :: GameplayState -> Widget n
-drawDebug gps = hLimit 20 $ vBox [txt $ Text.pack $ show $ gps ^. tickNo] <=> currentLog
-  where currentLog = vBox $ txt . Text.pack . show <$> gps ^. gameLog
+drawDebug gps = currentTick <=> currentLog
+  where currentTick = hLimit 10 $ vBox [txt $ Text.pack $ show $ gps ^. tickNo]
+        currentLog = vLimit 20 $ hLimit 45 $ vBox $ txt . Text.pack . show <$> gps ^. gameLog
 
 
 drawStats :: World -> Widget MenuOptions
@@ -353,5 +355,5 @@ handleMovement disp ev (Logger writ readstate) = do
       tick = gameplaystate ^. tickNo
   addToLog writ tick logaction
 
-logInGame :: BrickEvent n e2 -> GameplayState -> EventList
-logInGame ev gs = runPureEff $ runLogger (handleMovement gameplayDispatcher ev) $ gs
+logInGame ::BrickEvent n e2 -> GameplayState -> (EventList, ())
+logInGame ev gs = runPureEff $ yieldToList $ \y -> runLogger y (handleMovement gameplayDispatcher ev) $ gs
