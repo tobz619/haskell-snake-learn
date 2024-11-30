@@ -29,7 +29,7 @@ data GameEvent = GameEvent TickNumber KeyEvent
 type EventList = [GameEvent]
 
 data Logger g e = Logger
-  { writeLog :: Stream GameEvent e,
+  { writeLog :: Writer EventList e,
     onGameplayState :: Reader g e
   }
 
@@ -48,14 +48,14 @@ getKeyEvent dispatcher altConfig (VtyEvent (V.EvKey k mods)) = do
         Nothing -> Nothing
 getKeyEvent _ _ _ = Nothing
 
-addToLog :: (e :> es) => Stream GameEvent e -> TickNumber -> Maybe KeyEvent -> Eff es ()
+addToLog :: (e :> es) => Writer EventList e -> TickNumber -> Maybe KeyEvent -> Eff es ()
 addToLog strm tick = maybe
                       (pure ()) -- Do nothing if the key is not found
-                      (yield strm . GameEvent tick) -- otherwise, write it to the logger
+                      (tell strm . pure . GameEvent tick) -- otherwise, write it to the logger
 
-runLogger :: (e1 :> es) => Stream GameEvent e1 -> (forall e. Logger g e -> Eff (e :& es) r) -> g -> Eff es r
-runLogger y f gps  = do
-    runReader gps $ \rea -> do
-      useImplIn f $ Logger (mapHandle y) (mapHandle rea)
+runLogger :: (forall e1. Logger g e1 -> Eff (e1 :& es) r ) -> g -> Eff es [GameEvent]
+runLogger f gps = runReader gps $ \rea -> do
+                    execWriter $ \y -> do
+                      useImplIn f (Logger (mapHandle y) (mapHandle rea))
 
 
