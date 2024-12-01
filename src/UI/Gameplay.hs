@@ -8,7 +8,7 @@
 
 module UI.Gameplay where
 
-import Bluefin.Eff (Eff, runPureEff, (:>), Effects)
+import Bluefin.Eff (Eff, runPureEff, (:>))
 import Bluefin.Reader
 import Bluefin.Stream
 import Brick
@@ -50,9 +50,6 @@ data Tick = Tick
 -- | The type of the cell
 data Cell = Snake | Food | Empty
 
--- | Log Effect Effect System
-type LogEffects = Bluefin.Eff.Effects
-
 data MenuOptions = Resume | Restart | Quit | Yes | No | OpChar Int
   deriving (Show, Eq, Ord)
 
@@ -61,7 +58,7 @@ data GameplayState = GameplayState
     _gameStateDialog :: Maybe (Dialog GameState MenuOptions),
     _highScoreDialogs :: HighScoreFormState,
     _tickNo :: Int,
-    _gameLog :: Eff LogEffects ()
+    _gameLog :: EventList
   }
 
 data HighScoreFormState = HighScoreFormState
