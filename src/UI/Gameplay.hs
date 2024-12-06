@@ -8,7 +8,7 @@
 
 module UI.Gameplay where
 
-import Bluefin.Eff (Eff, runPureEff, (:>))
+import Bluefin.Eff (Eff, runPureEff, (:>), Effects)
 import Bluefin.Reader
 import Bluefin.Stream
 import Brick
@@ -67,6 +67,7 @@ data HighScoreFormState = HighScoreFormState
   }
 
 data HighScoreForm = HighScoreForm {_cha1 :: Maybe Char, _cha2 :: Maybe Char, _cha3 :: Maybe Char}
+  
 
 makeLenses ''GameplayState
 makeLenses ''HighScoreForm
@@ -360,4 +361,4 @@ handleMovement disp ev (Logger writ readstate) = do
   addToLog writ tick logaction
 
 logMove :: BrickEvent n e2 -> GameplayState -> EventList
-logMove ev gs = runPureEff $ runLogger (handleMovement gameplayDispatcher ev) $ gs
+logMove ev gs = runPureEff $ runLogger (handleMovement gameplayDispatcher ev) gs
