@@ -33,6 +33,7 @@ data Logger g e = Logger
     onGameplayState :: Reader g e
   }
 
+getKeyEvent :: (t -> Either a (K.KeyDispatcher KeyEvent m)) -> t -> BrickEvent n e -> Maybe KeyEvent
 getKeyEvent dispatcher altConfig (VtyEvent (V.EvKey k mods)) = do
   disp <- case dispatcher altConfig of
     Right disp -> return disp
