@@ -142,7 +142,6 @@ pauseToggle st = case st of
 
 initWorld :: Int -> Int -> StdGen -> World
 initWorld height width initGen =
-  -- sendGen server initGen 
   let (f :| fs) = fromList $ randomRs (V2 1 1, V2 (height - 1) (width - 1)) initGen
       xm = defaultWidth `div` 2
       ym = defaultHeight `div` 2
