@@ -1,18 +1,16 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE InstanceSigs #-}
 
 module GameLogic where
 
-import Control.Monad.Reader
 import Control.Monad.State
-import DB.Highscores (Score)
 import Data.Sequence.NonEmpty (NESeq ((:<||), (:||>)), (|>))
 import qualified Data.Sequence.NonEmpty as S
 import Database.SQLite.Simple (Connection)
 import Lens.Micro (over)
 import Linear.V2 (V2 (..), _x, _y)
-import System.IO.Unsafe
-import System.Random (Random (..), newStdGen)
+import System.Random (Random (..), StdGen)
 
 data GameState
   = Playing {getWorld :: World}
@@ -24,6 +22,18 @@ data GameState
   | Restarting
   | NewHighScore {getWorld :: World}
   | NewHighScorePrompt {getWorld :: World, getConn :: Connection}
+
+instance Eq GameState where
+  Playing w0 == Playing w1 = w0 == w1
+  Paused w0 == Paused w1 = w0 == w1
+  Frozen w0 == Frozen w1 = w0 == w1
+  GameOver w0 == GameOver w1 = w0 == w1
+  ToMenu == ToMenu = True
+  Starting w0 == Starting w1 = w0 == w1
+  Restarting == Restarting = True
+  NewHighScore w0 == NewHighScore w1 = w0 == w1
+  NewHighScorePrompt w0 _ == NewHighScorePrompt w1 _ = w0 == w1
+  _ == _ = False
 
 
 type Coord = V2 Int
@@ -44,6 +54,15 @@ data World = World
     score :: Int
     }
   deriving (Show)
+
+instance Eq World where
+  (==) :: World -> World -> Bool
+  world0 == world1 =
+    and [ snake world0 == snake world1
+        , dir world0 == dir world1
+        , food world0 == food world1
+        , score world0 == score world1
+        ]
 
 
 defaultHeight, defaultWidth :: Int
@@ -120,11 +139,12 @@ pauseToggle st = case st of
   Paused g -> Playing g
   s -> s
 
-initWorld :: Int -> Int -> IO World
-initWorld height width = do
-  (f :| fs) <-
-    fromList . randomRs (V2 1 1, V2 (height - 1) (width - 1)) <$> newStdGen
-  let xm = defaultWidth `div` 2
+
+initWorld :: Int -> Int -> StdGen -> World
+initWorld height width initGen =
+  -- sendGen server initGen 
+  let (f :| fs) = fromList $ randomRs (V2 1 1, V2 (height - 1) (width - 1)) initGen
+      xm = defaultWidth `div` 2
       ym = defaultHeight `div` 2
       g =
         World
@@ -134,6 +154,6 @@ initWorld height width = do
             score = 0,
             dir = U
           }
-  return $ execState nextFood g
+  in execState nextFood g
   where
     fromList = foldr (:|) (error "Stream must be infinite!")
