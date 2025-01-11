@@ -8,13 +8,10 @@ import Brick
 import qualified Brick.AttrMap as A
 import Brick.Main as M
 import qualified Brick.Types as T
-import qualified Brick.Widgets.Border as B
-import qualified Brick.Widgets.Border.Style as BS
 import qualified Brick.Widgets.Center as C
 import Brick.Widgets.Dialog (Dialog)
 import qualified Brick.Widgets.Dialog as D
 import Brick.Widgets.Table
-import Control.Monad.IO.Class (MonadIO (liftIO))
 import DB.Highscores
 import Data.List (mapAccumL)
 import Data.Maybe (fromMaybe)
@@ -22,7 +19,6 @@ import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Time
 import qualified Graphics.Vty as V
-import qualified Graphics.Vty.CrossPlatform as V
 import Lens.Micro
 import Lens.Micro.Extras (view)
 import Lens.Micro.Mtl hiding (view)
