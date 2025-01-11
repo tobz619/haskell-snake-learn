@@ -12,12 +12,14 @@ pkgs.mkShell{
 
   imports =  [ ./brick-tutorial.nix ];
 
-  buildInputs = with pkgs; [
-    haskell-packages.cabal-install
-    haskell-packages.haskell-language-server
-    haskell-packages.cabal2nix
-    haskell-packages.stack
-  ];
+  buildInputs = (with haskell-packages; [
+    cabal-install
+    haskell-language-server
+    cabal2nix
+    stack
+  ]) ++ (with pkgs; [
+
+  ]);
 
   shellHook = '' 
     echo "... updating ${pname}.nix ..."

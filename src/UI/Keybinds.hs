@@ -3,15 +3,14 @@
 module UI.Keybinds where
 
 import qualified Brick.Keybindings as K
-import Brick.Types (BrickEvent (..), EventM, modify)
-import Brick.Widgets.Dialog (Dialog (..))
-import Brick.Widgets.Dialog as D
+import Brick.Types (EventM, modify)
 import Control.Monad ((>=>))
 import Data.Maybe (listToMaybe)
 import qualified Data.Set as Set
 import Data.Text (Text)
 import GameLogic (Direction (..), GameState, chDir, pauseToggle)
 import Graphics.Vty as V
+    ( Event(EvKey), Key(KEsc, KUp, KDown, KLeft, KRight, KEnter) )
 
 data KeyEvent = MoveUp | MoveDown | MoveLeft | MoveRight | Back | Select | Pause | Stop | Halt | Quit
   deriving (Show, Eq, Ord)

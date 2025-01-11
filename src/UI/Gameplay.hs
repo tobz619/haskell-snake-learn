@@ -8,9 +8,8 @@
 
 module UI.Gameplay where
 
-import Bluefin.Eff (Eff, runPureEff, (:>), Effects)
+import Bluefin.Eff (Eff, runPureEff, (:>))
 import Bluefin.Reader
-import Bluefin.Stream
 import Brick
 import Brick.BChan (newBChan, writeBChan)
 import Brick.Focus (focusRingCursor)
@@ -42,6 +41,7 @@ import Lens.Micro.TH (makeLenses)
 import Linear.V2 (V2 (..))
 import Logging.Logger
 import UI.Keybinds (KeyEvent, gameplayDispatcher)
+import System.Random (newStdGen)
 
 -- | Marks passing of time.
 --   Each delta is fed into the app.
@@ -164,7 +164,9 @@ eventHandler ev = do
   gps <- get
   case gs of
     Restarting -> do
-      w <- liftIO $ initWorld defaultHeight defaultWidth
+      g <- newStdGen
+      let w = initWorld defaultHeight defaultWidth g 
+      -- sendGenToServer serverLocation g
       tickNo .= 0 -- Reset the tick number to 0.
       gameLog .= []
       gameState .= Starting w
@@ -263,7 +265,7 @@ handleStartGameEvent ev@(VtyEvent (V.EvKey k _)) -- Start the game and move the 
 handleStartGameEvent _ = return ()
 
 -- | Draws the overall UI of the game
-drawUI :: (GameplayState) -> [Widget MenuOptions]
+drawUI :: GameplayState -> [Widget MenuOptions]
 drawUI gps = [drawDebug gps] <> gpdia <> hsdia <> form <> (C.centerLayer <$> drawGS gs)
   where
     gs = gps ^. gameState
