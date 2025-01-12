@@ -9,37 +9,39 @@ import Data.Maybe (listToMaybe)
 import qualified Data.Set as Set
 import Data.Text (Text)
 import GameLogic (Direction (..), GameState, chDir, pauseToggle)
-import Graphics.Vty as V
-    ( Event(EvKey), Key(KEsc, KUp, KDown, KLeft, KRight, KEnter) )
+import Graphics.Vty as V (
+    Event (EvKey),
+    Key (KDown, KEnter, KEsc, KLeft, KRight, KUp),
+ )
 
 data KeyEvent = MoveUp | MoveDown | MoveLeft | MoveRight | Back | Select | Pause | Stop | Halt | Quit
-  deriving (Show, Eq, Ord)
+    deriving (Show, Eq, Ord)
 
 allKeyEvents :: K.KeyEvents KeyEvent
 allKeyEvents =
-  K.keyEvents
-    [ ("up", MoveUp),
-      ("down", MoveDown),
-      ("left", MoveLeft),
-      ("right", MoveRight),
-      ("back", Back),
-      ("select", Select),
-      ("pause", Pause),
-      ("halt", Halt)
-    ]
+    K.keyEvents
+        [ ("up", MoveUp)
+        , ("down", MoveDown)
+        , ("left", MoveLeft)
+        , ("right", MoveRight)
+        , ("back", Back)
+        , ("select", Select)
+        , ("pause", Pause)
+        , ("halt", Halt)
+        ]
 
 keyBindings :: [(KeyEvent, [K.Binding])]
 keyBindings =
-  [ (MoveUp, [K.bind V.KUp]),
-    (MoveDown, [K.bind V.KDown]),
-    (MoveLeft, [K.bind V.KLeft]),
-    (MoveRight, [K.bind V.KRight]),
-    (Select, [K.bind V.KEnter]),
-    (Back, [K.bind V.KEsc]),
-    (Pause, [K.bind 'p']),
-    (Halt, [K.ctrl 'c']),
-    (Quit, [K.bind 'q'])
-  ]
+    [ (MoveUp, [K.bind V.KUp])
+    , (MoveDown, [K.bind V.KDown])
+    , (MoveLeft, [K.bind V.KLeft])
+    , (MoveRight, [K.bind V.KRight])
+    , (Select, [K.bind V.KEnter])
+    , (Back, [K.bind V.KEsc])
+    , (Pause, [K.bind 'p'])
+    , (Halt, [K.ctrl 'c'])
+    , (Quit, [K.bind 'q'])
+    ]
 
 getKey :: K.KeyConfig KeyEvent -> KeyEvent -> Event
 getKey keyConf = maybe (V.EvKey KEsc []) (\(k, mods) -> V.EvKey k (Set.toList mods)) . (K.lookupKeyConfigBindings keyConf >=> handleBindState)
@@ -62,11 +64,11 @@ gameplayDispatcher :: [(KeyEvent, K.BindingState)] -> Either [(K.Binding, [K.Key
 gameplayDispatcher new = K.keyDispatcher (keyConfig new) gameplayHandlers
   where
     gameplayHandlers =
-      mkGameplayHandlers
-        new
-        [ ("up", MoveUp, modify (chDir U)),
-          ("down", MoveDown, modify (chDir D)),
-          ("left", MoveLeft, modify (chDir L)),
-          ("right", MoveRight, modify (chDir R)),
-          ("pause", Pause, modify pauseToggle)
-        ]
+        mkGameplayHandlers
+            new
+            [ ("up", MoveUp, modify (chDir U))
+            , ("down", MoveDown, modify (chDir D))
+            , ("left", MoveLeft, modify (chDir L))
+            , ("right", MoveRight, modify (chDir R))
+            , ("pause", Pause, modify pauseToggle)
+            ]
