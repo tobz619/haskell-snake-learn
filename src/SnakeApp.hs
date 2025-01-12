@@ -8,8 +8,8 @@ newtype AppState r = AppState {runApp :: IO r}
 
 main :: IO ()
 main = do
-  choice <- runMainMenu
-  case choice of
-    Play -> gameplay >> main
-    HighScores -> highScores >> main
-    Quit -> return ()
+    choice <- runMainMenu
+    case choice of
+        Play -> gameplay >> main
+        HighScores -> highScores >> main
+        Quit -> return ()
