@@ -28,12 +28,12 @@ runReplay seed evs =
 
 runMoves :: EventList -> State ReplayState GameState
 runMoves [] = gets gameState
-runMoves (GameEvent t0 kev : evs) = do
+runMoves evList@(GameEvent t0 kev : evs) = do
   a@(ReplayState _ t1) <- get
   if t0 /= t1
     then do
       put . stepReplayState =<< get
-      runMoves evs
+      runMoves evList
     else do
       modify $ \rps -> rps {gameState = executeMove kev (gameState a)}
       modify stepReplayState
