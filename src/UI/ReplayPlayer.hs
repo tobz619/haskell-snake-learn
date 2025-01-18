@@ -19,6 +19,8 @@ import Logging.Replay (ReplayState (..), executeMove, stepReplayState)
 import System.Random (StdGen, mkStdGen)
 import UI.Gameplay (MenuOptions, Tick (Tick), drawGS, theMap)
 import UI.Keybinds (KeyEvent (..))
+import Brick.Widgets.Center (hCenterLayer, center)
+import Data.List (scanl')
 
 runReplayApp :: StdGen -> MVar EventList -> IO ()
 runReplayApp seed mEvList = do
@@ -70,13 +72,21 @@ initState seed = ReplayState {tickNo = 0, gameState = start}
     start = Playing $ initWorld defaultHeight defaultWidth seed
 
 drawUI :: ReplayState -> [Widget MenuOptions]
-drawUI rps = drawGS gs
+drawUI rps = center <$> drawGS gs
   where
     gs = gameState rps
 
-replayExample :: IO ()
-replayExample = do
-  evs <- newMVar events
-  runReplayApp (mkStdGen 4) evs
-  where
-    events = zipWith GameEvent (iterate (+ 3) 3) (cycle [MoveLeft, MoveDown, MoveRight, MoveUp])
+
+
+-- replayExample :: IO ()
+-- replayExample = do
+--   evs <- newMVar events
+--   runReplayApp (mkStdGen 4) evs
+--   where
+--     moves = [1,3,8,10,1,11,14,1,1]
+--     events = zipWith GameEvent
+--       (scanl' (+) 1 moves)
+--       [MoveRight, MoveDown, MoveLeft, MoveUp, MoveRight, MoveDown, MoveRight, MoveDown, MoveLeft] ++
+--       zipWith GameEvent
+--         (drop 1 $ iterate (+ 3) (sum moves))
+--         (cycle [MoveUp, MoveLeft, MoveDown, MoveRight])
