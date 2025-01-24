@@ -11,7 +11,7 @@ import UI.Keybinds (KeyEvent (..))
 
 type Seed = StdGen
 
-type Replay = Seed -> EventList -> ReplayState -> GameState
+type Replay = Seed -> EventList -> GameState
 
 data PlayState = Forward Int | Reverse Int
 
@@ -20,7 +20,11 @@ data ReplayState = ReplayState
     tickNo :: Int
   }
 
-runReplay :: StdGen -> EventList -> ReplayState
+
+runReplayG ::Replay
+runReplayG s = gameState . runReplay s
+
+runReplay :: Seed -> EventList -> ReplayState
 runReplay seed evs =
   execState
     (runMove evs)
