@@ -9,7 +9,6 @@ import Data.List.NonEmpty (nonEmpty)
 import qualified Data.List.NonEmpty as NE
 import Data.Text (Text)
 import qualified Data.Text as T
-import Data.Time.Clock.POSIX (getPOSIXTime)
 import Database.SQLite.Simple
 
 type Score = Int
