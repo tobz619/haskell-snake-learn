@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP #-}
+-- {-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 
@@ -8,7 +8,7 @@ import qualified Brick.AttrMap as A
 import qualified Brick.Main as M
 import Brick.Types (Widget)
 import qualified Brick.Types as T
-import Brick.Util (bg, fg, on)
+import Brick.Util (fg, on)
 import qualified Brick.Widgets.Center as C
 import Brick.Widgets.Core (
     clickable,
@@ -17,14 +17,11 @@ import Brick.Widgets.Core (
     reportExtent,
     txt,
  )
-import Brick.Widgets.Dialog (Dialog)
 import qualified Brick.Widgets.Dialog as D
 import Data.Maybe (fromMaybe)
 import qualified Graphics.Vty as V
-import Lens.Micro (over, set, (^.))
 import Lens.Micro.Mtl
 import Lens.Micro.TH (makeLenses)
-import qualified UI.Gameplay as UIG
 
 data Choice = Play | HighScores | Quit
     deriving (Eq, Show, Ord)

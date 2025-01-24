@@ -36,7 +36,7 @@ library
                       microlens-th,
                       random,
                       mtl,
-                      nonempty-containers,
+                      nonempty-containers^>=0.3.4.5,
                       sqlite-simple,
                       time,
                       text,

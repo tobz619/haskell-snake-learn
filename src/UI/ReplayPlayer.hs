@@ -1,6 +1,4 @@
-{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE NumericUnderscores #-}
-{-# LANGUAGE RankNTypes #-}
 
 module UI.ReplayPlayer where
 
@@ -8,19 +6,21 @@ import Brick (App (..), BrickEvent (AppEvent, VtyEvent), EventM, customMain, get
 import Brick.BChan (newBChan, writeBChan)
 import Brick.Main (halt)
 import Brick.Types (Widget)
-import Control.Concurrent (MVar, forkIO, newMVar, putMVar, readMVar, takeMVar, threadDelay, swapMVar)
+import Control.Concurrent (MVar, forkIO, readMVar, threadDelay, swapMVar)
 import Control.Monad (forever, void, when)
 import Control.Monad.IO.Class (liftIO)
 import GameLogic (GameState (Playing), defaultHeight, defaultWidth, initWorld)
 import qualified Graphics.Vty as V
 import qualified Graphics.Vty.CrossPlatform as V
 import Logging.Logger (EventList, GameEvent (GameEvent))
-import Logging.Replay (ReplayState (..), executeMove, stepReplayState)
+import Logging.Replay (ReplayState (..), stepReplayState, canExecute, runMove)
 import System.Random (StdGen, mkStdGen)
 import UI.Gameplay (MenuOptions, Tick (Tick), drawGS, theMap)
-import UI.Keybinds (KeyEvent (..))
-import Brick.Widgets.Center (hCenterLayer, center)
+import Brick.Widgets.Center (center)
+import Control.Concurrent.MVar (newMVar)
 import Data.List (scanl')
+import UI.Keybinds (KeyEvent(..))
+import Control.Monad.State.Strict (runState)
 
 runReplayApp :: StdGen -> MVar EventList -> IO ()
 runReplayApp seed mEvList = do
@@ -49,22 +49,12 @@ replayEventHandler (AppEvent Tick) mVarEv = do
   rps <- get
   evlist <- liftIO $ readMVar mVarEv
   when (canExecute evlist rps) $ do
-    newEvs <- makeMove evlist rps
-    _ <- liftIO $ swapMVar mVarEv newEvs
-    return ()
+    let (newEvs, newS) = runState (runMove evlist) rps
+    put newS
+    void . liftIO $ swapMVar mVarEv newEvs
 
 replayEventHandler _ _ = return ()
 
-canExecute :: EventList -> ReplayState -> Bool
-canExecute [] _ = False
-canExecute ((GameEvent t0 _):_) (ReplayState _ t1) = t0 == t1
-
-makeMove :: EventList -> ReplayState -> EventM n ReplayState EventList
-makeMove [] _ = return []
-makeMove (GameEvent _ ev : res) rps =
-  do
-    put $ rps {gameState = executeMove ev (gameState rps)}
-    return res
 
 initState :: StdGen -> ReplayState
 initState seed = ReplayState {tickNo = 0, gameState = start}
@@ -78,15 +68,15 @@ drawUI rps = center <$> drawGS gs
 
 
 
--- replayExample :: IO ()
--- replayExample = do
---   evs <- newMVar events
---   runReplayApp (mkStdGen 4) evs
---   where
---     moves = [1,3,8,10,1,11,14,1,1]
---     events = zipWith GameEvent
---       (scanl' (+) 1 moves)
---       [MoveRight, MoveDown, MoveLeft, MoveUp, MoveRight, MoveDown, MoveRight, MoveDown, MoveLeft] ++
---       zipWith GameEvent
---         (drop 1 $ iterate (+ 3) (sum moves))
---         (cycle [MoveUp, MoveLeft, MoveDown, MoveRight])
+replayExample :: IO ()
+replayExample = do
+  evs <- newMVar events
+  runReplayApp (mkStdGen 4) evs
+  where
+    moves = [1,3,8,10,1,11,14,1,1]
+    events = zipWith GameEvent
+      (scanl' (+) 1 moves)
+      [MoveRight, MoveDown, MoveLeft, MoveUp, MoveRight, MoveDown, MoveRight, MoveDown, MoveLeft] ++
+      zipWith GameEvent
+        (drop 1 $ iterate (+ 3) (sum moves))
+        (cycle [MoveUp, MoveLeft, MoveDown, MoveRight])
