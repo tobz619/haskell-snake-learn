@@ -6,7 +6,7 @@
 mkDerivation {
   pname = "brick-tutorial";
   version = "0.1.0.0";
-  src = /nix/store/xa54j51za450x2zdi0xxrzgn8klyfaqd-brick-tutorial;
+  src = /nix/store/8fs7hw90afi3a1fm6b5jzlryv1s2m37b-brick-tutorial;
   isLibrary = true;
   isExecutable = true;
   libraryHaskellDepends = [
