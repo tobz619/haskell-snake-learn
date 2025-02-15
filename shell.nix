@@ -18,7 +18,7 @@ pkgs.mkShell{
     cabal2nix
     stack
   ]) ++ (with pkgs; [
-
+    zlib
   ]);
 
   shellHook = '' 

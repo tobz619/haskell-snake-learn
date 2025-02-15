@@ -9,10 +9,10 @@ import Brick.Types (Widget)
 import Control.Concurrent (MVar, forkIO, readMVar, threadDelay, swapMVar)
 import Control.Monad (forever, void, when)
 import Control.Monad.IO.Class (liftIO)
-import GameLogic (GameState (Playing), defaultHeight, defaultWidth, initWorld)
+import GameLogic (GameState (Playing, NewHighScore, GameOver), defaultHeight, defaultWidth, initWorld)
 import qualified Graphics.Vty as V
 import qualified Graphics.Vty.CrossPlatform as V
-import Logging.Logger (EventList, GameEvent (GameEvent))
+import Logging.Logger (EventList, GameEvent (GameEvent), TickNumber (TickNumber))
 import Logging.Replay (ReplayState (..), stepReplayState, canExecute, runMove)
 import System.Random (StdGen, mkStdGen)
 import UI.Gameplay (MenuOptions, Tick (Tick), drawGS, theMap)
@@ -57,14 +57,16 @@ replayEventHandler _ _ = return ()
 
 
 initState :: StdGen -> ReplayState
-initState seed = ReplayState {tickNo = 0, gameState = start}
+initState seed = ReplayState {tickNo = TickNumber 0, gameState = start}
   where
     start = Playing $ initWorld defaultHeight defaultWidth seed
 
 drawUI :: ReplayState -> [Widget MenuOptions]
 drawUI rps = center <$> drawGS gs
   where
-    gs = gameState rps
+    gs = case gameState rps of
+          NewHighScore w -> GameOver w -- Short circuit the GameState to GameOver so it renders properly
+          g -> g
 
 
 
@@ -74,9 +76,10 @@ replayExample = do
   runReplayApp (mkStdGen 4) evs
   where
     moves = [1,3,8,10,1,11,14,1,1]
-    events = zipWith GameEvent
+    events = zipWith (GameEvent . TickNumber)
       (scanl' (+) 1 moves)
-      [MoveRight, MoveDown, MoveLeft, MoveUp, MoveRight, MoveDown, MoveRight, MoveDown, MoveLeft] ++
-      zipWith GameEvent
-        (drop 1 $ iterate (+ 3) (sum moves))
-        (cycle [MoveUp, MoveLeft, MoveDown, MoveRight])
+      [MoveRight, MoveDown, MoveLeft, MoveUp, MoveRight, MoveDown, MoveRight, MoveDown, MoveLeft]
+      -- ++
+      -- zipWith GameEvent
+      --   (drop 1 $ iterate (+ 3) (sum moves))
+      --   (cycle [MoveUp, MoveLeft, MoveDown, MoveRight])

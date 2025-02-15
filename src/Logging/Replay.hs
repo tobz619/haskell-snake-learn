@@ -4,8 +4,8 @@ module Logging.Replay where
 import Brick (get, put)
 import Control.Monad.State (execState, MonadState)
 import qualified Data.Map as Map
-import GameLogic (Direction (..), GameState (Playing), chDir, initWorld, stepGameState)
-import Logging.Logger (EventList, GameEvent (..))
+import GameLogic (Direction (..), GameState (Playing, GameOver, getWorld), chDir, initWorld, stepGameState)
+import Logging.Logger (EventList, GameEvent (..), TickNumber (TickNumber))
 import System.Random (StdGen)
 import UI.Keybinds (KeyEvent (..))
 
@@ -17,7 +17,7 @@ data PlayState = Forward Int | Reverse Int
 
 data ReplayState = ReplayState
   { gameState :: GameState,
-    tickNo :: Int
+    tickNo :: TickNumber
   }
 
 
@@ -30,7 +30,7 @@ runReplay seed evs =
     (runMove evs)
     ( ReplayState
         (Playing $ initWorld 20 20 seed)
-        0
+        (TickNumber 0)
     )
 
 canExecute :: EventList -> ReplayState -> Bool
@@ -48,11 +48,11 @@ runMove evList@(GameEvent _ kev: _) = do
     else do
       put . stepReplayState =<< get
       return evList
-      
+
 
 stepReplayState :: ReplayState -> ReplayState
-stepReplayState (ReplayState gs tick) =
-  ReplayState (stepGameState gs) (tick + 1)
+stepReplayState (ReplayState gs (TickNumber tick)) =
+  ReplayState (stepGameState gs) (TickNumber $ tick + 1)
 
 executeMove :: KeyEvent -> GameState -> GameState
 executeMove ev gs =
@@ -64,5 +64,6 @@ pairs =
     [ (MoveUp, chDir U),
       (MoveDown, chDir D),
       (MoveLeft, chDir L),
-      (MoveRight, chDir R)
+      (MoveRight, chDir R),
+      (GameEnded, GameOver . getWorld)
     ]
