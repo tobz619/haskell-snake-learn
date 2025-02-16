@@ -40,7 +40,8 @@ import Lens.Micro.Mtl
 import Lens.Micro.TH (makeLenses)
 import Linear.V2 (V2 (..))
 import Logging.Logger
-import System.Random (newStdGen)
+import System.Random
+import System.Random (RandomGen (..), newStdGen)
 import UI.Keybinds (KeyEvent (GameEnded), gameplayDispatcher)
 
 -- | Marks passing of time.
@@ -163,7 +164,7 @@ eventHandler ev = do
   gps <- get
   case gs of
     Restarting -> do
-      g <- newStdGen
+      (genVal, g) <- genWord64 <$> newStdGen
       let w = initWorld defaultHeight defaultWidth g
       -- sendGenToServer serverLocation g
       tickNo .= 0 -- Reset the tick number to 0.
@@ -301,7 +302,7 @@ drawStats w =
       [ drawScore $ score w
       ]
 
-drawScore :: Int -> Widget MenuOptions
+drawScore :: (Show a, Num a) => a -> Widget MenuOptions
 drawScore n =
   withBorderStyle BS.unicodeBold $
     B.borderWithLabel (txt "Score") $
