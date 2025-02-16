@@ -2,12 +2,18 @@
 
 module DB.Server where
 
-import Control.Concurrent (MVar, newMVar, readMVar)
-import DB.Client (Client)
-import Data.IntMap.Strict as Map
+import Control.Concurrent (MVar, modifyMVar_, newMVar, readMVar, swapMVar)
+import Control.Exception (finally, Exception)
+import Control.Monad (void)
+import DB.Client
+import qualified Data.IntMap.Strict as Map
 import qualified Network.WebSockets as WS
 import qualified Web.Scotty as S
 import Web.Scotty.Trans (scottyT)
+import Logging.Logger (EventList, GameEvent (..), TickNumber (..))
+import qualified Data.ByteString.Lazy as B
+import Data.Maybe (fromJust)
+import qualified Data.Bimap as BM
 
 data ServerState = ServerState {clients :: ClientMap, currentIx :: CIndex}
 
@@ -17,11 +23,12 @@ type CIndex = Int
 
 data ServerStateError = MaxPlayers
 
+instance Exception ServerStateError
+
 main :: IO ()
 main = do
   state <- newMVar newServerState
-  -- WS.runServer "127.0.0.1" 33333 $ application state
-  S.scotty 33333 serverApp
+  WS.runServer "127.0.0.1" 33333 $ application state
 
 maxPlayers :: Int
 maxPlayers = 1024
@@ -35,21 +42,6 @@ newServerState = ServerState mempty 0
 numClients :: ServerState -> Int
 numClients = Map.size . clients
 
-serverApp :: S.ScottyM ()
-serverApp = do
-
-  -- Gets the database from the main server
-  S.get "/get-scores" $ 
-    S.text "viewScores"
-
-  -- Posts the score of the player
-  S.post "/newScore/:s" $ 
-    error "Not implemented"
-
-  -- Uploads the player's replay data
-  S.post "/uploadReplay/:content" $ do
-    error "Not implemented"
-
 addClient :: Client -> ServerState -> Either ServerStateError ServerState
 
 -- | Adds a client to the existing @ServerState@ at the current index. If the index is full, try the
@@ -58,7 +50,7 @@ addClient c s@(ServerState cs ix)
   | numClients s >= maxPlayers = Left MaxPlayers
   | otherwise =
       maybe
-        (Right $ ServerState (Map.insert ix c cs) (ix + 1 `mod` maxPlayers)) -- If successful return a new state
+        (Right $ ServerState (Map.insert ix c cs) (ix + 1 `mod` maxPlayers)) -- If successful return a new state and the index the current player was inserted at
         (const $ addClient c $ s {currentIx = ix + 1 `mod` maxPlayers}) -- If a player still exists at our current index, try again at plus one
         (Map.lookup ix (clients s)) -- Find the existing index
 
@@ -71,8 +63,53 @@ application state pending = do
   WS.withPingPong WS.defaultPingPongOptions conn $
     appHandling state
 
+disconnect :: CIndex -> MVar ServerState -> IO ()
+disconnect cix state = do
+  modifyMVar_ state $ \s -> pure $ s {clients = removeClient cix (clients s)}
+
+
+handleEventList :: ClientMessage EventList -> EventList
+handleEventList (WS.Binary bs) = let
+  chunks = splitEvery 3 bs
+  splitEvery n inp
+    | B.null inp = []
+    | otherwise = B.take n inp : splitEvery n (B.drop 3 inp)
+  in map (messageToGameEvent . WS.Binary) chunks
+handleEventList _ = error "Not possible!"
+
 appHandling :: MVar ServerState -> WS.Connection -> IO ()
 appHandling state conn = do
-  clients <- readMVar state
-  msg <- WS.receiveDataMessage conn
-  undefined
+  st <- readMVar state
+  cix <- case addClient (Client conn) st of
+    Left MaxPlayers -> undefined -- figure out what to do if the queue of scores being uploaded is full; ideally create a queue and process asynchronously while not full
+    Right newSt -> do
+      void $ swapMVar state newSt
+      pure (currentIx newSt)
+
+  flip finally (disconnect cix state) $ do
+    evList <- handleEventList <$> WS.receiveDataMessage conn
+    processList evList
+
+
+messageToGameEvent :: ClientMessage GameEvent -> GameEvent
+messageToGameEvent (WS.Binary bs) = let
+  (ev, tick) = B.splitAt 1 bs
+  convertedEv = (BM.!>) keyEvBytesMap ev 
+  t = fromIntegral $ B.index tick 0 * 255 + B.index tick 1  
+  in GameEvent (TickNumber t) convertedEv
+messageToGameEvent _ = error "Impossible"
+
+-- serverApp :: S.ScottyM ()
+-- serverApp = do
+
+--   -- Gets the database from the main server
+--   S.get "/get-scores" $
+--     S.text "viewScores"
+
+--   -- Posts the score of the player
+--   S.post "/newScore/:s" $
+--     error "Not implemented"
+
+--   -- Uploads the player's replay data
+--   S.post "/uploadReplay/:content" $ do
+--     error "Not implemented"
