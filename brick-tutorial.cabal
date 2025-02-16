@@ -27,6 +27,7 @@ library
                       Logging.Logger,
                       Logging.Replay
     build-depends:    base >= 4.10 && < 5,
+                      bimap,
                       bluefin,
                       vty,
                       vty-crossplatform,
