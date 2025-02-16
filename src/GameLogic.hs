@@ -15,6 +15,7 @@ import Database.SQLite.Simple (Connection)
 import Lens.Micro (over)
 import Linear.V2 (V2 (..), _x, _y)
 import System.Random (Random (..), StdGen)
+import Data.Word (Word8)
 
 data GameState
   = Playing {getWorld :: World}
@@ -54,7 +55,7 @@ data World = World
     dir :: Direction,
     food :: Coord,
     foods :: Stream Coord,
-    score :: Int
+    score :: Word8
   }
   deriving (Show)
 

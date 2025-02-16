@@ -10,8 +10,9 @@ import qualified Data.List.NonEmpty as NE
 import Data.Text (Text)
 import qualified Data.Text as T
 import Database.SQLite.Simple
+import Data.Word
 
-type Score = Int
+type Score = Word8
 
 type Name = Text
 
@@ -63,7 +64,7 @@ debugPrintScores conn = do
         putStrLn $
             show (n :: Name)
                 <> " "
-                <> show (s :: Int)
+                <> show (s :: Word8)
                 <> " "
                 <> show (d :: Int)
 
@@ -71,7 +72,7 @@ addScore :: Connection -> Name -> Score -> Time -> IO ()
 addScore conn name score time = do
     execute conn addQuery (T.toUpper . T.take 3 $ name, score, time)
 
-lowestScoreFromScoreList :: [ScoreField] -> Maybe Int
+lowestScoreFromScoreList :: [ScoreField] -> Maybe Word8
 
 {- | Gets the maxDbSize'th score from the array of scores. If there is no score, then we return Nothing.
     Otherwise, return the score, wrapped in a Just.

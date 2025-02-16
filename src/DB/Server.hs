@@ -3,17 +3,23 @@
 module DB.Server where
 
 import Control.Concurrent (MVar, modifyMVar_, newMVar, readMVar, swapMVar)
-import Control.Exception (finally, Exception)
+import Control.Exception (Exception, finally)
 import Control.Monad (void)
 import DB.Client
+import qualified Data.Bimap as BM
+import qualified Data.ByteString.Lazy as B
 import qualified Data.IntMap.Strict as Map
+import qualified Data.Text as Text
+import Data.Word (Word64)
+import Logging.Logger (EventList, GameEvent (..), TickNumber (..))
+import Logging.Replay (Seed, runReplayG)
 import qualified Network.WebSockets as WS
+import System.Random (StdGen, mkStdGen)
 import qualified Web.Scotty as S
 import Web.Scotty.Trans (scottyT)
-import Logging.Logger (EventList, GameEvent (..), TickNumber (..))
-import qualified Data.ByteString.Lazy as B
-import Data.Maybe (fromJust)
-import qualified Data.Bimap as BM
+import GameLogic (World(..), GameState (getWorld))
+import Data.Maybe (fromMaybe)
+import DB.Highscores (Score)
 
 data ServerState = ServerState {clients :: ClientMap, currentIx :: CIndex}
 
@@ -21,7 +27,7 @@ type ClientMap = Map.IntMap Client
 
 type CIndex = Int
 
-data ServerStateError = MaxPlayers
+data ServerStateError = MaxPlayers deriving (Show, Eq)
 
 instance Exception ServerStateError
 
@@ -67,15 +73,26 @@ disconnect :: CIndex -> MVar ServerState -> IO ()
 disconnect cix state = do
   modifyMVar_ state $ \s -> pure $ s {clients = removeClient cix (clients s)}
 
+handleEventList :: BSMessage EventList -> EventList
+handleEventList bs =
+  let chunks = splitEvery 3 bs
+      splitEvery n inp
+        | B.null inp = []
+        | otherwise = B.take n inp : splitEvery n (B.drop 3 inp)
+   in map messageToGameEvent chunks
+  where
+    messageToGameEvent bss =
+      let (ev, tick) = B.splitAt 1 bss
+          convertedEv = (BM.!>) keyEvBytesMap ev
+          t = fromIntegral $ B.index tick 0 * 255 + B.index tick 1
+       in GameEvent (TickNumber t) convertedEv
 
-handleEventList :: ClientMessage EventList -> EventList
-handleEventList (WS.Binary bs) = let
-  chunks = splitEvery 3 bs
-  splitEvery n inp
-    | B.null inp = []
-    | otherwise = B.take n inp : splitEvery n (B.drop 3 inp)
-  in map (messageToGameEvent . WS.Binary) chunks
-handleEventList _ = error "Not possible!"
+messageToSeed :: TextMessage Word64 -> Seed
+messageToSeed =  mkStdGen . fromIntegral . read . Text.unpack
+
+messageToScore :: B.ByteString -> Score
+messageToScore = maybe 0 fst . B.uncons
+
 
 appHandling :: MVar ServerState -> WS.Connection -> IO ()
 appHandling state conn = do
@@ -87,17 +104,13 @@ appHandling state conn = do
       pure (currentIx newSt)
 
   flip finally (disconnect cix state) $ do
-    evList <- handleEventList <$> WS.receiveDataMessage conn
-    processList evList
-
-
-messageToGameEvent :: ClientMessage GameEvent -> GameEvent
-messageToGameEvent (WS.Binary bs) = let
-  (ev, tick) = B.splitAt 1 bs
-  convertedEv = (BM.!>) keyEvBytesMap ev 
-  t = fromIntegral $ B.index tick 0 * 255 + B.index tick 1  
-  in GameEvent (TickNumber t) convertedEv
-messageToGameEvent _ = error "Impossible"
+    s <- messageToScore <$> WS.receiveData conn
+    seed <- messageToSeed <$> WS.receiveData conn
+    evList <- handleEventList <$> WS.receiveData conn
+    let game = runReplayG seed evList
+    if s /= (score . getWorld) game 
+      then error "Mismatch!"
+      else putStrLn "Valid score" -- placeholder
 
 -- serverApp :: S.ScottyM ()
 -- serverApp = do

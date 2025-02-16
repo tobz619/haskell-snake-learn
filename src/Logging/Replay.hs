@@ -1,10 +1,11 @@
 {-# LANGUAGE FlexibleContexts #-}
+
 module Logging.Replay where
 
 import Brick (get, put)
-import Control.Monad.State (execState, MonadState)
+import Control.Monad.State (MonadState, execState)
 import qualified Data.Map as Map
-import GameLogic (Direction (..), GameState (Playing, GameOver, getWorld), chDir, initWorld, stepGameState)
+import GameLogic (Direction (..), GameState (GameOver, Playing, getWorld), chDir, defaultHeight, defaultWidth, initWorld, stepGameState)
 import Logging.Logger (EventList, GameEvent (..), TickNumber (TickNumber))
 import System.Random (StdGen)
 import UI.Keybinds (KeyEvent (..))
@@ -20,8 +21,7 @@ data ReplayState = ReplayState
     tickNo :: TickNumber
   }
 
-
-runReplayG ::Replay
+runReplayG :: Replay
 runReplayG s = gameState . runReplay s
 
 runReplay :: Seed -> EventList -> ReplayState
@@ -29,17 +29,17 @@ runReplay seed evs =
   execState
     (runMove evs)
     ( ReplayState
-        (Playing $ initWorld 20 20 seed)
+        (Playing $ initWorld defaultHeight defaultWidth seed)
         (TickNumber 0)
     )
 
 canExecute :: EventList -> ReplayState -> Bool
 canExecute [] _ = False
-canExecute ((GameEvent t0 _):_) (ReplayState _ t1) = t0 == t1
+canExecute ((GameEvent t0 _) : _) (ReplayState _ t1) = t0 == t1
 
-runMove :: MonadState ReplayState m => EventList -> m EventList
+runMove :: (MonadState ReplayState m) => EventList -> m EventList
 runMove [] = return []
-runMove evList@(GameEvent _ kev: _) = do
+runMove evList@(GameEvent _ kev : _) = do
   rps <- get
   if canExecute evList rps
     then do
@@ -48,7 +48,6 @@ runMove evList@(GameEvent _ kev: _) = do
     else do
       put . stepReplayState =<< get
       return evList
-
 
 stepReplayState :: ReplayState -> ReplayState
 stepReplayState (ReplayState gs (TickNumber tick)) =
