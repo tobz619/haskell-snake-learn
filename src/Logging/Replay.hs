@@ -64,5 +64,5 @@ pairs =
       (MoveDown, chDir D),
       (MoveLeft, chDir L),
       (MoveRight, chDir R),
-      (GameEnded, GameOver . getWorld)
+      (GameEnded, GameOver . getWorld ) -- Should hopefully only ever poll @GameState@s with a valid world 
     ]

@@ -6,20 +6,22 @@ import Control.Concurrent (MVar, modifyMVar_, newMVar, readMVar, swapMVar)
 import Control.Exception (Exception, finally)
 import Control.Monad (void)
 import DB.Client
+import DB.Highscores (Score, Name, addScore, openDatabase)
 import qualified Data.Bimap as BM
+import Data.Binary
 import qualified Data.ByteString.Lazy as B
 import qualified Data.IntMap.Strict as Map
 import qualified Data.Text as Text
-import Data.Word (Word64)
+import GameLogic (GameState (getWorld), World (..), ScoreType)
 import Logging.Logger (EventList, GameEvent (..), TickNumber (..))
 import Logging.Replay (Seed, runReplayG)
 import qualified Network.WebSockets as WS
-import System.Random (StdGen, mkStdGen)
+import System.Random (mkStdGen)
 import qualified Web.Scotty as S
 import Web.Scotty.Trans (scottyT)
-import GameLogic (World(..), GameState (getWorld))
-import Data.Maybe (fromMaybe)
-import DB.Highscores (Score)
+import qualified Database.SQLite.Simple as DB
+import Data.Time.Clock.POSIX (getPOSIXTime)
+import Control.Monad.Trans (liftIO)
 
 data ServerState = ServerState {clients :: ClientMap, currentIx :: CIndex}
 
@@ -34,7 +36,8 @@ instance Exception ServerStateError
 main :: IO ()
 main = do
   state <- newMVar newServerState
-  WS.runServer "127.0.0.1" 33333 $ application state
+  dbConn <- openDatabase "highscores.db"
+  WS.runServer "127.0.0.1" 33333 $ application state dbConn
 
 maxPlayers :: Int
 maxPlayers = 1024
@@ -63,17 +66,17 @@ addClient c s@(ServerState cs ix)
 removeClient :: CIndex -> ClientMap -> ClientMap
 removeClient = Map.delete
 
-application :: MVar ServerState -> WS.ServerApp
-application state pending = do
+application :: MVar ServerState -> DB.Connection -> WS.ServerApp
+application state dbconn pending = do
   conn <- WS.acceptRequestWith pending defaultAcceptRequest
   WS.withPingPong WS.defaultPingPongOptions conn $
-    appHandling state
+    appHandling state dbconn
 
 disconnect :: CIndex -> MVar ServerState -> IO ()
 disconnect cix state = do
   modifyMVar_ state $ \s -> pure $ s {clients = removeClient cix (clients s)}
 
-handleEventList :: BSMessage EventList -> EventList
+handleEventList :: EventListMessage -> EventList
 handleEventList bs =
   let chunks = splitEvery 3 bs
       splitEvery n inp
@@ -87,30 +90,36 @@ handleEventList bs =
           t = fromIntegral $ B.index tick 0 * 255 + B.index tick 1
        in GameEvent (TickNumber t) convertedEv
 
-messageToSeed :: TextMessage Word64 -> Seed
-messageToSeed =  mkStdGen . fromIntegral . read . Text.unpack
+messageToSeed :: SeedMessage -> Seed
+messageToSeed = mkStdGen . decode
 
-messageToScore :: B.ByteString -> Score
-messageToScore = maybe 0 fst . B.uncons
+messageToScore :: ScoreMessage -> Score
+messageToScore = decode
 
+messageToName :: NameMessage -> Name
+messageToName = id
 
-appHandling :: MVar ServerState -> WS.Connection -> IO ()
-appHandling state conn = do
+appHandling :: MVar ServerState -> DB.Connection -> WS.Connection -> IO ()
+appHandling state dbConn cliConn = do
   st <- readMVar state
-  cix <- case addClient (Client conn) st of
+  cix <- case addClient (Client cliConn) st of
     Left MaxPlayers -> undefined -- figure out what to do if the queue of scores being uploaded is full; ideally create a queue and process asynchronously while not full
     Right newSt -> do
       void $ swapMVar state newSt
       pure (currentIx newSt)
 
   flip finally (disconnect cix state) $ do
-    s <- messageToScore <$> WS.receiveData conn
-    seed <- messageToSeed <$> WS.receiveData conn
-    evList <- handleEventList <$> WS.receiveData conn
+    s <- messageToScore <$> WS.receiveData cliConn
+    name <- messageToName <$> WS.receiveData cliConn
+    seed <- messageToSeed <$> WS.receiveData cliConn
+    evList <- handleEventList <$> WS.receiveData cliConn
     let game = runReplayG seed evList
-    if s /= (score . getWorld) game 
+    if s /= (score . getWorld) game
       then error "Mismatch!"
-      else putStrLn "Valid score" -- placeholder
+      else do 
+        putStrLn "Valid score" -- placeholder
+        time <- liftIO (round <$> getPOSIXTime)
+        addScore dbConn name s time
 
 -- serverApp :: S.ScottyM ()
 -- serverApp = do

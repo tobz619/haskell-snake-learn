@@ -3,33 +3,40 @@
 
 module DB.Client where
 
-import Data.ByteString.Lazy (ByteString)
-import qualified Data.ByteString.Lazy as B
+import DB.Highscores (Name)
 import Data.Bimap (Bimap)
 import qualified Data.Bimap as BM
-import qualified Data.Text as Text
-import Data.Word (Word8, Word64)
-import Logging.Logger (GameEvent (..), TickNumber (..), EventList)
-import qualified Network.WebSockets as WS
-import qualified Web.Scotty as S
-import UI.Keybinds (KeyEvent (..))
+import Data.Binary (encode)
+import Data.ByteString.Lazy (ByteString)
+import qualified Data.ByteString.Lazy as B
 import Data.Maybe (fromMaybe)
+import qualified Data.Text as Text
+import GameLogic (ScoreType)
+import Logging.Logger (EventList, GameEvent (..), TickNumber (..), TickType)
 import Logging.Replay (Seed)
+import qualified Network.WebSockets as WS
+import UI.Gameplay (SeedSize)
+import UI.Keybinds (KeyEvent (..))
+import qualified Web.Scotty as S
 
 newtype Client = Client {sConn :: WS.Connection}
 
 type BSMessage a = ByteString
+
 type TextMessage a = Text.Text
 
-
 keyEvBytesMap :: Bimap KeyEvent ByteString
-keyEvBytesMap = foldr (uncurry BM.insert) BM.empty [
-  (MoveUp, B.singleton 251),
-  (MoveDown, B.singleton 252),
-  (MoveLeft, B.singleton 253),
-  (MoveRight, B.singleton 254),
-  (GameEnded, B.singleton 255)
-  ]
+keyEvBytesMap =
+  foldr
+    (uncurry BM.insert)
+    BM.empty
+    [ (MoveUp, B.singleton 251),
+      (MoveDown, B.singleton 252),
+      (MoveLeft, B.singleton 253),
+      (MoveRight, B.singleton 254),
+      (GameEnded, B.singleton 255)
+    ]
+
 -- keyEvBytesMap MoveUp = B.singleton 251
 -- keyEvBytesMap MoveDown = B.singleton 252
 -- keyEvBytesMap MoveLeft = B.singleton 253
@@ -37,20 +44,42 @@ keyEvBytesMap = foldr (uncurry BM.insert) BM.empty [
 -- keyEvBytesMap GameEnded = B.singleton 255
 -- keyEvBytesMap _ = B.empty
 
-tickNoToBytes :: TickNumber -> ByteString
-tickNoToBytes (TickNumber tn) = B.pack [hi, lo]
-  where
-    (hi, lo) = quotRem (fromIntegral tn) (maxBound :: Word8)
+
+
 
 gameEvToMessage :: GameEvent -> BSMessage GameEvent
 gameEvToMessage (GameEvent tn ev) = looked <> tickNoToBytes tn
-  where looked = fromMaybe B.empty (BM.lookup ev keyEvBytesMap)
+  where
+    looked = fromMaybe B.empty (BM.lookup ev keyEvBytesMap)
+    tickNoToBytes (TickNumber tno) = encode tno
 
-seedToMessage :: Client -> Word64 -> IO ()
-seedToMessage c = WS.sendTextData (sConn c) . Text.pack . show
+type SeedMessage = BSMessage SeedSize
 
-sendEventList :: Client -> EventList -> IO ()
-sendEventList c = WS.sendBinaryDatas (sConn c) . map gameEvToMessage
+sendSeedMessage :: WS.Connection -> SeedSize -> IO ()
+sendSeedMessage c = WS.sendBinaryData c . seedToMessage
+  where
+    seedToMessage :: SeedSize -> SeedMessage
+    seedToMessage = encode
+
+type ScoreMessage = BSMessage ScoreType
+
+sendScoreMessage :: WS.Connection -> ScoreType -> IO ()
+sendScoreMessage c = WS.sendBinaryData c . scoreToMessage
+  where
+    scoreToMessage :: ScoreType -> ScoreMessage
+    scoreToMessage = encode
+
+type EventListMessage = BSMessage EventList
+
+sendEventList :: WS.Connection -> EventList -> IO ()
+sendEventList c = WS.sendBinaryDatas c . map gameEvToMessage
 
 closeConn :: WS.Connection -> IO ()
-closeConn conn = WS.sendClose conn ("Closing connection" :: ByteString) 
+closeConn conn = WS.sendClose conn ("Closing connection" :: ByteString)
+
+type NameMessage = TextMessage Name
+
+sendName :: WS.Connection -> Name -> IO ()
+sendName c = WS.sendTextData c . nameToMessage
+  where
+    nameToMessage = id

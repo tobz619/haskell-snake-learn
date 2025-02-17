@@ -15,8 +15,10 @@ import qualified Brick.Keybindings as K
 import Graphics.Vty.CrossPlatform as V ()
 import qualified Graphics.Vty.Input as V
 import UI.Keybinds
+import Data.Word (Word16)
 
-newtype TickNumber = TickNumber Int deriving (Show, Eq)
+newtype TickNumber = TickNumber TickType deriving (Show, Eq)
+type TickType = Word16
 
 -- | Pairing of tick events to significant moves
 data GameEvent = GameEvent TickNumber KeyEvent
@@ -45,7 +47,7 @@ getKeyEvent dispatcher altConfig (VtyEvent (V.EvKey k mods)) = do
         Nothing -> Nothing
 getKeyEvent _ _ _ = Nothing
 
-addToLog :: (e :> es) => Writer EventList e -> Int -> Maybe KeyEvent -> Eff es ()
+addToLog :: (e :> es) => Writer EventList e -> TickType -> Maybe KeyEvent -> Eff es ()
 addToLog strm tick =
   maybe
     (pure ()) -- Do nothing if the key is not found

@@ -15,7 +15,7 @@ import Database.SQLite.Simple (Connection)
 import Lens.Micro (over)
 import Linear.V2 (V2 (..), _x, _y)
 import System.Random (Random (..), StdGen)
-import Data.Word (Word8)
+import Data.Word (Word16)
 
 data GameState
   = Playing {getWorld :: World}
@@ -44,6 +44,8 @@ type Coord = V2 Int
 
 type Snake = NESeq Coord
 
+type ScoreType = Word16
+
 data Stream a = a :| Stream a
   deriving (Show)
 
@@ -55,7 +57,7 @@ data World = World
     dir :: Direction,
     food :: Coord,
     foods :: Stream Coord,
-    score :: Word8
+    score :: ScoreType
   }
   deriving (Show)
 

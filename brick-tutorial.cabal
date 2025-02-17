@@ -28,6 +28,7 @@ library
                       Logging.Replay
     build-depends:    base >= 4.10 && < 5,
                       bimap,
+                      binary,
                       bluefin,
                       vty,
                       vty-crossplatform,
@@ -63,7 +64,7 @@ executable snake-game
         vty-crossplatform
 
     hs-source-dirs:   app/Game
-    ghc-options: -threaded -rtsopts
+    ghc-options: -O2 -threaded -rtsopts 
     default-language: Haskell2010
 
 executable snake-server
@@ -74,7 +75,7 @@ executable snake-server
         brick-tutorial
     
     hs-source-dirs: app/Server
-    ghc-options: -threaded -rtsopts
+    ghc-options: -O2 -threaded -rtsopts 
     default-language: Haskell2010
 
 test-suite brick-tutorial-test

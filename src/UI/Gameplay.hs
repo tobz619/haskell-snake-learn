@@ -5,6 +5,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeOperators #-}
 {-# OPTIONS_GHC -Wno-unused-do-bind #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module UI.Gameplay where
 
@@ -31,6 +32,7 @@ import Data.Maybe (fromMaybe)
 import qualified Data.Text as Text
 import Data.Time.Clock.POSIX (getPOSIXTime)
 import qualified Data.Vector as Vector
+import Data.Word (Word16, Word64)
 import Database.SQLite.Simple (Connection)
 import GameLogic hiding (Stream)
 import qualified Graphics.Vty as V
@@ -41,7 +43,6 @@ import Lens.Micro.TH (makeLenses)
 import Linear.V2 (V2 (..))
 import Logging.Logger
 import System.Random
-import System.Random (RandomGen (..), newStdGen)
 import UI.Keybinds (KeyEvent (GameEnded), gameplayDispatcher)
 
 -- | Marks passing of time.
@@ -58,7 +59,7 @@ data GameplayState = GameplayState
   { _gameState :: GameState,
     _gameStateDialog :: Maybe (Dialog GameState MenuOptions),
     _highScoreDialogs :: HighScoreFormState,
-    _tickNo :: Int,
+    _tickNo :: Word16,
     _gameLog :: EventList
   }
 
@@ -68,6 +69,8 @@ data HighScoreFormState = HighScoreFormState
   }
 
 data HighScoreForm = HighScoreForm {_cha1 :: Maybe Char, _cha2 :: Maybe Char, _cha3 :: Maybe Char}
+
+type SeedSize = Word64
 
 makeLenses ''GameplayState
 makeLenses ''HighScoreForm
@@ -164,7 +167,7 @@ eventHandler ev = do
   gps <- get
   case gs of
     Restarting -> do
-      (genVal, g) <- genWord64 <$> newStdGen
+      (genVal :: SeedSize, g) <- genWord64 <$> newStdGen
       let w = initWorld defaultHeight defaultWidth g
       -- sendGenToServer serverLocation g
       tickNo .= 0 -- Reset the tick number to 0.
