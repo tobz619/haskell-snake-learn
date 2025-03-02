@@ -11,17 +11,15 @@ import qualified Data.Bimap as BM
 import Data.Binary
 import qualified Data.ByteString.Lazy as B
 import qualified Data.IntMap.Strict as Map
-import qualified Data.Text as Text
 import GameLogic (GameState (getWorld), World (..), ScoreType)
 import Logging.Logger (EventList, GameEvent (..), TickNumber (..))
 import Logging.Replay (Seed, runReplayG)
 import qualified Network.WebSockets as WS
 import System.Random (mkStdGen)
-import qualified Web.Scotty as S
-import Web.Scotty.Trans (scottyT)
 import qualified Database.SQLite.Simple as DB
 import Data.Time.Clock.POSIX (getPOSIXTime)
 import Control.Monad.Trans (liftIO)
+import qualified Data.Text as T
 
 data ServerState = ServerState {clients :: ClientMap, currentIx :: CIndex}
 
@@ -35,9 +33,10 @@ instance Exception ServerStateError
 
 main :: IO ()
 main = do
+  putStrLn "Running server on localhost:34560 ..."
   state <- newMVar newServerState
   dbConn <- openDatabase "highscores.db"
-  WS.runServer "127.0.0.1" 33333 $ application state dbConn
+  WS.runServer "127.0.0.1" 34560 $ application state dbConn
 
 maxPlayers :: Int
 maxPlayers = 1024
@@ -110,28 +109,24 @@ appHandling state dbConn cliConn = do
 
   flip finally (disconnect cix state) $ do
     s <- messageToScore <$> WS.receiveData cliConn
+    putStrLn $ "Score of " ++ show s ++ " received"
     name <- messageToName <$> WS.receiveData cliConn
+    putStrLn $ "Name of " ++ show (T.toUpper name) ++ " received"
     seed <- messageToSeed <$> WS.receiveData cliConn
+    putStrLn $ "Seed: " ++ show seed
     evList <- handleEventList <$> WS.receiveData cliConn
+    putStrLn $ "First three events: " ++ show (take 3 evList)
     let game = runReplayG seed evList
-    if s /= (score . getWorld) game
-      then error "Mismatch!"
-      else do 
+        s' = (score. getWorld) game
+    if s /= s'
+      then do
+        putStrLn "Mismatched score!"
+        putStrLn $ "Expected score: " ++ show s
+        putStrLn $ "Actual score: " ++ show s'
+        error "Mismatch!"
+      else do
         putStrLn "Valid score" -- placeholder
         time <- liftIO (round <$> getPOSIXTime)
-        addScore dbConn name s time
+        -- addScore dbConn name s time
+        return ()
 
--- serverApp :: S.ScottyM ()
--- serverApp = do
-
---   -- Gets the database from the main server
---   S.get "/get-scores" $
---     S.text "viewScores"
-
---   -- Posts the score of the player
---   S.post "/newScore/:s" $
---     error "Not implemented"
-
---   -- Uploads the player's replay data
---   S.post "/uploadReplay/:content" $ do
---     error "Not implemented"

@@ -4,7 +4,6 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeOperators #-}
-{-# OPTIONS_GHC -Wno-unused-do-bind #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module UI.Gameplay where

@@ -12,12 +12,11 @@ import qualified Data.ByteString.Lazy as B
 import Data.Maybe (fromMaybe)
 import qualified Data.Text as Text
 import GameLogic (ScoreType)
-import Logging.Logger (EventList, GameEvent (..), TickNumber (..), TickType)
-import Logging.Replay (Seed)
+import Logging.Logger (EventList, GameEvent (..), TickNumber (..))
 import qualified Network.WebSockets as WS
 import UI.Gameplay (SeedSize)
 import UI.Keybinds (KeyEvent (..))
-import qualified Web.Scotty as S
+import Data.List (scanl')
 
 newtype Client = Client {sConn :: WS.Connection}
 
@@ -36,16 +35,6 @@ keyEvBytesMap =
       (MoveRight, B.singleton 254),
       (GameEnded, B.singleton 255)
     ]
-
--- keyEvBytesMap MoveUp = B.singleton 251
--- keyEvBytesMap MoveDown = B.singleton 252
--- keyEvBytesMap MoveLeft = B.singleton 253
--- keyEvBytesMap MoveRight = B.singleton 254
--- keyEvBytesMap GameEnded = B.singleton 255
--- keyEvBytesMap _ = B.empty
-
-
-
 
 gameEvToMessage :: GameEvent -> BSMessage GameEvent
 gameEvToMessage (GameEvent tn ev) = looked <> tickNoToBytes tn
@@ -72,7 +61,11 @@ sendScoreMessage c = WS.sendBinaryData c . scoreToMessage
 type EventListMessage = BSMessage EventList
 
 sendEventList :: WS.Connection -> EventList -> IO ()
-sendEventList c = WS.sendBinaryDatas c . map gameEvToMessage
+sendEventList c evlist = let
+  evListSize = length evlist
+  in do
+    -- WS.sendBinaryData c (B.singleton $ fromIntegral evListSize)
+    WS.sendBinaryDatas c . map gameEvToMessage $ evlist
 
 closeConn :: WS.Connection -> IO ()
 closeConn conn = WS.sendClose conn ("Closing connection" :: ByteString)
@@ -83,3 +76,22 @@ sendName :: WS.Connection -> Name -> IO ()
 sendName c = WS.sendTextData c . nameToMessage
   where
     nameToMessage = id
+
+runClientApp :: SeedSize -> ScoreType -> Text.Text -> [GameEvent] -> IO ()
+runClientApp seed score name evList = WS.runClient "127.0.0.1" 34560 "/" app
+  where
+    app c = do
+      sendScoreMessage c score
+      sendName c name
+      sendSeedMessage c seed
+      sendEventList c evList
+      closeConn c
+
+
+testClient :: IO ()
+testClient = let
+    moves = [1,3,8,10,1,11,14,1,1]
+    events = zipWith (GameEvent . TickNumber)
+              (scanl' (+) 1 moves)
+              [MoveRight, MoveDown, MoveLeft, MoveUp, MoveRight, MoveDown, MoveRight, MoveDown, MoveLeft]
+    in runClientApp 4 4 ("Max" :: Name) events
