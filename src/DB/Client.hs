@@ -17,6 +17,10 @@ import qualified Network.WebSockets as WS
 import UI.Gameplay (SeedSize)
 import UI.Keybinds (KeyEvent (..))
 import Data.List (scanl')
+import Control.Monad (replicateM_)
+import System.Random (mkStdGen)
+import UI.ReplayPlayer (runReplayApp)
+import qualified Wuss
 
 newtype Client = Client {sConn :: WS.Connection}
 
@@ -61,11 +65,12 @@ sendScoreMessage c = WS.sendBinaryData c . scoreToMessage
 type EventListMessage = BSMessage EventList
 
 sendEventList :: WS.Connection -> EventList -> IO ()
-sendEventList c evlist = let
-  evListSize = length evlist
-  in do
+sendEventList c = WS.sendBinaryData c . B.concat . map gameEvToMessage
+-- sendEventList c = let
+--  evListSize = length evlist
+--  in do
     -- WS.sendBinaryData c (B.singleton $ fromIntegral evListSize)
-    WS.sendBinaryDatas c . map gameEvToMessage $ evlist
+
 
 closeConn :: WS.Connection -> IO ()
 closeConn conn = WS.sendClose conn ("Closing connection" :: ByteString)
@@ -78,7 +83,7 @@ sendName c = WS.sendTextData c . nameToMessage
     nameToMessage = id
 
 runClientApp :: SeedSize -> ScoreType -> Text.Text -> [GameEvent] -> IO ()
-runClientApp seed score name evList = WS.runClient "127.0.0.1" 34560 "/" app
+runClientApp seed score name evList = Wuss.runSecureClient "127.0.0.1" 34560 "/" app
   where
     app c = do
       sendScoreMessage c score
@@ -94,4 +99,8 @@ testClient = let
     events = zipWith (GameEvent . TickNumber)
               (scanl' (+) 1 moves)
               [MoveRight, MoveDown, MoveLeft, MoveUp, MoveRight, MoveDown, MoveRight, MoveDown, MoveLeft]
-    in runClientApp 4 4 ("Max" :: Name) events
+    in do
+        putStrLn $ "Sending seed: " ++  show (mkStdGen 4)
+        -- evs <- newMVar events
+        runClientApp 4 4 ("Max" :: Name) events
+        -- runReplayApp (mkStdGen 4) evs

@@ -1,18 +1,21 @@
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE BangPatterns #-}
 
 module Logging.Replay where
 
 import Brick (get, put)
-import Control.Monad.State (MonadState, execState)
+import Control.Monad.State (MonadState, execState, runState, modify, State, evalState)
 import qualified Data.Map as Map
-import GameLogic (Direction (..), GameState (GameOver, Playing, getWorld), chDir, defaultHeight, defaultWidth, initWorld, stepGameState)
+import GameLogic (Direction (..), GameState (GameOver, Playing, getWorld, NewHighScore), chDir, defaultHeight, defaultWidth, initWorld, stepGameState)
 import Logging.Logger (EventList, GameEvent (..), TickNumber (TickNumber))
 import System.Random (StdGen)
 import UI.Keybinds (KeyEvent (..))
+import Control.Monad (when)
+import Debug.Trace (traceShowId, traceShowWith)
 
 type Seed = StdGen
 
-type Replay = Seed -> EventList -> GameState
+type Replay = EventList -> GameState
 
 data PlayState = Forward Int | Reverse Int
 
@@ -21,17 +24,47 @@ data ReplayState = ReplayState
     tickNo :: TickNumber
   }
 
-runReplayG :: Replay
-runReplayG s = gameState . runReplay s
+-- runReplayG :: Replay
+runReplayG :: EventList -> ReplayState -> GameState
+runReplayG es rps = case runState (runReplay es) rps of
+  ([], newS)
+   | isGameOver (gameState newS) -> gameState newS
+   | otherwise -> runReplayG [] (stepReplayState newS) 
+   -- ^ Keep stepping the state forward until the game hits the end state incase 
+   -- the player gets a   
+  (newEvs, newS) -> runReplayG newEvs newS
 
-runReplay :: Seed -> EventList -> ReplayState
-runReplay seed evs =
-  execState
-    (runMove evs)
-    ( ReplayState
-        (Playing $ initWorld defaultHeight defaultWidth seed)
-        (TickNumber 0)
-    )
+isGameOver :: GameState -> Bool
+isGameOver (GameOver _) = True
+isGameOver (NewHighScore _) = True
+isGameOver _ = False
+
+-- runReplay :: Seed -> EventList -> ReplayState
+runReplay ::  EventList -> State ReplayState EventList
+runReplay [] = pure []
+runReplay evs = do
+  modify stepReplayState
+  rps <- get
+  if canExecute evs rps
+    then do
+      let (newEvs, newS) = runState (runMove evs) rps
+      put newS
+      -- put (traceShowWith (getWorld . gameState) newS)
+      pure newEvs
+    else
+      pure evs
+
+
+  -- case
+  -- runState
+  --   (runMove evs)
+  --   ( ReplayState
+  --       (Playing $ initWorld defaultHeight defaultWidth seed)
+  --       (TickNumber 0)
+  --   )
+  --   of 
+  --     ([], s) -> s
+  --     (newEvs, )
 
 canExecute :: EventList -> ReplayState -> Bool
 canExecute [] _ = False
@@ -50,7 +83,7 @@ runMove evList@(GameEvent _ kev : _) = do
       return evList
 
 stepReplayState :: ReplayState -> ReplayState
-stepReplayState (ReplayState gs (TickNumber tick)) =
+stepReplayState (ReplayState !gs (TickNumber !tick)) =
   ReplayState (stepGameState gs) (TickNumber $ tick + 1)
 
 executeMove :: KeyEvent -> GameState -> GameState
