@@ -3,6 +3,8 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Logging.Logger where
 
@@ -17,7 +19,7 @@ import qualified Graphics.Vty.Input as V
 import UI.Keybinds
 import Data.Word (Word16)
 
-newtype TickNumber = TickNumber TickType deriving (Show, Eq)
+newtype TickNumber = TickNumber TickType deriving newtype (Eq, Show)
 type TickType = Word16
 
 -- | Pairing of tick events to significant moves

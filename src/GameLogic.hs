@@ -10,6 +10,7 @@ import Control.Monad.State
     execState,
   )
 import Data.Sequence.NonEmpty (NESeq ((:<||), (:||>)), (|>))
+import qualified Data.Sequence.NonEmpty as NES(head)
 import qualified Data.Sequence.NonEmpty as S
 import Database.SQLite.Simple (Connection)
 import Lens.Micro (over)
@@ -59,7 +60,13 @@ data World = World
     foods :: Stream Coord,
     score :: ScoreType
   }
-  deriving (Show)
+
+instance Show World where
+  show w = 
+    "Snake: " <> show (snake w) <> "\n" <>
+    "Current food: " <> show (food w) <> "\n" <>
+    "Score: " <> show (score w) 
+
 
 instance Eq World where
   (==) :: World -> World -> Bool
