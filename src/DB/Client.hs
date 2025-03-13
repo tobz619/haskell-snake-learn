@@ -13,7 +13,6 @@ import Data.Bimap (Bimap)
 import qualified Data.Bimap as BM
 import Data.Bits (FiniteBits (finiteBitSize))
 import Data.ByteString.Lazy (ByteString)
-import qualified Data.ByteString.Char8 as B8 
 import qualified Data.ByteString.Lazy as B
 -- import Data.Int (Int64)
 import Data.List (scanl')
@@ -92,7 +91,7 @@ type EventListMessage = BSMessage EventList
 sendEventList :: TCPConn -> EventList -> IO ()
 sendEventList c = sendBSMessage c . B.concat . map gameEvToMessage
 
-sendBSMessage :: TCPConn -> ByteString -> IO ()
+sendBSMessage :: TCPConn -> BSMessage a -> IO ()
 sendBSMessage tcpConn msg =
   sendAll (getSocket tcpConn) $
     encode @MsgLenRep (fromIntegral $ B.length msg) <> msg
@@ -103,10 +102,6 @@ sendTextMessage tcpConn msg =
   in sendAll (getSocket tcpConn) $
       encode @MsgLenRep (fromIntegral $ Text.length msg) <> txtMessage
 
--- sendEventList c = let
---  evListSize = length evlist
---  in do
--- WS.sendBinaryData c (B.singleton $ fromIntegral evListSize)
 
 closeConn :: TCPConn -> IO ()
 closeConn conn = gracefulClose (getSocket conn) 500
@@ -120,8 +115,8 @@ sendName c = sendTextMessage c . nameToMessage
 
 runClientApp :: SeedSize -> ScoreType -> Text.Text -> [GameEvent] -> IO ()
 runClientApp seed score name evList =
-  -- withSocketsDo $ runTCPClient "127.0.0.1" 34561 app
-  withSocketsDo $ runTCPClient "haskell-server.tobioloke.com" 443 app
+  withSocketsDo $ runTCPClient "127.0.0.1" 34561 app
+  -- withSocketsDo $ runTCPClient "haskell-server.tobioloke.com" 443 app
   where
     app c = do
       sendScoreMessage c score
@@ -140,10 +135,11 @@ runTCPClient hostName port action = mask $ \restore -> do
   where
     resolve = do
       let hints = defaultHints {addrSocketType = Stream }
-      NE.head <$> getAddrInfo (Just hints) (Just hostName) (Just (show port))
+      NE.head <$> getAddrInfo (pure hints) (pure hostName) (pure (show port))
     
     connectClientTCPSocket addr = do
       sock <- socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr)
+      print addr
       setSocketOption sock NoDelay 1
       connect sock $ addrAddress addr
       pure $ TCPConn sock

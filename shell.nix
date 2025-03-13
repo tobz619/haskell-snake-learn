@@ -19,9 +19,11 @@ pkgs.mkShell{
     stack
   ]) ++ (with pkgs; [
     zlib
+    go
     nss
     openssl 
     caddy
+    xcaddy
   ]);
 
   shellHook = '' 
