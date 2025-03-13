@@ -49,8 +49,7 @@ main = do
   putStrLn $ "Running server on localhost:" <> show port <> " ..."
   state <- newMVar newServerState
   dbConn <- openDatabase "highscores.db"
-  -- Wuss.newSecureClientConnection "127.0.0.1" 34560 $ application state dbConn -- legacy
-  runTCPServer "127.0.0.1" port $ application state dbConn
+  runTCPServer "0.0.0.0" port $ application state dbConn
 
 -- WS.runServer "127.0.0.1" port $ application state dbConn -- legacy
 --
@@ -62,6 +61,7 @@ main = do
 runTCPServer :: String -> PortNumber -> (Socket -> IO a) -> IO a
 runTCPServer host port app = forever $ withSocketsDo $ do
   addr <- resolve
+  -- print addr
   E.bracket (open addr) close app
   where
     resolve = do
@@ -99,6 +99,7 @@ appHandling state dbConn cliConn = do
 
 serverApp :: CIndex -> DB.Connection -> ClientConnection -> IO ()
 serverApp cix dbConn tcpConn = do
+  putStrLn $ replicate 40 '='
   putStrLn $ "Client at index: " ++ show cix
   s <- recvTCPData tcpConn messageToScore
   putStrLn $ "Score of " ++ show s ++ " received"
@@ -120,7 +121,6 @@ serverApp cix dbConn tcpConn = do
       putStrLn "Mismatched score!"
       putStrLn $ "Expected score: " ++ show s
       putStrLn $ "Actual score: " ++ show s'
-      print (getWorld game)
     else -- evs <- newMVar evList
     -- runReplayApp seed evs
     -- error "Mismatch!"
@@ -129,6 +129,7 @@ serverApp cix dbConn tcpConn = do
       time <- liftIO (round <$> getPOSIXTime)
       -- addScore dbConn name s time
       putStrLn $ "Score of " <> show s <> " by user " <> show cix <> " added"
+  putStrLn $ replicate 40 '='
 
 recvTCPData :: TCPConn -> (B.ByteString -> b) -> IO b
 recvTCPData tcpConn handler = do
