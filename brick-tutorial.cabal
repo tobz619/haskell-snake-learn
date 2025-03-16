@@ -25,7 +25,8 @@ library
                       DB.Server,
                       UI.Keybinds, 
                       Logging.Logger,
-                      Logging.Replay
+                      Logging.Replay,
+                      Networking.TLS
     build-depends:    base >= 4.10 && < 5,
                       async,
                       bimap,
@@ -44,6 +45,7 @@ library
                       random,
                       mtl,
                       nonempty-containers^>=0.3.4.5,
+                      network-simple-tls,
                       scotty,
                       sqlite-simple,
                       stm,

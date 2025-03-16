@@ -1,23 +1,25 @@
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE TypeApplications #-}
 
 module DB.Client where
-
 
 import Control.Concurrent.Async
 import Control.Monad (replicateM_)
 import DB.Highscores (Name)
 import Data.Bimap (Bimap)
 import qualified Data.Bimap as BM
+-- import Data.Int (Int64)
+
+import Data.Binary (encode)
 import Data.Bits (FiniteBits (finiteBitSize))
 import Data.ByteString.Lazy (ByteString)
 import qualified Data.ByteString.Lazy as B
--- import Data.Int (Int64)
+import Data.Coerce (coerce)
 import Data.List (scanl')
+import qualified Data.List.NonEmpty as NE
 import Data.Maybe (fromMaybe)
 import qualified Data.Text as Text
+import Data.Text.Encoding (encodeUtf8)
 import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Lazy as TextL
 import Data.Word (Word32, Word8)
@@ -27,18 +29,14 @@ import GHC.IO (finally, mask)
 import GameLogic (ScoreType)
 import Logging.Logger (EventList, GameEvent (..), TickNumber (..))
 import Network.Socket
-import Network.Socket.ByteString.Lazy ( sendAll )
+import Network.Socket.ByteString.Lazy (sendAll)
 import Network.TLS
 import System.Random (mkStdGen)
 import UI.Gameplay (SeedSize)
 import UI.Keybinds (KeyEvent (..))
 import UI.ReplayPlayer (runReplayApp)
-import Wuss (runSecureClient, runSecureClientWith)
-import qualified Data.List.NonEmpty as NE
-import Data.Text.Encoding (encodeUtf8)
-import Data.Binary (encode)
-import Data.Coerce (coerce)
 import Unsafe.Coerce (unsafeCoerce)
+import Wuss (runSecureClient, runSecureClientWith)
 
 type MsgLenRep = Word8
 
@@ -99,9 +97,8 @@ sendBSMessage tcpConn msg =
 sendTextMessage :: TCPConn -> Text.Text -> IO ()
 sendTextMessage tcpConn msg =
   let txtMessage = B.fromStrict $ Text.encodeUtf8 msg
-  in sendAll (getSocket tcpConn) $
-      encode @MsgLenRep (fromIntegral $ Text.length msg) <> txtMessage
-
+   in sendAll (getSocket tcpConn) $
+        encode @MsgLenRep (fromIntegral $ Text.length msg) <> txtMessage
 
 closeConn :: TCPConn -> IO ()
 closeConn conn = gracefulClose (getSocket conn) 500
@@ -115,8 +112,8 @@ sendName c = sendTextMessage c . nameToMessage
 
 runClientApp :: SeedSize -> ScoreType -> Text.Text -> [GameEvent] -> IO ()
 runClientApp seed score name evList =
-  withSocketsDo $ runTCPClient "127.0.0.1" 34561 app
-  -- withSocketsDo $ runTCPClient "haskell-server.tobioloke.com" 443 app
+  -- withSocketsDo $ runTCPClient "127.0.0.1" 34561 app
+  withSocketsDo $ runTCPClient "haskell-server.tobioloke.com" 5000 app
   where
     app c = do
       sendScoreMessage c score
@@ -124,8 +121,8 @@ runClientApp seed score name evList =
       sendSeedMessage c seed
       sendEventList c evList
       closeConn c
-    
-    -- ackhdlr = TL.decodeUtf8
+
+-- ackhdlr = TL.decodeUtf8
 
 runTCPClient :: HostName -> PortNumber -> (TCPConn -> IO b) -> IO b
 runTCPClient hostName port action = mask $ \restore -> do
@@ -134,12 +131,12 @@ runTCPClient hostName port action = mask $ \restore -> do
   restore (action tcpSock) `finally` closeConn tcpSock
   where
     resolve = do
-      let hints = defaultHints {addrSocketType = Stream }
+      let hints = defaultHints {addrSocketType = Stream}
       NE.head <$> getAddrInfo (pure hints) (pure hostName) (pure (show port))
-    
+
     connectClientTCPSocket addr = do
       sock <- socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr)
-      print addr
+      print $ addrAddress addr
       setSocketOption sock NoDelay 1
       connect sock $ addrAddress addr
       pure $ TCPConn sock
@@ -154,7 +151,7 @@ testClient =
           [MoveRight, MoveDown, MoveLeft, MoveUp, MoveRight, MoveDown, MoveRight, MoveDown, MoveLeft]
    in do
         putStrLn $ "Sending seed: " ++ show (mkStdGen 4)
-        -- 
+        --
         runClientApp 4 4 ("MAX" :: Name) events
 
 -- repTest = do
