@@ -127,11 +127,11 @@ serverApp cix dbConn tcpConn = do
     do
       putStrLn "Valid score" -- placeholder
       time <- liftIO (round <$> getPOSIXTime)
-      -- addScore dbConn name s time
+      addScore dbConn name s time
       putStrLn $ "Score of " <> show s <> " by user " <> show cix <> " added"
   putStrLn $ replicate 40 '='
 
-recvTCPData :: TCPConn -> (B.ByteString -> b) -> IO b
+recvTCPData :: TCPConn -> (BSMessage b -> b) -> IO b
 recvTCPData tcpConn handler = do
   lenPrefixBytes <- recvAll tcpConn (fromIntegral lenBytes)
   let msglen = (fromIntegral . decode @MsgLenRep) lenPrefixBytes
@@ -183,13 +183,6 @@ addClient s@(ServerState cs ix) c
 removeClient :: CIndex -> ClientMap -> ClientMap
 removeClient = Map.delete
 
--- application :: MVar ServerState -> DB.Connection -> WS.ServerApp
--- application state dbconn pending = do
---   conn <- WS.acceptRequestWith pending defaultAcceptRequest
---   WS.withPingPong WS.defaultPingPongOptions conn $
---     appHandling state dbconn
-
--- receiveBSMessage :: ByteString -> (BSMessage a -> a)
 
 disconnect :: CIndex -> MVar ServerState -> IO ()
 disconnect cix state = do
@@ -217,39 +210,3 @@ messageToScore = decode
 
 messageToName :: NameMessage -> Name
 messageToName = TL.toStrict . TL.decodeUtf8
-
--- serverApp cix (TCPConn sock) = do
---   putStrLn $ "Client at index: " <> show cix
---   messageToScore <$> tcpReceiveData sock
-
--- serverApp cix cliConn = do
---   putStrLn $ "Client at index: " ++ show cix
---   s <- messageToScore <$> WS.receiveData cliConn
---   putStrLn $ "Score of " ++ show s ++ " received"
---   name <- messageToName <$> WS.receiveData cliConn
---   putStrLn $ "Name of " ++ show (T.toUpper name) ++ " received"
---   seed <- messageToSeed <$> WS.receiveData cliConn
---   putStrLn $ "Seed: " ++ show seed
---   evList <- handleEventList <$> WS.receiveData cliConn
---   -- putStrLn $ "First three events: " ++ show (take 3 evList)
---   putStrLn $ "All events: " ++ show evList
---   let initState =
---         ReplayState
---           (Playing $ initWorld defaultHeight defaultWidth seed)
---           (TickNumber 0)
---       !game = runReplayG evList initState
---       s' = (score . getWorld) game
---   if s /= s'
---     then do
---       putStrLn "Mismatched score!"
---       putStrLn $ "Expected score: " ++ show s
---       putStrLn $ "Actual score: " ++ show s'
---       print (getWorld game)
---     else -- evs <- newMVar evList
---     -- runReplayApp seed evs
---     -- error "Mismatch!"
---     do
---       putStrLn "Valid score" -- placeholder
---       time <- liftIO (round <$> getPOSIXTime)
---       -- addScore dbConn name s time
---       putStrLn $ "Score of " <> show s <> " by user " <> show cix <> " added"
