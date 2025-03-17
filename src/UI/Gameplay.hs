@@ -191,7 +191,7 @@ eventHandler ev = do
     NewHighScore w -> do
       conn <- liftIO $ openDatabase "highscores.db"
       hs <- liftIO $ promptAddHighScore conn (score w)
-      gameLog .= runPureEff (runLogger gps addGameEnd)
+      gameLog .= runPureEff (runGameplayEventLogger gps logGameEnd)
       if hs
         then do
           gameStateDialog .= Nothing
@@ -362,31 +362,29 @@ theMap =
       (L.listAttr, bg V.magenta)
     ]
 
-handleMovement :: (e1 :> es) => ([a1] -> Either a2 (K.KeyDispatcher KeyEvent m)) -> BrickEvent n e2 -> Logger GameplayState e1 -> Eff es EventList
-handleMovement disp ev (Logger st readstate) = do
+
+-- Logging Functions
+handleMovement :: (e1 :> es) => ([a1] -> Either a2 (K.KeyDispatcher KeyEvent m)) -> BrickEvent n e2 -> Logger GameplayState EventList e1 -> Eff es EventList
+handleMovement disp ev (Logger evListSt readstate) = do
   gameplaystate <- ask readstate
   let logaction = getKeyEvent disp altConfig ev
       tick = gameplaystate ^. tickNo
-  addKeyToLog st tick logaction
-
--- logMove :: BrickEvent n e2 -> GameplayState -> EventList
--- logMove ev gs = runPureEff $ runLogger (handleMovement gameplayDispatcher ev) gs
+  addKeyToLog evListSt tick logaction
 
 -- | Log a move and add it to the overall EventList as an effect
 logMove :: GameplayState -> BrickEvent n e -> Eff es EventList
-logMove gps ev = runLogger gps (handleMovement gameplayDispatcher ev)
+logMove gps ev = runGameplayEventLogger gps (handleMovement gameplayDispatcher ev)
 
-addGameEnd :: (e :> es) => Logger GameplayState e -> Eff es EventList
-addGameEnd (Logger st readstate) = do
+logGameEnd :: (e :> es) => Logger GameplayState EventList e -> Eff es EventList
+logGameEnd (Logger evListSt readstate) = do
   gps <- ask readstate
   let tick = gps ^. tickNo 
-  addToLog st tick GameEnded
+  addToLog evListSt tick GameEnded
 
 resetLog :: Eff es EventList
 resetLog = pure []
 
-
-runLogger :: GameplayState -> (forall e. Logger GameplayState e -> Eff (e :& es) r) -> Eff es r
-runLogger gps f =
-  evalState (gps ^. gameLog) $ \writ -> do
-    runReader gps $ \rea -> useImplIn f (Logger (mapHandle writ) (mapHandle rea))
+runGameplayEventLogger :: GameplayState -> (forall e. Logger GameplayState EventList e -> Eff (e :& es) r) -> Eff es r
+runGameplayEventLogger gps f =
+  evalState (gps ^. gameLog) $ \st -> do
+    runReader gps $ \rea -> useImplIn f (Logger (mapHandle st) (mapHandle rea))

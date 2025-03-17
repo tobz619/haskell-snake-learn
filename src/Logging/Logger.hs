@@ -1,4 +1,3 @@
-{-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeOperators #-}
@@ -27,7 +26,7 @@ data GameEvent = GameEvent TickNumber KeyEvent
 
 type EventList = [GameEvent]
 
-data Logger g e = Logger (State EventList e) (Reader g e)
+data Logger i o e = Logger (State o e) (Reader i e)
 
 getKeyEvent :: (t -> Either a (K.KeyDispatcher KeyEvent m)) -> t -> BrickEvent n e -> Maybe KeyEvent
 getKeyEvent dispatcher altConfig (VtyEvent (V.EvKey k mods)) = do
