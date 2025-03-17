@@ -5,10 +5,12 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE RankNTypes #-}
 
 module UI.Gameplay where
 
-import Bluefin.Eff (Eff, runPureEff, (:>))
+import Bluefin.Eff (Eff, runPureEff, (:>), (:&))
 import Bluefin.Reader
 import Brick
 import Brick.BChan (newBChan, writeBChan)
@@ -43,6 +45,9 @@ import Linear.V2 (V2 (..))
 import Logging.Logger
 import System.Random
 import UI.Keybinds (KeyEvent (GameEnded), gameplayDispatcher)
+import Bluefin.Compound (mapHandle, useImplIn)
+import Bluefin.State (evalState)
+
 
 -- | Marks passing of time.
 --  Each delta is fed into the app.
@@ -158,11 +163,11 @@ highScoreMkForm =
     fieldy = const $ Vector.iterateN 26 succ 'A'
     listDrawElement _ a = txt $ Text.singleton a
 
-eventHandler :: BrickEvent MenuOptions Tick -> EventM MenuOptions GameplayState ()
+eventHandler :: BrickEvent MenuOptions Tick
+                -> EventM MenuOptions GameplayState ()
 eventHandler (VtyEvent (V.EvKey (V.KChar 'c') [V.MCtrl])) = M.halt
 eventHandler ev = do
   gs <- use gameState
-  glf <- use gameLog
   gps <- get
   case gs of
     Restarting -> do
@@ -170,13 +175,13 @@ eventHandler ev = do
       let w = initWorld defaultHeight defaultWidth g
       -- sendGenToServer serverLocation g
       tickNo .= 0 -- Reset the tick number to 0.
-      gameLog .= []
+      gameLog .= runPureEff resetLog
       gameState .= Starting w
     ToMenu -> M.halt
     Frozen _ -> do zoom gameState $ handleGameplayEvent' ev
     Playing _ -> do
       zoom gameState $ handleGameplayEvent' ev
-      gameLog .= (logMove ev gps <> glf)
+      gameLog .= runPureEff (logMove gps ev)
       tickNo %= (+ 1) -- advance the ticknumber by one
     Starting w -> do
       dia <- use gameStateDialog
@@ -186,7 +191,7 @@ eventHandler ev = do
     NewHighScore w -> do
       conn <- liftIO $ openDatabase "highscores.db"
       hs <- liftIO $ promptAddHighScore conn (score w)
-      gameLog .= (GameEvent (TickNumber $ view tickNo gps) GameEnded : glf)
+      gameLog .= runPureEff (runLogger gps addGameEnd)
       if hs
         then do
           gameStateDialog .= Nothing
@@ -295,7 +300,7 @@ drawDebug :: GameplayState -> Widget n
 drawDebug gps = currentTick <=> currentLog
   where
     currentTick = hLimit 10 $ vBox [txt $ Text.pack $ show $ gps ^. tickNo]
-    currentLog = vLimit 20 $ hLimit 45 $ vBox $ txt . Text.pack . show <$> gps ^. gameLog
+    currentLog = vLimit 20 $ hLimit 45 $ vBox $ txt . Text.pack . show <$> (gps ^. gameLog)
 
 drawStats :: World -> Widget MenuOptions
 drawStats w =
@@ -357,12 +362,31 @@ theMap =
       (L.listAttr, bg V.magenta)
     ]
 
-handleMovement :: (e1 :> es) => ([a1] -> Either a2 (K.KeyDispatcher KeyEvent m)) -> BrickEvent n e2 -> Logger GameplayState e1 -> Eff es ()
-handleMovement disp ev (Logger writ readstate) = do
+handleMovement :: (e1 :> es) => ([a1] -> Either a2 (K.KeyDispatcher KeyEvent m)) -> BrickEvent n e2 -> Logger GameplayState e1 -> Eff es EventList
+handleMovement disp ev (Logger st readstate) = do
   gameplaystate <- ask readstate
   let logaction = getKeyEvent disp altConfig ev
       tick = gameplaystate ^. tickNo
-  addToLog writ tick logaction
+  addKeyToLog st tick logaction
 
-logMove :: BrickEvent n e2 -> GameplayState -> EventList
-logMove ev gs = runPureEff $ runLogger (handleMovement gameplayDispatcher ev) gs
+-- logMove :: BrickEvent n e2 -> GameplayState -> EventList
+-- logMove ev gs = runPureEff $ runLogger (handleMovement gameplayDispatcher ev) gs
+
+-- | Log a move and add it to the overall EventList as an effect
+logMove :: GameplayState -> BrickEvent n e -> Eff es EventList
+logMove gps ev = runLogger gps (handleMovement gameplayDispatcher ev)
+
+addGameEnd :: (e :> es) => Logger GameplayState e -> Eff es EventList
+addGameEnd (Logger st readstate) = do
+  gps <- ask readstate
+  let tick = gps ^. tickNo 
+  addToLog st tick GameEnded
+
+resetLog :: Eff es EventList
+resetLog = pure []
+
+
+runLogger :: GameplayState -> (forall e. Logger GameplayState e -> Eff (e :& es) r) -> Eff es r
+runLogger gps f =
+  evalState (gps ^. gameLog) $ \writ -> do
+    runReader gps $ \rea -> useImplIn f (Logger (mapHandle writ) (mapHandle rea))
