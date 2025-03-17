@@ -110,6 +110,8 @@ serverApp cix dbConn tcpConn = do
   evList <- recvTCPData tcpConn handleEventList
   -- putStrLn $ "First three events: " ++ show (take 3 evList)
   putStrLn $ "All events: " ++ show evList
+  
+  -- Run the game replay
   let initState =
         ReplayState
           (Playing $ initWorld defaultHeight defaultWidth seed)
