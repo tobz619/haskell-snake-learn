@@ -25,8 +25,7 @@ library
                       DB.Server,
                       UI.Keybinds, 
                       Logging.Logger,
-                      Logging.Replay,
-                      Networking.TLS
+                      Logging.Replay
     build-depends:    base >= 4.10 && < 5,
                       async,
                       bimap,
