@@ -5,10 +5,13 @@
 
 module DB.Server where
 
-import Control.Concurrent (MVar, modifyMVar_, newMVar, readMVar, swapMVar)
+import Control.Concurrent (MVar, modifyMVar_, newMVar, readMVar, swapMVar, takeMVar)
+import Control.Concurrent.Async
+import Control.Concurrent.STM (newTQueueIO, readTQueue, writeTQueue)
 import Control.Exception (Exception, finally)
 import qualified Control.Exception as E
-import Control.Monad (forever, void, when)
+import Control.Monad (forever, replicateM_, void, when)
+import Control.Monad.STM (atomically)
 import Control.Monad.Trans (liftIO)
 import DB.Client
 import DB.Highscores (Name, Score, addScore, openDatabase)
@@ -22,14 +25,14 @@ import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Encoding as TL
 import Data.Time.Clock.POSIX (getPOSIXTime)
 import qualified Database.SQLite.Simple as DB
-import GameLogic (GameState (Playing, getWorld), ScoreType, World (..), defaultHeight, defaultWidth, initWorld)
+import GameLogic (GameState (Playing, getWorld), World (..), defaultHeight, defaultWidth, initWorld)
 import Logging.Logger (EventList, GameEvent (..), TickNumber (..))
 import Logging.Replay (ReplayState (ReplayState), Seed, runReplayG)
 import Network.Socket
 import Network.Socket.ByteString.Lazy
-import qualified Network.WebSockets as WS
 import System.Random (mkStdGen)
-import UI.ReplayPlayer (runReplayApp)
+import Control.Concurrent.STM.TQueue (TQueue)
+import Control.Concurrent.MVar
 
 data ServerState = ServerState {clients :: ClientMap, currentIx :: CIndex}
 
@@ -43,23 +46,24 @@ data ServerStateError = MaxPlayers | UnexpectedClose deriving stock (Show, Eq)
 
 instance Exception ServerStateError
 
+port :: PortNumber
+port = 34561
+
 main :: IO ()
 main = do
-  let port = (34561 :: PortNumber)
   putStrLn $ "Running server on localhost:" <> show port <> " ..."
   state <- newMVar newServerState
   dbConn <- openDatabase "highscores.db"
-  runTCPServer "0.0.0.0" port $ application state dbConn
+  threadPool <- newTQueueIO
+  atomically $ replicateM_ maxPlayers (writeTQueue threadPool ())
+  runTCPServer "0.0.0.0" port $ application state dbConn threadPool
 
 -- WS.runServer "127.0.0.1" port $ application state dbConn -- legacy
---
---
---
---
+---------------------------------------------------
 -- Server stuff
 
 runTCPServer :: String -> PortNumber -> (Socket -> IO a) -> IO a
-runTCPServer host port app = forever $ withSocketsDo $ do
+runTCPServer host p app = withSocketsDo $ forever $ do
   addr <- resolve
   -- print addr
   E.bracket (open addr) close app
@@ -70,7 +74,7 @@ runTCPServer host port app = forever $ withSocketsDo $ do
               { addrFlags = [AI_PASSIVE],
                 addrSocketType = Stream
               }
-      NE.head <$> getAddrInfo (Just hints) (Just host) (Just (show port))
+      NE.head <$> getAddrInfo (Just hints) (Just host) (Just (show p))
 
     open addr = E.bracketOnError (openSocket addr) close $ \sock -> do
       setSocketOption sock ReuseAddr 1
@@ -79,18 +83,22 @@ runTCPServer host port app = forever $ withSocketsDo $ do
       listen sock maxPlayers
       pure sock
 
-application :: MVar ServerState -> DB.Connection -> Socket -> IO ()
-application state dbconn sock = do
+application :: MVar ServerState -> DB.Connection -> TQueue () -> Socket ->  IO ()
+application state dbconn tp sock = flip withAsync wait $ do
+  atomically $ readTQueue tp
   (s, _) <- accept sock
+  -- sendAll s "Connected\n"
   appHandling state dbconn (TCPConn s)
+  atomically $ writeTQueue tp ()
 
 appHandling :: MVar ServerState -> DB.Connection -> ClientConnection -> IO ()
 appHandling state dbConn cliConn = do
-  st <- readMVar state
+  st <- flip withAsync wait $ takeMVar state
+  putStrLn $ "Index is " ++ show (currentIx st)
   cix <- case addClient st cliConn of
     Left MaxPlayers -> pure (-1) -- figure out what to do if the queue of scores being uploaded is full; ideally create a queue and process asynchronously while not full
     Right newSt -> do
-      void $ swapMVar state newSt
+      putMVar state newSt
       pure (currentIx newSt)
     Left _ -> error "Impossible"
 
@@ -99,18 +107,18 @@ appHandling state dbConn cliConn = do
 
 serverApp :: CIndex -> DB.Connection -> ClientConnection -> IO ()
 serverApp cix dbConn tcpConn = do
-  putStrLn $ replicate 40 '='
-  putStrLn $ "Client at index: " ++ show cix
+  putStrLn $ replicate 90 '='
+  putStrLn $ "Client at index: " <> show cix
   s <- recvTCPData tcpConn messageToScore
-  putStrLn $ "Score of " ++ show s ++ " received"
+  putStrLn $ "Score of " <> show s <> " received"
   name <- recvTCPData tcpConn messageToName
-  putStrLn $ "Name of " ++ show (T.toUpper name) ++ " received"
+  putStrLn $ "Name of " <> show (T.toUpper name) <> " received"
   seed <- recvTCPData tcpConn messageToSeed
-  putStrLn $ "Seed: " ++ show seed
+  putStrLn $ "Seed: " <> show seed
   evList <- recvTCPData tcpConn handleEventList
-  -- putStrLn $ "First three events: " ++ show (take 3 evList)
-  putStrLn $ "All events: " ++ show evList
-  
+  -- putStrLn $ "First three events: " <> show (take 3 evList)
+  putStrLn $ "All events: " <> show evList
+
   -- Run the game replay
   let initState =
         ReplayState
@@ -121,17 +129,14 @@ serverApp cix dbConn tcpConn = do
   if s /= s'
     then do
       putStrLn "Mismatched score!"
-      putStrLn $ "Expected score: " ++ show s
-      putStrLn $ "Actual score: " ++ show s'
-    else -- evs <- newMVar evList
-    -- runReplayApp seed evs
-    -- error "Mismatch!"
-    do
+      putStrLn $ "Expected score: " <> show s
+      putStrLn $ "Actual score: " <> show s'
+    else do
       putStrLn "Valid score" -- placeholder
-      time <- liftIO (round <$> getPOSIXTime)
-      addScore dbConn name s time
-      putStrLn $ "Score of " <> show s <> " by user " <> show cix <> " added"
-  putStrLn $ replicate 40 '='
+      -- time <- liftIO (round <$> getPOSIXTime)
+      -- addScore dbConn name s time
+      -- putStrLn $ "Score of " <> show s <> " by user " <> show cix <> " added"
+  putStrLn $ replicate 90 '='
 
 recvTCPData :: TCPConn -> (BSMessage b -> b) -> IO b
 recvTCPData tcpConn handler = do
@@ -139,31 +144,27 @@ recvTCPData tcpConn handler = do
   let msglen = (fromIntegral . decode @MsgLenRep) lenPrefixBytes
   handler <$> recvAll tcpConn msglen
 
+recvAll :: TCPConn -> MsgLenRep -> IO B.ByteString
 recvAll tcpConn size
-  | size <= 0 = pure $ B.empty
+  | size <= 0 = pure B.empty
   | otherwise = do
-      bs <- recv (getSocket tcpConn) size
+      bs <- recv (getSocket tcpConn) (fromIntegral size)
       -- putStrLn $ "Message size in bytes: " <> show size
       -- print bs
       when (B.null bs) $ E.throwIO UnexpectedClose
       let len = B.length bs
-      if len < size
+      if len < fromIntegral size
         then do
-          let missing = size - len
+          let missing = size - fromIntegral len
           rest <- recvAll tcpConn missing
           pure $ bs <> rest
         else pure bs
 
 -------
---
---
---
---
---
 -- Constants and ServerState functions
 
 maxPlayers :: Int
-maxPlayers = 6
+maxPlayers = 4
 
 newServerState :: ServerState
 newServerState = ServerState mempty 0
@@ -179,12 +180,11 @@ addClient s@(ServerState cs ix) c
   | otherwise =
       maybe
         (Right $ ServerState (Map.insert ix c cs) (ix `mod` maxPlayers)) -- If successful return a new state and the index the current player was inserted at
-        (const $ addClient s {currentIx = ix + 1 `mod` maxPlayers} c) -- If a player still exists at our current index, try again at plus one
+        (const $ addClient s {currentIx = (ix + 1) `mod` maxPlayers} c) -- If a player still exists at our current index, try again at plus one
         (Map.lookup ix (clients s)) -- Find the existing index
 
 removeClient :: CIndex -> ClientMap -> ClientMap
 removeClient = Map.delete
-
 
 disconnect :: CIndex -> MVar ServerState -> IO ()
 disconnect cix state = do

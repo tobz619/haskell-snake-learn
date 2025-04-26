@@ -88,7 +88,7 @@ gameplay = do
   chan <- newBChan 10
   _ <- forkIO $ forever $ do
     writeBChan chan Tick
-    threadDelay 100_000 -- 10 ticks per second
+    threadDelay (1_000_000 `div` 16) -- 20 ticks per second
   let initialVty = V.mkVty V.defaultConfig
   buildVty <- initialVty
   void $ customMain buildVty initialVty (Just chan) gameApp defState
@@ -181,7 +181,7 @@ eventHandler ev = do
     Frozen _ -> do zoom gameState $ handleGameplayEvent' ev
     Playing _ -> do
       zoom gameState $ handleGameplayEvent' ev
-      gameLog .= runPureEff (logMove gps ev)
+      gameLog .= runPureEff (runGameplayEventLogger gps (logMove ev))
       tickNo %= (+ 1) -- advance the ticknumber by one
     Starting w -> do
       dia <- use gameStateDialog
@@ -364,27 +364,32 @@ theMap =
 
 
 -- Logging Functions
-handleMovement :: (e1 :> es) => ([a1] -> Either a2 (K.KeyDispatcher KeyEvent m)) -> BrickEvent n e2 -> Logger GameplayState EventList e1 -> Eff es EventList
-handleMovement disp ev (Logger evListSt readstate) = do
-  gameplaystate <- ask readstate
-  let logaction = getKeyEvent disp altConfig ev
-      tick = gameplaystate ^. tickNo
-  addKeyToLog evListSt tick logaction
 
 -- | Log a move and add it to the overall EventList as an effect
-logMove :: GameplayState -> BrickEvent n e -> Eff es EventList
-logMove gps ev = runGameplayEventLogger gps (handleMovement gameplayDispatcher ev)
+logMove :: (e :> es) => BrickEvent n events -> Logger GameplayState EventList e -> Eff es EventList
+logMove = handleMovement gameplayDispatcher
+  where
+    handleMovement :: (e1 :> es) => ([a1] -> Either a2 (K.KeyDispatcher KeyEvent m)) -> BrickEvent n e2 -> Logger GameplayState EventList e1 -> Eff es EventList
+    handleMovement disp event (Logger evListSt readstate) = do
+      gameplaystate <- ask readstate
+      let logaction = getKeyEvent disp altConfig event
+          tick = gameplaystate ^. tickNo
+      addKeyToLog evListSt tick logaction
 
+-- | Log the end of the game
 logGameEnd :: (e :> es) => Logger GameplayState EventList e -> Eff es EventList
 logGameEnd (Logger evListSt readstate) = do
   gps <- ask readstate
-  let tick = gps ^. tickNo 
+  let tick = gps ^. tickNo
   addToLog evListSt tick GameEnded
 
+-- | Reset the log to an empty list
 resetLog :: Eff es EventList
 resetLog = pure []
 
+-- | Run the associated logging action with the associated state
 runGameplayEventLogger :: GameplayState -> (forall e. Logger GameplayState EventList e -> Eff (e :& es) r) -> Eff es r
 runGameplayEventLogger gps f =
-  evalState (gps ^. gameLog) $ \st -> do
-    runReader gps $ \rea -> useImplIn f (Logger (mapHandle st) (mapHandle rea))
+  evalState (gps ^. gameLog) $ \st ->
+    runReader gps $ \rea -> 
+      useImplIn f (Logger (mapHandle st) (mapHandle rea))

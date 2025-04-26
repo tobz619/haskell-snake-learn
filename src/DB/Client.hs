@@ -1,10 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE NumericUnderscores #-}
 
 module DB.Client where
 
 import Control.Concurrent.Async
-import Control.Monad (replicateM_)
 import DB.Highscores (Name)
 import Data.Bimap (Bimap)
 import qualified Data.Bimap as BM
@@ -14,33 +14,36 @@ import Data.Binary (encode)
 import Data.Bits (FiniteBits (finiteBitSize))
 import Data.ByteString.Lazy (ByteString)
 import qualified Data.ByteString.Lazy as B
-import Data.Coerce (coerce)
 import Data.List (scanl')
 import qualified Data.List.NonEmpty as NE
 import Data.Maybe (fromMaybe)
 import qualified Data.Text as Text
-import Data.Text.Encoding (encodeUtf8)
 import qualified Data.Text.Encoding as Text
-import qualified Data.Text.Lazy as TextL
 import Data.Word (Word32, Word8)
-import GHC.Conc
-import GHC.Generics (Generic)
 import GHC.IO (finally, mask)
 import GameLogic (ScoreType)
 import Logging.Logger (EventList, GameEvent (..), TickNumber (..))
 import Network.Socket
-import Network.Socket.ByteString.Lazy (sendAll)
-import Network.TLS
+import Network.Socket.ByteString.Lazy (sendAll, recv)
 import System.Random (mkStdGen)
 import UI.Gameplay (SeedSize)
 import UI.Keybinds (KeyEvent (..))
-import UI.ReplayPlayer (runReplayApp)
-import Unsafe.Coerce (unsafeCoerce)
-import Wuss (runSecureClient, runSecureClientWith)
+import Control.Concurrent.STM (atomically, writeTQueue, TQueue, STM, newTQueue, flushTQueue)
+import Control.Monad.ST.Strict
+import Data.STRef.Strict
+import System.Timeout (timeout)
 
 type MsgLenRep = Word8
 
 newtype TCPConn = TCPConn {getSocket :: Socket}
+
+serverName :: HostName
+serverName = "127.0.0.1"
+-- serverName = "haskell-server.tobioloke.com"
+
+clientPort :: PortNumber
+clientPort = 34561
+-- clientPort = 5000
 
 lenBytes :: Int
 lenBytes = fromIntegral $ finiteBitSize @MsgLenRep 0 `div` 8
@@ -90,9 +93,11 @@ sendEventList :: TCPConn -> EventList -> IO ()
 sendEventList c = sendBSMessage c . B.concat . map gameEvToMessage
 
 sendBSMessage :: TCPConn -> BSMessage a -> IO ()
-sendBSMessage tcpConn msg =
-  sendAll (getSocket tcpConn) $
+sendBSMessage tcpConn msg = sendAll (getSocket tcpConn) $
     encode @MsgLenRep (fromIntegral $ B.length msg) <> msg
+
+queueBSMessage :: a -> (a -> BSMessage a) -> TQueue ByteString -> STM ()
+queueBSMessage v fv = flip writeTQueue (fv v)
 
 sendTextMessage :: TCPConn -> Text.Text -> IO ()
 sendTextMessage tcpConn msg =
@@ -110,24 +115,32 @@ sendName c = sendTextMessage c . nameToMessage
   where
     nameToMessage = id
 
-runClientApp :: SeedSize -> ScoreType -> Text.Text -> [GameEvent] -> IO ()
-runClientApp seed score name evList =
-  -- withSocketsDo $ runTCPClient "127.0.0.1" 34561 app
-  withSocketsDo $ runTCPClient "haskell-server.tobioloke.com" 5000 app
+runClientAppSTM :: SeedSize -> ScoreType -> Text.Text -> [GameEvent] -> IO ()
+runClientAppSTM seed score name evList = runST $ do 
+  retries <- newSTRef 0
+  pure $ withSocketsDo $ do 
+    -- _ <- serverHello retries serverName clientPort
+    runTCPClient serverName clientPort app
   where
     app c = do
-      sendScoreMessage c score
-      sendName c name
-      sendSeedMessage c seed
-      sendEventList c evList
-      closeConn c
+      actions <- atomically $ do
+        q <- newTQueue
+        writeTQueue q $ sendScoreMessage c score
+        writeTQueue q $ sendName c name
+        writeTQueue q $ sendSeedMessage c seed
+        writeTQueue q $ sendEventList c evList
+        writeTQueue q $ closeConn c
+        writeTQueue q $ putStrLn "Closing conn"
+        flushTQueue q
+      sequence_ actions
+
 
 -- ackhdlr = TL.decodeUtf8
 
 runTCPClient :: HostName -> PortNumber -> (TCPConn -> IO b) -> IO b
 runTCPClient hostName port action = mask $ \restore -> do
   addr <- resolve
-  tcpSock <- withAsync (connectClientTCPSocket addr) $ \sock -> wait sock
+  tcpSock <- withAsync (connectClientTCPSocket addr) wait
   restore (action tcpSock) `finally` closeConn tcpSock
   where
     resolve = do
@@ -136,9 +149,10 @@ runTCPClient hostName port action = mask $ \restore -> do
 
     connectClientTCPSocket addr = do
       sock <- socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr)
-      print $ addrAddress addr
+      -- print $ addrAddress addr
       setSocketOption sock NoDelay 1
-      connect sock $ addrAddress addr
+      _ <- timeout 2_000_000 $ connect sock $ addrAddress addr
+      -- _ <- recv sock 1024
       pure $ TCPConn sock
 
 testClient :: IO ()
@@ -151,8 +165,7 @@ testClient =
           [MoveRight, MoveDown, MoveLeft, MoveUp, MoveRight, MoveDown, MoveRight, MoveDown, MoveLeft]
    in do
         putStrLn $ "Sending seed: " ++ show (mkStdGen 4)
-        --
-        runClientApp 4 4 ("MAX" :: Name) events
+        runClientAppSTM 4 4 ("BOB" :: Name) events
 
 -- repTest = do
 --  evs <- newMVar events

@@ -1,18 +1,19 @@
 { mkDerivation, async, base, bimap, binary, bluefin, brick
 , bytestring, containers, lib, linear, microlens, microlens-mtl
-, microlens-th, mtl, network, nonempty-containers, random, scotty
-, sqlite-simple, stm, text, time, tls, vector, vty
-, vty-crossplatform, websockets, word-wrap, wuss
+, microlens-th, mtl, network, network-simple-tls
+, nonempty-containers, random, scotty, sqlite-simple, stm, text
+, time, tls, vector, vty, vty-crossplatform, websockets, word-wrap
+, wuss
 }:
 mkDerivation {
   pname = "brick-tutorial";
   version = "0.1.0.0";
-  src = /nix/store/j06m1qipxddkwy3v6vli724ww8apbr4v-brick-tutorial;
+  src = /nix/store/1fw1ki3w3yn3rpbx66h93g69ixvwrxwa-brick-tutorial;
   isLibrary = true;
   isExecutable = true;
   libraryHaskellDepends = [
     async base bimap binary bluefin brick bytestring containers linear
-    microlens microlens-mtl microlens-th mtl network
+    microlens microlens-mtl microlens-th mtl network network-simple-tls
     nonempty-containers random scotty sqlite-simple stm text time tls
     vector vty vty-crossplatform websockets word-wrap wuss
   ];
