@@ -1,6 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE NumericUnderscores #-}
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module DB.Client where
 
@@ -35,7 +37,8 @@ import System.Timeout (timeout)
 
 type MsgLenRep = Word8
 
-newtype TCPConn = TCPConn {getSocket :: Socket}
+newtype TCPConn = TCPConn {getSocket :: Socket} 
+  deriving newtype Show
 
 serverName :: HostName
 serverName = "127.0.0.1"
@@ -129,7 +132,7 @@ runClientAppSTM seed score name evList = runST $ do
         writeTQueue q $ sendName c name
         writeTQueue q $ sendSeedMessage c seed
         writeTQueue q $ sendEventList c evList
-        writeTQueue q $ closeConn c
+        -- writeTQueue q $ closeConn c
         writeTQueue q $ putStrLn "Closing conn"
         flushTQueue q
       sequence_ actions

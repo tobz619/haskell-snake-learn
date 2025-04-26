@@ -8,7 +8,7 @@ module DB.Server where
 import Control.Concurrent (MVar, modifyMVar_, newMVar, readMVar, swapMVar, takeMVar)
 import Control.Concurrent.Async
 import Control.Concurrent.STM (newTQueueIO, readTQueue, writeTQueue)
-import Control.Exception (Exception, finally)
+import Control.Exception (Exception, finally, mask)
 import qualified Control.Exception as E
 import Control.Monad (forever, replicateM_, void, when)
 import Control.Monad.STM (atomically)
@@ -35,6 +35,7 @@ import Control.Concurrent.STM.TQueue (TQueue)
 import Control.Concurrent.MVar
 
 data ServerState = ServerState {clients :: ClientMap, currentIx :: CIndex}
+  deriving (Show)
 
 type ClientMap = Map.IntMap TCPConn
 
@@ -84,21 +85,23 @@ runTCPServer host p app = withSocketsDo $ forever $ do
       pure sock
 
 application :: MVar ServerState -> DB.Connection -> TQueue () -> Socket ->  IO ()
-application state dbconn tp sock = flip withAsync wait $ do
-  atomically $ readTQueue tp
-  (s, _) <- accept sock
-  -- sendAll s "Connected\n"
-  appHandling state dbconn (TCPConn s)
-  atomically $ writeTQueue tp ()
+application state dbconn tp sock = mask $ \restore ->  do 
+  flip withAsync wait $ do
+    atomically $ readTQueue tp
+    (s, _) <- accept sock
+    -- sendAll s "Connected\n"
+    restore (appHandling state dbconn (TCPConn s))
+    atomically $ writeTQueue tp ()
 
 appHandling :: MVar ServerState -> DB.Connection -> ClientConnection -> IO ()
 appHandling state dbConn cliConn = do
-  st <- flip withAsync wait $ takeMVar state
+  st <- takeMVar state
   putStrLn $ "Index is " ++ show (currentIx st)
   cix <- case addClient st cliConn of
     Left MaxPlayers -> pure (-1) -- figure out what to do if the queue of scores being uploaded is full; ideally create a queue and process asynchronously while not full
     Right newSt -> do
       putMVar state newSt
+      print newSt
       pure (currentIx newSt)
     Left _ -> error "Impossible"
 
