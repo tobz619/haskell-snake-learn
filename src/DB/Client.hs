@@ -119,9 +119,7 @@ sendName c = sendTextMessage c . nameToMessage
     nameToMessage = id
 
 runClientAppSTM :: SeedSize -> ScoreType -> Text.Text -> [GameEvent] -> IO ()
-runClientAppSTM seed score name evList = runST $ do 
-  retries <- newSTRef 0
-  pure $ withSocketsDo $ do 
+runClientAppSTM seed score name evList = withSocketsDo $ do 
     -- _ <- serverHello retries serverName clientPort
     runTCPClient serverName clientPort app
   where
@@ -132,7 +130,7 @@ runClientAppSTM seed score name evList = runST $ do
         writeTQueue q $ sendName c name
         writeTQueue q $ sendSeedMessage c seed
         writeTQueue q $ sendEventList c evList
-        -- writeTQueue q $ closeConn c
+        writeTQueue q $ closeConn c
         writeTQueue q $ putStrLn "Closing conn"
         flushTQueue q
       sequence_ actions
@@ -144,7 +142,7 @@ runTCPClient :: HostName -> PortNumber -> (TCPConn -> IO b) -> IO b
 runTCPClient hostName port action = mask $ \restore -> do
   addr <- resolve
   tcpSock <- withAsync (connectClientTCPSocket addr) wait
-  restore (action tcpSock) `finally` closeConn tcpSock
+  flip withAsync wait $ restore (action tcpSock) `finally` closeConn tcpSock
   where
     resolve = do
       let hints = defaultHints {addrSocketType = Stream}
@@ -152,7 +150,7 @@ runTCPClient hostName port action = mask $ \restore -> do
 
     connectClientTCPSocket addr = do
       sock <- socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr)
-      -- print $ addrAddress addr
+      print $ addrAddress addr
       setSocketOption sock NoDelay 1
       _ <- timeout 2_000_000 $ connect sock $ addrAddress addr
       -- _ <- recv sock 1024
@@ -169,6 +167,10 @@ testClient =
    in do
         putStrLn $ "Sending seed: " ++ show (mkStdGen 4)
         runClientAppSTM 4 4 ("BOB" :: Name) events
+
+
+manyTestClients :: Int -> IO [()]
+manyTestClients n = traverse (\(v,act) -> act >> print v) $ zip ([1..] :: [Int]) (replicate n testClient)
 
 -- repTest = do
 --  evs <- newMVar events

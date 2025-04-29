@@ -5,9 +5,9 @@
 
 module DB.Server where
 
-import Control.Concurrent (MVar, modifyMVar_, newMVar, readMVar, swapMVar, takeMVar)
+import Control.Concurrent (MVar, modifyMVar_, newMVar, readMVar, swapMVar, takeMVar, threadDelay)
 import Control.Concurrent.Async
-import Control.Concurrent.STM (newTQueueIO, readTQueue, writeTQueue)
+import Control.Concurrent.STM (newTQueueIO, readTQueue, writeTQueue, newTChan, newTChanIO, TChan, readTVar, readTVarIO, writeTVar, newTVarIO)
 import Control.Exception (Exception, finally, mask)
 import qualified Control.Exception as E
 import Control.Monad (forever, replicateM_, void, when)
@@ -33,6 +33,7 @@ import Network.Socket.ByteString.Lazy
 import System.Random (mkStdGen)
 import Control.Concurrent.STM.TQueue (TQueue)
 import Control.Concurrent.MVar
+import Control.Concurrent.STM.TVar (TVar)
 
 data ServerState = ServerState {clients :: ClientMap, currentIx :: CIndex}
   deriving (Show)
@@ -53,11 +54,9 @@ port = 34561
 main :: IO ()
 main = do
   putStrLn $ "Running server on localhost:" <> show port <> " ..."
-  state <- newMVar newServerState
+  state <- newTVarIO newServerState
   dbConn <- openDatabase "highscores.db"
-  threadPool <- newTQueueIO
-  atomically $ replicateM_ maxPlayers (writeTQueue threadPool ())
-  runTCPServer "0.0.0.0" port $ application state dbConn threadPool
+  runTCPServer "0.0.0.0" port $ application state dbConn
 
 -- WS.runServer "127.0.0.1" port $ application state dbConn -- legacy
 ---------------------------------------------------
@@ -84,27 +83,32 @@ runTCPServer host p app = withSocketsDo $ forever $ do
       listen sock maxPlayers
       pure sock
 
-application :: MVar ServerState -> DB.Connection -> TQueue () -> Socket ->  IO ()
-application state dbconn tp sock = mask $ \restore ->  do 
-  flip withAsync wait $ do
-    atomically $ readTQueue tp
-    (s, _) <- accept sock
+application :: TVar ServerState -> DB.Connection -> Socket ->  IO ()
+application state dbconn sock = 
+  mask $ \restore -> do
+    threadPool <- newTQueueIO
+    replicateM_ 4 . atomically $ writeTQueue threadPool ()
+    (s, a) <- accept sock
+    _ <- atomically $ readTQueue threadPool
+    putStrLn $ "Accepted connection from " ++ show a
+    flip withAsync wait $ do
     -- sendAll s "Connected\n"
-    restore (appHandling state dbconn (TCPConn s))
-    atomically $ writeTQueue tp ()
+      threadDelay 1000000
+      restore (appHandling state dbconn threadPool (TCPConn s))
 
-appHandling :: MVar ServerState -> DB.Connection -> ClientConnection -> IO ()
-appHandling state dbConn cliConn = do
-  st <- takeMVar state
+appHandling :: TVar ServerState -> DB.Connection -> TQueue () -> ClientConnection -> IO ()
+appHandling state dbConn threadpool cliConn = do
+  st <- readTVarIO state
   putStrLn $ "Index is " ++ show (currentIx st)
   cix <- case addClient st cliConn of
     Left MaxPlayers -> pure (-1) -- figure out what to do if the queue of scores being uploaded is full; ideally create a queue and process asynchronously while not full
     Right newSt -> do
-      putMVar state newSt
+      atomically $ writeTVar state newSt
       print newSt
       pure (currentIx newSt)
     Left _ -> error "Impossible"
 
+  atomically $ writeTQueue threadpool ()
   flip finally (disconnect cix state) $
     serverApp cix dbConn cliConn
 
@@ -140,6 +144,7 @@ serverApp cix dbConn tcpConn = do
       -- addScore dbConn name s time
       -- putStrLn $ "Score of " <> show s <> " by user " <> show cix <> " added"
   putStrLn $ replicate 90 '='
+  gracefulClose (getSocket tcpConn) 500
 
 recvTCPData :: TCPConn -> (BSMessage b -> b) -> IO b
 recvTCPData tcpConn handler = do
@@ -189,9 +194,10 @@ addClient s@(ServerState cs ix) c
 removeClient :: CIndex -> ClientMap -> ClientMap
 removeClient = Map.delete
 
-disconnect :: CIndex -> MVar ServerState -> IO ()
+disconnect :: CIndex -> TVar ServerState -> IO ()
 disconnect cix state = do
-  modifyMVar_ state $ \s -> pure $ s {clients = removeClient cix (clients s)}
+  s <- readTVarIO state
+  atomically $ writeTVar state $ s {clients = removeClient cix (clients s)}
 
 handleEventList :: EventListMessage -> EventList
 handleEventList bs =

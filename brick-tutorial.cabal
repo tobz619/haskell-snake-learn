@@ -25,7 +25,8 @@ library
                       DB.Server,
                       UI.Keybinds, 
                       Logging.Logger,
-                      Logging.Replay
+                      Logging.Replay,
+                      Logging.ServerLogger
     build-depends:    base >= 4.10 && < 5,
                       async,
                       bimap,
