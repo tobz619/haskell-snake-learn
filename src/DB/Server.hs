@@ -7,7 +7,10 @@ module DB.Server where
 
 import Control.Concurrent (MVar, modifyMVar_, newMVar, readMVar, swapMVar, takeMVar, threadDelay)
 import Control.Concurrent.Async
-import Control.Concurrent.STM (newTQueueIO, readTQueue, writeTQueue, newTChan, newTChanIO, TChan, readTVar, readTVarIO, writeTVar, newTVarIO)
+import Control.Concurrent.MVar
+import Control.Concurrent.STM (TChan, newTChan, newTChanIO, newTQueueIO, newTVarIO, readTQueue, readTVar, readTVarIO, writeTQueue, writeTVar)
+import Control.Concurrent.STM.TQueue (TQueue)
+import Control.Concurrent.STM.TVar (TVar)
 import Control.Exception (Exception, finally, mask)
 import qualified Control.Exception as E
 import Control.Monad (forever, replicateM_, void, when)
@@ -28,12 +31,10 @@ import qualified Database.SQLite.Simple as DB
 import GameLogic (GameState (Playing, getWorld), World (..), defaultHeight, defaultWidth, initWorld)
 import Logging.Logger (EventList, GameEvent (..), TickNumber (..))
 import Logging.Replay (ReplayState (ReplayState), Seed, runReplayG)
+import Logging.ServerLogger
 import Network.Socket
 import Network.Socket.ByteString.Lazy
 import System.Random (mkStdGen)
-import Control.Concurrent.STM.TQueue (TQueue)
-import Control.Concurrent.MVar
-import Control.Concurrent.STM.TVar (TVar)
 
 data ServerState = ServerState {clients :: ClientMap, currentIx :: CIndex}
   deriving (Show)
@@ -83,8 +84,8 @@ runTCPServer host p app = withSocketsDo $ forever $ do
       listen sock maxPlayers
       pure sock
 
-application :: TVar ServerState -> DB.Connection -> Socket ->  IO ()
-application state dbconn sock = 
+application :: TVar ServerState -> DB.Connection -> Socket -> IO ()
+application state dbconn sock =
   mask $ \restore -> do
     threadPool <- newTQueueIO
     replicateM_ 4 . atomically $ writeTQueue threadPool ()
@@ -92,7 +93,7 @@ application state dbconn sock =
     _ <- atomically $ readTQueue threadPool
     putStrLn $ "Accepted connection from " ++ show a
     flip withAsync wait $ do
-    -- sendAll s "Connected\n"
+      -- sendAll s "Connected\n"
       threadDelay 1000000
       restore (appHandling state dbconn threadPool (TCPConn s))
 
