@@ -21,6 +21,7 @@ import Bluefin.Writer (Writer, tell, execWriter)
 import Bluefin.Compound (useImplIn, mapHandle)
 import Control.Monad.Writer (WriterT, lift)
 import qualified Control.Monad.Writer.Lazy as W
+import qualified System.IO as IO
 
 data Logger i o e = Logger (Stream o e)
 
@@ -47,27 +48,14 @@ logClient io clq l@(Logger str) = do
       yield str (Text.pack . show $ cl)
       logClient io clq l
 
-runClientLogger :: (forall e. ClientLogger e -> Eff (e :& es) r) -> Eff es [Text]
-runClientLogger k = fst <$> yieldToList (\y -> useImplIn k (Logger (mapHandle y)))
 
-
--- spawnLogger :: (e :> es) => Eff es (Stream a e)
 spawnLogger :: (e :> es) => Stream o e -> Eff es (Logger i o e)
 spawnLogger y = pure (Logger y)
-
-someFunc :: IO (Logger a b e)
-someFunc = snd <$> runEff (\_ -> yieldToList $ \y -> spawnLogger y)
-
-
 
 
 type Log2 inp = WriterT [Text] IO ()
 
-logActionW :: Monad m => m a -> String -> WriterT [String] m a
-logActionW act logmsg = do
-  a <- lift act
-  W.tell . pure $ logmsg
-  pure a
+
 
 logActionClientLoggerIO :: (e :> es) => IOE e -> IO b -> Text -> ClientLogger e -> Eff es b
 logActionClientLoggerIO io ioAct logmsg (Logger str) = do
@@ -80,3 +68,34 @@ logActionClientLogger act logmsg (Logger str) = do
   a <- act
   yield str logmsg
   pure a
+
+-- runLoggerBF :: IO ([Text], ())
+-- runLoggerBF = runEff $ \io -> yieldToList $ \y -> do
+--   logger <- spawnLogger y
+--   _ <- logActionClientLoggerIO io (putStrLn "Hello") "Printing hello" logger
+--   pure ()
+
+makeLoggerW :: Monad m => WriterT [Text] m ()
+makeLoggerW = pure ()
+
+someProgram = do
+  a <- logActionW (pure (2 + 2)) "Adding two numbers\n"
+  putStrLn "Oh my God I'm so excited"
+  putStrLn $ "The value of the equation = " <> show a
+
+
+-- logActionW :: Monad m => m a -> String -> WriterT [String] m a
+logActionW act logmsg = flushStdOut $ do
+  a <- lift act
+  W.tell logmsg
+  pure a
+
+flushW :: IO.Handle -> WriterT String IO a -> IO a
+flushW h writer = do
+  (result, written) <- W.runWriterT writer
+  IO.hPutStr h written
+  IO.hFlush h
+  pure result
+
+flushStdOut = flushW IO.stdout
+
