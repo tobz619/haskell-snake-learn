@@ -17,13 +17,13 @@ import Control.Monad.STM (atomically)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Network.Socket (SockAddr)
-import Bluefin.Writer (Writer, tell, execWriter)
+import Bluefin.Writer (Writer, tell, execWriter, runWriter)
 import Bluefin.Compound (useImplIn, mapHandle)
 import Control.Monad.Writer (WriterT, lift)
 import qualified Control.Monad.Writer.Lazy as W
 import qualified System.IO as IO
 
-newtype Logger i o e = Logger (Stream o e)
+newtype Logger i o e = Logger (Writer o e)
 type ClientLogger = Logger (TChan ClientLogItem) Text
 
 data ClientLogItem = ClientLog {clientID :: Int, clientAddr :: SockAddr, clientMsg :: Text}
@@ -53,27 +53,27 @@ logClient io clq l = do
 
 
 -- spawnClientLogger :: (e :> es) => (forall e. ClientLogger e -> Eff (e :& es) r) -> Eff es r
-spawnClientLogger :: (forall e. ClientLogger e -> Eff (e :& es) r) -> Eff es ([Text], r)
-spawnClientLogger k = yieldToList (\y -> useImplIn k $ Logger (mapHandle y))
+spawnClientLogger :: (e :> es) => Writer Text e -> (forall e. ClientLogger e -> Eff (e :& es) r) -> Eff es r
+spawnClientLogger w k = useImplIn k $ Logger (mapHandle w)
 
 
 logActionClientLoggerIO :: (e1 :> es, e :> es) => IOE e1 -> IO b -> Text -> ClientLogger e -> Eff es b
 logActionClientLoggerIO io ioAct logmsg (Logger str) = do
   a <- effIO io ioAct
-  yield str logmsg
+  tell str logmsg
   pure a
 
 logActionClientLogger :: (e :> es) => Eff es b -> Text -> ClientLogger e -> Eff es b
 logActionClientLogger act logmsg (Logger str) = do
   a <- act
-  yield str logmsg
+  tell str logmsg
   pure a
 
 -- runLoggerBF :: IO ([Text], ())
 -- runLoggerBF :: (forall e. ClientLogger e -> Eff (e :& es) r) -> IO ([Text], r)
 someProgramBF io = do
   chan <- effIO io newTChanIO
-  spawnClientLogger $ do
+  execWriter $ \w -> spawnClientLogger w $ do
     sendToQueue io chan (ClientLog undefined undefined undefined)
     -- sendToQueue io chan (ClientLog undefined undefined undefined)
 
