@@ -22,6 +22,8 @@ import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import Network.Socket (SockAddr (..))
 import qualified System.IO as IO
+import Text.Read (readMaybe)
+import Control.Monad (replicateM)
 
 -- newtype Logger i o e = Logger (Writer o e)
 
@@ -35,6 +37,15 @@ data ClientLogItem = ClientLog {clientID :: Int, clientAddr :: SockAddr, clientM
 instance Show ClientLogItem where
   show (ClientLog iD sockAddr msg) =
     "[Client ID: " <> show iD <> " | Client Addr: " <> show sockAddr <> " | Msg: " <> Text.unpack msg <> "]"
+
+
+
+spawnClientLogger :: (e1 :> es) => IOE e1 -> (forall e. Logger e -> Eff (e :& es) r) -> Eff es r
+spawnClientLogger w k = useImplIn k $ Logger (mapHandle w)
+
+logActionBF :: (e :> es) => ClientLogger e -> Text -> Eff es ()
+logActionBF (Logger io) msg = do
+  effIO io $ Text.putStrLn msg
 
 -- sendToQueue :: TChan ClientLogItem -> ClientLogItem -> ClientLogger e -> IO ()
 sendToQueue :: (e :> es) => TChan ClientLogItem -> ClientLogItem -> Logger e -> Eff es ()
@@ -55,27 +66,18 @@ logClient clq l@(Logger io) = do
   logActionBF l ("Got client: " <> Text.pack (show cl))
   pure cl
 
--- spawnClientLogger :: (e :> es) => (forall e. ClientLogger e -> Eff (e :& es) r) -> Eff es r
--- spawnClientLogger :: (e :> es) => Writer Text e -> (forall e. ClientLogger e -> Eff (e :& es) r) -> Eff es r
-spawnClientLogger :: (e1 :> es) => IOE e1 -> (forall e. Logger e -> Eff (e :& es) r) -> Eff es r
-spawnClientLogger w k = useImplIn k $ Logger (mapHandle w)
 
-logActionBF :: (e :> es) => ClientLogger e -> Text -> Eff es ()
-logActionBF (Logger io) msg = do
-  effIO io $ Text.putStrLn msg
-
--- runLoggerBF :: IO ([Text], ())
--- runLoggerBF :: (forall e. ClientLogger e -> Eff (e :& es) r) -> IO ([Text], r)
 someProgramBF :: (e :> es) => IOE e -> Eff es ()
 someProgramBF io = do
   chan <- effIO io newTChanIO
+  a <- effIO io $ putStr "Give an number: " >> getLine
+  b <- effIO io $ putStr "Give an number: " >> getLine
   _ <- spawnClientLogger io $ \clientLogger -> do
     logActionBF clientLogger "abc"
-    let res = 1 + 2
-    logActionBF clientLogger ("The result of the computation is: " <> Text.pack (show res))
+    let res = maybe "Failure" show ((+) <$> readMaybe a <*> readMaybe b)
+    logActionBF clientLogger ("The result of the computation is: " <> Text.pack res)
     sendToQueue chan (ClientLog 1 (SockAddrInet 8080 0x0100007f) "I'm a client") clientLogger
     logActionBF clientLogger "What is this?"
-    effIO io $ putStrLn "Wow"
     clientA <- logClient chan clientLogger
     sendToQueue chan clientA clientLogger
 
