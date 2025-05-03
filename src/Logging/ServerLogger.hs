@@ -1,119 +1,87 @@
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE QuantifiedConstraints #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE QuantifiedConstraints #-}
 
 module Logging.ServerLogger where
 
+import Bluefin.Compound (mapHandle, useImplIn)
 import Bluefin.Eff
 import Bluefin.IO
-import Bluefin.Stream (Stream, yield, consumeStream, yieldToList, withYieldToList)
-import Control.Concurrent.STM (TChan, tryReadTChan, newTChanIO, writeTChan, newTChan, readTChan)
+import Bluefin.Writer (Writer, execWriter, tell)
+import Control.Concurrent.STM (TChan, newTChanIO, readTChan, writeTChan)
 import Control.Monad.STM (atomically)
+import Control.Monad.Writer (WriterT)
+import qualified Control.Monad.Writer.Lazy as W
 import Data.Text (Text)
 import qualified Data.Text as Text
-import Network.Socket (SockAddr)
-import Bluefin.Writer (Writer, tell, execWriter, runWriter)
-import Bluefin.Compound (useImplIn, mapHandle)
-import Control.Monad.Writer (WriterT, lift)
-import qualified Control.Monad.Writer.Lazy as W
+import qualified Data.Text.IO as Text
+import Network.Socket (SockAddr (..))
 import qualified System.IO as IO
 
-newtype Logger i o e = Logger (Writer o e)
-type ClientLogger = Logger (TChan ClientLogItem) Text
+-- newtype Logger i o e = Logger (Writer o e)
+
+newtype Logger e = Logger (IOE e)
+
+-- type ClientLogger = Logger (TChan ClientLogItem) Text
+type ClientLogger = Logger
 
 data ClientLogItem = ClientLog {clientID :: Int, clientAddr :: SockAddr, clientMsg :: Text}
 
-
-
 instance Show ClientLogItem where
   show (ClientLog iD sockAddr msg) =
-    "Client ID: " <> show iD <> "| Client Addr: " <> show sockAddr <> ": " <> Text.unpack msg
+    "[Client ID: " <> show iD <> " | Client Addr: " <> show sockAddr <> " | Msg: " <> Text.unpack msg <> "]"
 
+-- sendToQueue :: TChan ClientLogItem -> ClientLogItem -> ClientLogger e -> IO ()
+sendToQueue :: (e :> es) => TChan ClientLogItem -> ClientLogItem -> Logger e -> Eff es ()
+sendToQueue clq cl l@(Logger io) = do
+  logActionBF
+    l
+    ("Writing clientID " <> Text.pack (show (clientID cl)) <> " to the queue")
 
-sendToQueue :: (e1 :> es, e :> es) => IOE e1 -> TChan ClientLogItem -> ClientLogItem -> ClientLogger e -> Eff es ()
-sendToQueue io clq cl = 
-  logActionClientLoggerIO io 
-  (atomically $ writeTChan clq cl) 
-  ("Writing clientID " <> Text.pack (show (clientID cl)) <> " to the queue")
-  
+  effIO io . atomically $ writeTChan clq cl
 
+-- logActionBF clientlogger (pure ()) (Text.pack $ show cl)
 
--- logClient :: (e :> es) => IOE e -> TChan ClientLogItem -> ClientLogger e -> Eff es ()
--- logClient :: (e1 :> es, e :> es) => IOE e1 -> TChan ClientLogItem -> ClientLogger e -> Eff es ClientLogItem
-logClient :: (e1 :> es, e :> es) => IOE e1 -> TChan ClientLogItem -> ClientLogger e -> Eff es ClientLogItem
-logClient io clq l = do 
-  cl <- logActionClientLoggerIO io (atomically $ readTChan clq) "Pulling from the client from the queue" l
-  logActionClientLoggerIO io (pure cl) ("Logged client: " <> Text.pack (show cl)) l
-
-
+-- logClient :: TChan ClientLogItem -> ClientLogger e -> IO ClientLogItem
+logClient :: (e :> es, Show b) => TChan b -> Logger e -> Eff es b
+logClient clq l@(Logger io) = do
+  logActionBF l "Pulling from the client from the queue"
+  cl <- effIO io $ atomically $ readTChan clq
+  logActionBF l ("Got client: " <> Text.pack (show cl))
+  pure cl
 
 -- spawnClientLogger :: (e :> es) => (forall e. ClientLogger e -> Eff (e :& es) r) -> Eff es r
-spawnClientLogger :: (e :> es) => Writer Text e -> (forall e. ClientLogger e -> Eff (e :& es) r) -> Eff es r
+-- spawnClientLogger :: (e :> es) => Writer Text e -> (forall e. ClientLogger e -> Eff (e :& es) r) -> Eff es r
+spawnClientLogger :: (e1 :> es) => IOE e1 -> (forall e. Logger e -> Eff (e :& es) r) -> Eff es r
 spawnClientLogger w k = useImplIn k $ Logger (mapHandle w)
 
-
-logActionClientLoggerIO :: (e1 :> es, e :> es) => IOE e1 -> IO b -> Text -> ClientLogger e -> Eff es b
-logActionClientLoggerIO io ioAct logmsg (Logger str) = do
-  a <- effIO io ioAct
-  tell str logmsg
-  pure a
-
-logActionClientLogger :: (e :> es) => Eff es b -> Text -> ClientLogger e -> Eff es b
-logActionClientLogger act logmsg (Logger str) = do
-  a <- act
-  tell str logmsg
-  pure a
+logActionBF :: (e :> es) => ClientLogger e -> Text -> Eff es ()
+logActionBF (Logger io) msg = do
+  effIO io $ Text.putStrLn msg
 
 -- runLoggerBF :: IO ([Text], ())
 -- runLoggerBF :: (forall e. ClientLogger e -> Eff (e :& es) r) -> IO ([Text], r)
+someProgramBF :: (e :> es) => IOE e -> Eff es ()
 someProgramBF io = do
   chan <- effIO io newTChanIO
-  execWriter $ \w -> spawnClientLogger w $ do
-    sendToQueue io chan (ClientLog undefined undefined undefined)
-    -- sendToQueue io chan (ClientLog undefined undefined undefined)
+  _ <- spawnClientLogger io $ \clientLogger -> do
+    logActionBF clientLogger "abc"
+    let res = 1 + 2
+    logActionBF clientLogger ("The result of the computation is: " <> Text.pack (show res))
+    sendToQueue chan (ClientLog 1 (SockAddrInet 8080 0x0100007f) "I'm a client") clientLogger
+    logActionBF clientLogger "What is this?"
+    effIO io $ putStrLn "Wow"
+    clientA <- logClient chan clientLogger
+    sendToQueue chan clientA clientLogger
 
-  -- clientLogger $ sendToQueue io chan (ClientLog undefined undefined undefined)
-  -- clientLogger $ logActionClientLoggerIO io (putStrLn "Wow") "What is this?"
-  -- clientLogger $ logClient io chan
-  
+  -- effIO io $ print (length chan)
+  -- effIO io $ Text.putStrLn accumLog
   pure ()
-    -- logActionClientLoggerIO io (putStrLn "Wow") "What is this?"
 
-
-
-
-
-makeLoggerW :: Monad m => WriterT [Text] m ()
-makeLoggerW = pure ()
-
-someProgram :: IO ()
--- >>> someProgram
-someProgram = do
-  a <- do logActionW (pure ()) "Not adding two numbers, just messing about"
-          logActionW (pure (12+19)) "Can I add another two?"
-  putStrLn "Oh my God I'm so excited"
-  putStrLn $ "The value of the equation = " <> show a
-
-
--- logActionW :: Monad m => m a -> String -> WriterT [String] m a
-logActionW :: IO a -> String -> IO a
-logActionW act logmsg = flushStdOut $ do
-  a <- lift act
-  W.tell . unlines . pure $ logmsg
-  pure a
-
-flushW :: IO.Handle -> WriterT String IO a -> IO a
-flushW h writer = do
-  (result, written) <- W.runWriterT writer
-  IO.hPutStr h written
-  IO.hFlush h
-  pure result
-
-flushStdOut :: WriterT String IO a -> IO a
-flushStdOut = flushW IO.stdout
-
+runProgram :: IO ()
+runProgram = runEff $ \io -> someProgramBF io
