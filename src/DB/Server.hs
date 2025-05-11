@@ -35,10 +35,10 @@ import Logging.Logger (EventList, GameEvent (..), TickNumber (..))
 import Logging.Replay (ReplayState (ReplayState), Seed, runReplayG)
 import Network.Socket
 import Network.Socket.ByteString.Lazy
-import System.IO (IOMode (..), hClose, hFlush, hPutStrLn, openFile)
+import System.IO (IOMode (..), hFlush, openFile)
 import System.Random (mkStdGen)
 
-data ServerState = ServerState {clients :: ClientMap, currentIx :: CIndex}
+data ServerState = ServerState {clientCount ::  Int, clients :: ClientMap, currentIx :: CIndex}
   deriving (Show)
 
 type ClientMap = Map.IntMap TCPConn
@@ -212,7 +212,7 @@ maxPlayers :: Int
 maxPlayers = 32
 
 newServerState :: ServerState
-newServerState = ServerState mempty 0
+newServerState = ServerState 0 mempty 0
 
 numClients :: ServerState -> Int
 numClients = Map.size . clients
@@ -220,12 +220,12 @@ numClients = Map.size . clients
 -- | Adds a client to the existing @ServerState@ at the current index. If the index is full, try the
 -- (next one @\`mod\`@ @maxPlayers@) recursively until a space is found. If there are more than maxPlayers, return an error.
 addClient :: ServerState -> TCPConn -> Either ServerStateError ServerState
-addClient s@(ServerState cs ix) c
+addClient s@(ServerState cc cs ix) c
   | numClients s >= maxPlayers = Left MaxPlayers
   | otherwise =
       maybe
-        (pure $ ServerState (Map.insert ix c cs) ((ix + 1) `mod` maxPlayers)) -- If successful return a new state and the index the current player was inserted at
-        (const $ addClient s {currentIx = (ix + 1) `mod` maxPlayers} c) -- If a player still exists at our current index, try again at plus one
+        (pure $ ServerState (cc + 1) (Map.insert ix c cs) ((cc + 1) `mod` maxPlayers)) -- If no player found return a new state and the index the current player was inserted at
+        (const $ addClient (s {currentIx = (ix + 1) `mod` maxPlayers}) c) -- If a player still exists at our current index, try again at plus one
         (Map.lookup ix (clients s)) -- Find the existing index
 
 removeClient :: CIndex -> ClientMap -> ClientMap
