@@ -43,27 +43,27 @@ instance Show ClientLogItem where
 spawnClientLogger :: (e1 :> es) => IOE e1 -> (forall e. Logger e -> Eff (e :& es) r) -> Eff es r
 spawnClientLogger w k = useImplIn k $ Logger (mapHandle w)
 
-logActionBF :: (e :> es) => ClientLogger e -> Text -> Eff es ()
-logActionBF (Logger io) msg = do
+logAction :: (e :> es) => ClientLogger e -> Text -> Eff es ()
+logAction (Logger io) msg = do
   effIO io $ Text.putStrLn msg
 
 -- sendToQueue :: TChan ClientLogItem -> ClientLogItem -> ClientLogger e -> IO ()
 sendToQueue :: (e :> es) => TChan ClientLogItem -> ClientLogItem -> Logger e -> Eff es ()
 sendToQueue clq cl l@(Logger io) = do
-  logActionBF
+  logAction
     l
     ("Writing clientID " <> Text.pack (show (clientID cl)) <> " to the queue")
 
   effIO io . atomically $ writeTChan clq cl
 
--- logActionBF clientlogger (pure ()) (Text.pack $ show cl)
+-- logAction clientlogger (pure ()) (Text.pack $ show cl)
 
 -- logClient :: TChan ClientLogItem -> ClientLogger e -> IO ClientLogItem
 logClient :: (e :> es, Show b) => TChan b -> Logger e -> Eff es b
 logClient clq l@(Logger io) = do
-  logActionBF l "Pulling from the client from the queue"
+  logAction l "Pulling from the client from the queue"
   cl <- effIO io $ atomically $ readTChan clq
-  logActionBF l ("Got client: " <> Text.pack (show cl))
+  logAction l ("Got client: " <> Text.pack (show cl))
   pure cl
 
 
@@ -73,11 +73,11 @@ someProgramBF io = do
   a <- effIO io $ putStr "Give an number: " >> getLine
   b <- effIO io $ putStr "Give an number: " >> getLine
   _ <- spawnClientLogger io $ \clientLogger -> do
-    logActionBF clientLogger "abc"
+    logAction clientLogger "abc"
     let res = maybe "Failure" show ((+) <$> readMaybe a <*> readMaybe b)
-    logActionBF clientLogger ("The result of the computation is: " <> Text.pack res)
+    logAction clientLogger ("The result of the computation is: " <> Text.pack res)
     sendToQueue chan (ClientLog 1 (SockAddrInet 8080 0x0100007f) "I'm a client") clientLogger
-    logActionBF clientLogger "What is this?"
+    logAction clientLogger "What is this?"
     clientA <- logClient chan clientLogger
     sendToQueue chan clientA clientLogger
 

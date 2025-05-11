@@ -1,0 +1,1397 @@
+Accepted connection from 127.0.0.1:38594
+ServerState {clients = fromList [(0,<socket: 14>)], currentIx = 1}
+==========================================================================================
+Client at index: 0
+Accepted connection from 127.0.0.1:38606
+Accepted connection from 127.0.0.1:38614
+ServerState {clients = fromList [(0,<socket: 14>),(1,<socket: 15>)], currentIx = 2}
+ServerState {clients = fromList [(0,<socket: 14>),(1,<socket: 15>),(2,<socket: 16>)], currentIx = 3}
+==========================================================================================
+Client at index: 2
+Accepted connection from 127.0.0.1:38616
+==========================================================================================
+Client at index: 1
+Accepted connection from 127.0.0.1:38628
+ServerState {clients = fromList [(0,<socket: 14>),(1,<socket: 15>),(2,<socket: 16>),(3,<socket: 17>)], currentIx = 4}
+==========================================================================================
+Client at index: 3
+ServerState {clients = fromList [(0,<socket: 14>),(1,<socket: 15>),(2,<socket: 16>),(3,<socket: 17>),(4,<socket: 18>)], currentIx = 5}
+==========================================================================================
+Client at index: 4
+Accepted connection from 127.0.0.1:38642
+Accepted connection from 127.0.0.1:38650
+ServerState {clients = fromList [(0,<socket: 14>),(1,<socket: 15>),(2,<socket: 16>),(3,<socket: 17>),(4,<socket: 18>),(5,<socket: 19>)], currentIx = 6}
+==========================================================================================
+Client at index: 5
+Accepted connection from 127.0.0.1:38666
+ServerState {clients = fromList [(0,<socket: 14>),(1,<socket: 15>),(2,<socket: 16>),(3,<socket: 17>),(4,<socket: 18>),(5,<socket: 19>),(6,<socket: 20>)], currentIx = 7}
+==========================================================================================
+Client at index: 6
+ServerState {clients = fromList [(0,<socket: 14>),(1,<socket: 15>),(2,<socket: 16>),(3,<socket: 17>),(4,<socket: 18>),(5,<socket: 19>),(6,<socket: 20>),(7,<socket: 21>)], currentIx = 0}
+==========================================================================================
+Client at index: 7
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 0 added
+==========================================================================================
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 1 added
+==========================================================================================
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 2 added
+==========================================================================================
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 3 added
+==========================================================================================
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 4 added
+==========================================================================================
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 5 added
+==========================================================================================
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 6 added
+==========================================================================================
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 7 added
+==========================================================================================
+Accepted connection from 127.0.0.1:38674
+Accepted connection from 127.0.0.1:38684
+ServerState {clients = fromList [(0,<socket: 22>),(2,<socket: 16>),(3,<socket: 17>),(4,<socket: 18>),(5,<socket: 19>),(6,<socket: 20>),(7,<socket: 21>)], currentIx = 1}
+==========================================================================================
+Client at index: 0
+ServerState {clients = fromList [(0,<socket: 22>),(1,<socket: 23>),(2,<socket: 16>),(3,<socket: 17>),(4,<socket: 18>),(5,<socket: 19>),(6,<socket: 20>),(7,<socket: 21>)], currentIx = 2}
+==========================================================================================
+Client at index: 1
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 1 added
+==========================================================================================
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 0 added
+==========================================================================================
+Accepted connection from 127.0.0.1:38700
+Accepted connection from 127.0.0.1:38710
+ServerState {clients = fromList [(0,<socket: 22>),(1,<socket: 23>),(2,<socket: 24>)], currentIx = 3}
+==========================================================================================
+Client at index: 2
+ServerState {clients = fromList [(0,<socket: 22>),(1,<socket: 23>),(2,<socket: 24>),(3,<socket: 25>)], currentIx = 4}
+==========================================================================================
+Client at index: 3
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 3 added
+==========================================================================================
+Accepted connection from 127.0.0.1:38720
+Score of 4 received
+ServerState {clients = fromList [(0,<socket: 22>),(1,<socket: 23>),(2,<socket: 24>),(3,<socket: 25>),(4,<socket: 26>)], currentIx = 5}
+==========================================================================================
+Client at index: 4
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 4 added
+==========================================================================================
+Accepted connection from 127.0.0.1:38732
+Name of "BOB" received
+ServerState {clients = fromList [(0,<socket: 22>),(1,<socket: 23>),(2,<socket: 24>),(3,<socket: 25>),(4,<socket: 26>),(5,<socket: 27>)], currentIx = 6}
+==========================================================================================
+Client at index: 5
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 5 added
+==========================================================================================
+Accepted connection from 127.0.0.1:38742
+Accepted connection from 127.0.0.1:38756
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 2 added
+==========================================================================================
+ServerState {clients = fromList [(0,<socket: 22>),(1,<socket: 23>),(2,<socket: 24>),(3,<socket: 25>),(4,<socket: 26>),(5,<socket: 27>),(6,<socket: 28>)], currentIx = 7}
+==========================================================================================
+Client at index: 6
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 6 added
+==========================================================================================
+ServerState {clients = fromList [(0,<socket: 22>),(1,<socket: 23>),(2,<socket: 24>),(3,<socket: 25>),(4,<socket: 26>),(5,<socket: 27>),(6,<socket: 28>),(7,<socket: 29>)], currentIx = 0}
+==========================================================================================
+Client at index: 7
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 7 added
+==========================================================================================
+Accepted connection from 127.0.0.1:38768
+Accepted connection from 127.0.0.1:38782
+ServerState {clients = fromList [(0,<socket: 30>),(2,<socket: 24>),(3,<socket: 25>),(4,<socket: 26>),(5,<socket: 27>),(6,<socket: 28>),(7,<socket: 29>)], currentIx = 1}
+==========================================================================================
+Client at index: 0
+ServerState {clients = fromList [(0,<socket: 30>),(1,<socket: 31>),(2,<socket: 24>),(3,<socket: 25>),(4,<socket: 26>),(5,<socket: 27>),(6,<socket: 28>),(7,<socket: 29>)], currentIx = 2}
+==========================================================================================
+Client at index: 1
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 1 added
+==========================================================================================
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 0 added
+==========================================================================================
+Accepted connection from 127.0.0.1:38794
+ServerState {clients = fromList [(0,<socket: 30>),(1,<socket: 31>),(2,<socket: 24>),(3,<socket: 32>),(4,<socket: 26>),(5,<socket: 27>),(6,<socket: 28>),(7,<socket: 29>)], currentIx = 4}
+==========================================================================================
+Client at index: 2
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 2 added
+==========================================================================================
+Accepted connection from 127.0.0.1:38796
+Accepted connection from 127.0.0.1:38810
+Accepted connection from 127.0.0.1:38822
+ServerState {clients = fromList [(0,<socket: 30>),(1,<socket: 31>),(3,<socket: 32>),(4,<socket: 33>)], currentIx = 5}
+==========================================================================================
+Client at index: 4
+Score of 4 received
+Accepted connection from 127.0.0.1:38830
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 4 added
+==========================================================================================
+Accepted connection from 127.0.0.1:38834
+ServerState {clients = fromList [(0,<socket: 30>),(1,<socket: 31>),(3,<socket: 32>),(4,<socket: 33>),(5,<socket: 34>)], currentIx = 6}
+==========================================================================================
+Client at index: 5
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 5 added
+==========================================================================================
+ServerState {clients = fromList [(0,<socket: 30>),(1,<socket: 31>),(3,<socket: 32>),(4,<socket: 33>),(5,<socket: 34>),(6,<socket: 35>)], currentIx = 7}
+==========================================================================================
+Client at index: 6
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 6 added
+==========================================================================================
+ServerState {clients = fromList [(0,<socket: 30>),(1,<socket: 31>),(3,<socket: 32>),(4,<socket: 33>),(5,<socket: 34>),(6,<socket: 35>),(7,<socket: 36>)], currentIx = 0}
+==========================================================================================
+Client at index: 7
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 7 added
+==========================================================================================
+ServerState {clients = fromList [(0,<socket: 30>),(1,<socket: 31>),(2,<socket: 38>),(3,<socket: 32>),(4,<socket: 33>),(5,<socket: 34>),(6,<socket: 35>),(7,<socket: 36>)], currentIx = 3}
+==========================================================================================
+Client at index: 0
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 0 added
+==========================================================================================
+Accepted connection from 127.0.0.1:38838
+Accepted connection from 127.0.0.1:38844
+ServerState {clients = fromList [(0,<socket: 39>),(2,<socket: 38>),(3,<socket: 32>),(4,<socket: 33>),(5,<socket: 34>),(6,<socket: 35>),(7,<socket: 36>)], currentIx = 1}
+==========================================================================================
+Client at index: 3
+ServerState {clients = fromList [(0,<socket: 39>),(1,<socket: 40>),(2,<socket: 38>),(3,<socket: 32>),(4,<socket: 33>),(5,<socket: 34>),(6,<socket: 35>),(7,<socket: 36>)], currentIx = 2}
+==========================================================================================
+Client at index: 1
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 1 added
+==========================================================================================
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 3 added
+==========================================================================================
+Accepted connection from 127.0.0.1:38850
+ServerState {clients = fromList [(0,<socket: 39>),(1,<socket: 40>),(2,<socket: 41>),(3,<socket: 32>),(4,<socket: 33>),(5,<socket: 34>),(6,<socket: 35>),(7,<socket: 36>)], currentIx = 3}
+==========================================================================================
+Client at index: 2
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 2 added
+==========================================================================================
+Accepted connection from 127.0.0.1:38856
+Accepted connection from 127.0.0.1:38872
+ServerState {clients = fromList [(0,<socket: 39>),(1,<socket: 40>),(2,<socket: 41>),(3,<socket: 32>),(4,<socket: 42>),(7,<socket: 36>)], currentIx = 5}
+ServerState {clients = fromList [(0,<socket: 39>),(1,<socket: 40>),(2,<socket: 41>),(3,<socket: 32>),(4,<socket: 42>),(5,<socket: 43>),(7,<socket: 36>)], currentIx = 6}
+==========================================================================================
+Client at index: 5
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 5 added
+==========================================================================================
+Accepted connection from 127.0.0.1:38876
+==========================================================================================
+Client at index: 3
+ServerState {clients = fromList [(0,<socket: 39>),(1,<socket: 40>),(2,<socket: 41>),(3,<socket: 32>),(4,<socket: 42>),(5,<socket: 43>),(6,<socket: 44>),(7,<socket: 36>)], currentIx = 7}
+==========================================================================================
+Client at index: 6
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 6 added
+==========================================================================================
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 3 added
+==========================================================================================
+Accepted connection from 127.0.0.1:38890
+Accepted connection from 127.0.0.1:38898
+ServerState {clients = fromList [(1,<socket: 40>),(2,<socket: 41>),(3,<socket: 32>),(4,<socket: 42>),(5,<socket: 43>),(6,<socket: 44>),(7,<socket: 45>)], currentIx = 0}
+==========================================================================================
+Client at index: 7
+ServerState {clients = fromList [(0,<socket: 46>),(1,<socket: 40>),(2,<socket: 41>),(3,<socket: 32>),(4,<socket: 42>),(5,<socket: 43>),(6,<socket: 44>),(7,<socket: 45>)], currentIx = 1}
+==========================================================================================
+Client at index: 0
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 0 added
+==========================================================================================
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 7 added
+==========================================================================================
+Accepted connection from 127.0.0.1:38904
+Accepted connection from 127.0.0.1:38920
+ServerState {clients = fromList [(0,<socket: 46>),(1,<socket: 47>),(2,<socket: 41>),(4,<socket: 42>),(5,<socket: 43>),(6,<socket: 44>),(7,<socket: 45>)], currentIx = 2}
+==========================================================================================
+Client at index: 1
+ServerState {clients = fromList [(0,<socket: 46>),(1,<socket: 47>),(2,<socket: 41>),(3,<socket: 48>),(4,<socket: 42>),(5,<socket: 43>),(6,<socket: 44>),(7,<socket: 45>)], currentIx = 4}
+==========================================================================================
+Client at index: 2
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 2 added
+==========================================================================================
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 1 added
+==========================================================================================
+Accepted connection from 127.0.0.1:38922
+ServerState {clients = fromList [(0,<socket: 46>),(1,<socket: 47>),(2,<socket: 49>),(3,<socket: 48>),(4,<socket: 42>),(5,<socket: 43>),(6,<socket: 44>),(7,<socket: 45>)], currentIx = 3}
+==========================================================================================
+Client at index: 4
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 4 added
+==========================================================================================
+Accepted connection from 127.0.0.1:38934
+Accepted connection from 127.0.0.1:38948
+ServerState {clients = fromList [(0,<socket: 46>),(1,<socket: 47>),(2,<socket: 49>),(3,<socket: 50>),(4,<socket: 42>),(5,<socket: 51>),(7,<socket: 45>)], currentIx = 6}
+==========================================================================================
+Client at index: 4
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 4 added
+==========================================================================================
+Accepted connection from 127.0.0.1:38952
+ServerState {clients = fromList [(0,<socket: 46>),(1,<socket: 47>),(2,<socket: 49>),(3,<socket: 50>),(4,<socket: 42>),(7,<socket: 45>)], currentIx = 4}
+==========================================================================================
+Client at index: 3
+ServerState {clients = fromList [(0,<socket: 46>),(1,<socket: 47>),(2,<socket: 49>),(3,<socket: 50>),(4,<socket: 42>),(5,<socket: 51>),(6,<socket: 52>),(7,<socket: 45>)], currentIx = 7}
+==========================================================================================
+Client at index: 6
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 6 added
+==========================================================================================
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 3 added
+==========================================================================================
+Accepted connection from 127.0.0.1:38958
+ServerState {clients = fromList [(1,<socket: 47>),(2,<socket: 49>),(3,<socket: 50>),(4,<socket: 42>),(5,<socket: 51>),(6,<socket: 52>),(7,<socket: 53>)], currentIx = 0}
+==========================================================================================
+Client at index: 7
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 7 added
+==========================================================================================
+Accepted connection from 127.0.0.1:38974
+ServerState {clients = fromList [(0,<socket: 54>),(1,<socket: 47>),(2,<socket: 49>),(3,<socket: 50>),(4,<socket: 42>),(5,<socket: 51>),(6,<socket: 52>),(7,<socket: 53>)], currentIx = 1}
+==========================================================================================
+Client at index: 0
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 0 added
+==========================================================================================
+Accepted connection from 127.0.0.1:38980
+Accepted connection from 127.0.0.1:38994
+ServerState {clients = fromList [(0,<socket: 54>),(1,<socket: 55>),(3,<socket: 50>),(4,<socket: 42>),(5,<socket: 51>),(6,<socket: 52>),(7,<socket: 53>)], currentIx = 2}
+==========================================================================================
+Client at index: 1
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 1 added
+==========================================================================================
+ServerState {clients = fromList [(0,<socket: 54>),(1,<socket: 55>),(2,<socket: 56>),(3,<socket: 50>),(4,<socket: 42>),(5,<socket: 51>),(6,<socket: 52>),(7,<socket: 53>)], currentIx = 3}
+==========================================================================================
+Client at index: 2
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 2 added
+==========================================================================================
+Accepted connection from 127.0.0.1:39000
+ServerState {clients = fromList [(0,<socket: 54>),(1,<socket: 55>),(2,<socket: 56>),(3,<socket: 50>),(4,<socket: 57>),(5,<socket: 51>),(6,<socket: 52>),(7,<socket: 53>)], currentIx = 5}
+==========================================================================================
+Client at index: 3
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 3 added
+==========================================================================================
+Accepted connection from 127.0.0.1:39012
+Accepted connection from 127.0.0.1:39028
+ServerState {clients = fromList [(0,<socket: 54>),(1,<socket: 55>),(2,<socket: 56>),(5,<socket: 51>),(6,<socket: 58>),(7,<socket: 53>)], currentIx = 7}
+ServerState {clients = fromList [(0,<socket: 54>),(1,<socket: 55>),(2,<socket: 56>),(3,<socket: 59>),(5,<socket: 51>),(6,<socket: 58>),(7,<socket: 53>)], currentIx = 4}
+==========================================================================================
+Client at index: 7
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 7 added
+==========================================================================================
+Accepted connection from 127.0.0.1:39034
+==========================================================================================
+Client at index: 5
+ServerState {clients = fromList [(0,<socket: 54>),(1,<socket: 55>),(2,<socket: 56>),(3,<socket: 59>),(4,<socket: 60>),(5,<socket: 51>),(6,<socket: 58>),(7,<socket: 53>)], currentIx = 5}
+==========================================================================================
+Client at index: 4
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 4 added
+==========================================================================================
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 5 added
+==========================================================================================
+Accepted connection from 127.0.0.1:39050
+Accepted connection from 127.0.0.1:39056
+ServerState {clients = fromList [(1,<socket: 55>),(2,<socket: 56>),(3,<socket: 59>),(4,<socket: 60>),(5,<socket: 51>),(6,<socket: 58>),(7,<socket: 61>)], currentIx = 0}
+==========================================================================================
+Client at index: 5
+ServerState {clients = fromList [(0,<socket: 62>),(1,<socket: 55>),(2,<socket: 56>),(3,<socket: 59>),(4,<socket: 60>),(5,<socket: 51>),(6,<socket: 58>),(7,<socket: 61>)], currentIx = 1}
+==========================================================================================
+Client at index: 0
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 0 added
+==========================================================================================
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 5 added
+==========================================================================================
+Accepted connection from 127.0.0.1:39064
+Accepted connection from 127.0.0.1:39078
+ServerState {clients = fromList [(0,<socket: 62>),(1,<socket: 63>),(3,<socket: 59>),(4,<socket: 60>),(5,<socket: 51>),(6,<socket: 58>),(7,<socket: 61>)], currentIx = 2}
+==========================================================================================
+Client at index: 1
+Score of 4 received
+ServerState {clients = fromList [(0,<socket: 62>),(1,<socket: 63>),(2,<socket: 64>),(3,<socket: 59>),(4,<socket: 60>),(5,<socket: 51>),(6,<socket: 58>),(7,<socket: 61>)], currentIx = 3}
+==========================================================================================
+Client at index: 2
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 2 added
+==========================================================================================
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 1 added
+==========================================================================================
+Accepted connection from 127.0.0.1:39086
+ServerState {clients = fromList [(0,<socket: 62>),(1,<socket: 63>),(2,<socket: 64>),(3,<socket: 65>),(4,<socket: 60>),(5,<socket: 51>),(6,<socket: 58>),(7,<socket: 61>)], currentIx = 4}
+==========================================================================================
+Client at index: 3
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 3 added
+==========================================================================================
+Accepted connection from 127.0.0.1:39094
+Accepted connection from 127.0.0.1:39110
+ServerState {clients = fromList [(0,<socket: 62>),(1,<socket: 63>),(2,<socket: 64>),(3,<socket: 65>),(4,<socket: 66>),(6,<socket: 58>)], currentIx = 5}
+==========================================================================================
+Client at index: 4
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 4 added
+==========================================================================================
+Accepted connection from 127.0.0.1:39126
+ServerState {clients = fromList [(0,<socket: 62>),(1,<socket: 63>),(2,<socket: 64>),(3,<socket: 65>),(4,<socket: 66>),(5,<socket: 67>),(6,<socket: 58>)], currentIx = 6}
+ServerState {clients = fromList [(0,<socket: 62>),(1,<socket: 63>),(2,<socket: 64>),(3,<socket: 65>),(4,<socket: 66>),(5,<socket: 67>),(6,<socket: 58>),(7,<socket: 68>)], currentIx = 0}
+==========================================================================================
+Client at index: 6
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 6 added
+==========================================================================================
+==========================================================================================
+Client at index: 5
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 5 added
+==========================================================================================
+Accepted connection from 127.0.0.1:39130
+Accepted connection from 127.0.0.1:39138
+ServerState {clients = fromList [(0,<socket: 69>),(1,<socket: 63>),(2,<socket: 64>),(3,<socket: 65>),(4,<socket: 66>),(6,<socket: 58>),(7,<socket: 68>)], currentIx = 1}
+ServerState {clients = fromList [(0,<socket: 69>),(1,<socket: 63>),(2,<socket: 64>),(3,<socket: 65>),(4,<socket: 66>),(5,<socket: 70>),(6,<socket: 58>),(7,<socket: 68>)], currentIx = 6}
+==========================================================================================
+Client at index: 1
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 1 added
+==========================================================================================
+==========================================================================================
+Client at index: 0
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 0 added
+==========================================================================================
+Accepted connection from 127.0.0.1:39152
+Accepted connection from 127.0.0.1:39168
+ServerState {clients = fromList [(0,<socket: 69>),(1,<socket: 71>),(3,<socket: 65>),(4,<socket: 66>),(5,<socket: 70>),(6,<socket: 58>),(7,<socket: 68>)], currentIx = 2}
+==========================================================================================
+Client at index: 6
+ServerState {clients = fromList [(0,<socket: 69>),(1,<socket: 71>),(2,<socket: 72>),(3,<socket: 65>),(4,<socket: 66>),(5,<socket: 70>),(6,<socket: 58>),(7,<socket: 68>)], currentIx = 3}
+==========================================================================================
+Client at index: 2
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 2 added
+==========================================================================================
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 6 added
+==========================================================================================
+Accepted connection from 127.0.0.1:39172
+ServerState {clients = fromList [(0,<socket: 69>),(1,<socket: 71>),(2,<socket: 72>),(3,<socket: 73>),(4,<socket: 66>),(5,<socket: 70>),(6,<socket: 58>),(7,<socket: 68>)], currentIx = 4}
+==========================================================================================
+Client at index: 3
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 3 added
+==========================================================================================
+Accepted connection from 127.0.0.1:39188
+ServerState {clients = fromList [(2,<socket: 72>),(3,<socket: 73>),(4,<socket: 74>),(7,<socket: 68>)], currentIx = 5}
+==========================================================================================
+Client at index: 4
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 4 added
+==========================================================================================
+Accepted connection from 127.0.0.1:39192
+ServerState {clients = fromList [(2,<socket: 72>),(3,<socket: 73>),(4,<socket: 74>),(5,<socket: 75>),(7,<socket: 68>)], currentIx = 6}
+==========================================================================================
+Client at index: 5
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 5 added
+==========================================================================================
+Accepted connection from 127.0.0.1:39204
+ServerState {clients = fromList [(2,<socket: 72>),(3,<socket: 73>),(4,<socket: 74>),(5,<socket: 75>),(6,<socket: 22>),(7,<socket: 68>)], currentIx = 7}
+==========================================================================================
+Client at index: 6
+Accepted connection from 127.0.0.1:39218
+Score of 4 received
+Name of "BOB" received
+ServerState {clients = fromList [(0,<socket: 23>),(2,<socket: 72>),(3,<socket: 73>),(4,<socket: 74>),(5,<socket: 75>),(6,<socket: 22>),(7,<socket: 68>)], currentIx = 1}
+==========================================================================================
+Client at index: 7
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 7 added
+==========================================================================================
+Accepted connection from 127.0.0.1:39234
+ServerState {clients = fromList [(0,<socket: 23>),(1,<socket: 24>),(2,<socket: 72>),(3,<socket: 73>),(4,<socket: 74>),(5,<socket: 75>),(6,<socket: 22>),(7,<socket: 68>)], currentIx = 2}
+==========================================================================================
+Client at index: 1
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 1 added
+==========================================================================================
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 6 added
+==========================================================================================
+Accepted connection from 127.0.0.1:39250
+Accepted connection from 127.0.0.1:39260
+ServerState {clients = fromList [(0,<socket: 23>),(1,<socket: 24>),(2,<socket: 25>),(3,<socket: 73>),(4,<socket: 74>),(5,<socket: 75>),(7,<socket: 68>)], currentIx = 3}
+==========================================================================================
+Client at index: 2
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 2 added
+==========================================================================================
+ServerState {clients = fromList [(0,<socket: 23>),(1,<socket: 24>),(2,<socket: 25>),(3,<socket: 73>),(4,<socket: 74>),(5,<socket: 75>),(6,<socket: 26>),(7,<socket: 68>)], currentIx = 7}
+==========================================================================================
+Client at index: 3
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 3 added
+==========================================================================================
+Accepted connection from 127.0.0.1:39266
+ServerState {clients = fromList [(0,<socket: 23>),(1,<socket: 24>),(2,<socket: 25>),(3,<socket: 27>),(4,<socket: 74>),(5,<socket: 75>),(6,<socket: 26>),(7,<socket: 68>)], currentIx = 4}
+==========================================================================================
+Client at index: 7
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 7 added
+==========================================================================================
+Accepted connection from 127.0.0.1:39272
+ServerState {clients = fromList [(0,<socket: 23>),(1,<socket: 24>),(2,<socket: 25>),(3,<socket: 27>),(4,<socket: 28>),(5,<socket: 75>),(6,<socket: 26>),(7,<socket: 68>)], currentIx = 5}
+==========================================================================================
+Client at index: 4
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 4 added
+==========================================================================================
+Accepted connection from 127.0.0.1:39284
+ServerState {clients = fromList [(0,<socket: 23>),(2,<socket: 25>),(3,<socket: 27>),(4,<socket: 28>),(5,<socket: 29>)], currentIx = 6}
+==========================================================================================
+Client at index: 5
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 5 added
+==========================================================================================
+Accepted connection from 127.0.0.1:39286
+ServerState {clients = fromList [(0,<socket: 23>),(2,<socket: 25>),(3,<socket: 27>),(4,<socket: 28>),(5,<socket: 29>),(6,<socket: 30>)], currentIx = 7}
+==========================================================================================
+Client at index: 6
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 6 added
+==========================================================================================
+Accepted connection from 127.0.0.1:39294
+Accepted connection from 127.0.0.1:39310
+ServerState {clients = fromList [(0,<socket: 23>),(2,<socket: 25>),(3,<socket: 27>),(4,<socket: 28>),(5,<socket: 29>),(6,<socket: 30>),(7,<socket: 31>)], currentIx = 0}
+ServerState {clients = fromList [(0,<socket: 23>),(1,<socket: 33>),(2,<socket: 25>),(3,<socket: 27>),(4,<socket: 28>),(5,<socket: 29>),(6,<socket: 30>),(7,<socket: 31>)], currentIx = 2}
+==========================================================================================
+Client at index: 0
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 0 added
+==========================================================================================
+==========================================================================================
+Client at index: 7
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 7 added
+==========================================================================================
+Accepted connection from 127.0.0.1:39324
+Accepted connection from 127.0.0.1:39340
+ServerState {clients = fromList [(0,<socket: 23>),(1,<socket: 33>),(2,<socket: 34>),(4,<socket: 28>),(5,<socket: 29>),(6,<socket: 30>),(7,<socket: 31>)], currentIx = 3}
+==========================================================================================
+Client at index: 2
+ServerState {clients = fromList [(0,<socket: 23>),(1,<socket: 33>),(2,<socket: 34>),(3,<socket: 35>),(4,<socket: 28>),(5,<socket: 29>),(6,<socket: 30>),(7,<socket: 31>)], currentIx = 4}
+==========================================================================================
+Client at index: 3
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 3 added
+==========================================================================================
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 2 added
+==========================================================================================
+Accepted connection from 127.0.0.1:39344
+ServerState {clients = fromList [(0,<socket: 23>),(1,<socket: 33>),(2,<socket: 34>),(3,<socket: 35>),(4,<socket: 28>),(5,<socket: 29>),(6,<socket: 30>),(7,<socket: 38>)], currentIx = 0}
+==========================================================================================
+Client at index: 4
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 4 added
+==========================================================================================
+Accepted connection from 127.0.0.1:39360
+ServerState {clients = fromList [(0,<socket: 23>),(1,<socket: 33>),(2,<socket: 34>),(3,<socket: 35>),(4,<socket: 76>),(5,<socket: 29>),(6,<socket: 30>),(7,<socket: 38>)], currentIx = 5}
+==========================================================================================
+Client at index: 0
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 0 added
+==========================================================================================
+Accepted connection from 127.0.0.1:39370
+Accepted connection from 127.0.0.1:39380
+ServerState {clients = fromList [(1,<socket: 33>),(2,<socket: 34>),(3,<socket: 35>),(4,<socket: 76>),(5,<socket: 77>)], currentIx = 6}
+==========================================================================================
+Client at index: 5
+ServerState {clients = fromList [(1,<socket: 33>),(2,<socket: 34>),(3,<socket: 35>),(4,<socket: 76>),(5,<socket: 77>),(6,<socket: 78>)], currentIx = 7}
+==========================================================================================
+Client at index: 6
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 6 added
+==========================================================================================
+Accepted connection from 127.0.0.1:39394
+Score of 4 received
+ServerState {clients = fromList [(1,<socket: 33>),(2,<socket: 34>),(3,<socket: 35>),(4,<socket: 76>),(5,<socket: 77>),(6,<socket: 78>),(7,<socket: 79>)], currentIx = 0}
+==========================================================================================
+Client at index: 7
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 7 added
+==========================================================================================
+Accepted connection from 127.0.0.1:39410
+ServerState {clients = fromList [(0,<socket: 80>),(1,<socket: 33>),(2,<socket: 34>),(3,<socket: 35>),(4,<socket: 76>),(5,<socket: 77>),(6,<socket: 78>),(7,<socket: 79>)], currentIx = 1}
+==========================================================================================
+Client at index: 0
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 0 added
+==========================================================================================
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 5 added
+==========================================================================================
+Accepted connection from 127.0.0.1:39424
+Accepted connection from 127.0.0.1:39426
+ServerState {clients = fromList [(0,<socket: 80>),(1,<socket: 33>),(2,<socket: 81>),(4,<socket: 76>),(5,<socket: 77>),(6,<socket: 78>),(7,<socket: 79>)], currentIx = 3}
+==========================================================================================
+Client at index: 1
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 1 added
+==========================================================================================
+ServerState {clients = fromList [(0,<socket: 80>),(1,<socket: 33>),(2,<socket: 81>),(3,<socket: 82>),(4,<socket: 76>),(5,<socket: 77>),(6,<socket: 78>),(7,<socket: 79>)], currentIx = 4}
+==========================================================================================
+Client at index: 3
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 3 added
+==========================================================================================
+Accepted connection from 127.0.0.1:39436
+ServerState {clients = fromList [(0,<socket: 80>),(1,<socket: 33>),(2,<socket: 81>),(3,<socket: 82>),(4,<socket: 83>),(5,<socket: 77>),(6,<socket: 78>),(7,<socket: 79>)], currentIx = 5}
+==========================================================================================
+Client at index: 4
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 4 added
+==========================================================================================
+Accepted connection from 127.0.0.1:39450
+ServerState {clients = fromList [(0,<socket: 84>),(1,<socket: 33>),(2,<socket: 81>),(3,<socket: 82>),(4,<socket: 83>),(5,<socket: 77>),(6,<socket: 78>),(7,<socket: 79>)], currentIx = 1}
+==========================================================================================
+Client at index: 5
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 5 added
+==========================================================================================
+Accepted connection from 127.0.0.1:39466
+Accepted connection from 127.0.0.1:39478
+ServerState {clients = fromList [(0,<socket: 84>),(1,<socket: 33>),(2,<socket: 81>),(3,<socket: 82>),(4,<socket: 83>),(5,<socket: 77>),(6,<socket: 85>)], currentIx = 7}
+==========================================================================================
+Client at index: 1
+Score of 4 received
+ServerState {clients = fromList [(0,<socket: 84>),(1,<socket: 33>),(2,<socket: 81>),(3,<socket: 82>),(4,<socket: 83>),(5,<socket: 77>),(6,<socket: 85>),(7,<socket: 86>)], currentIx = 0}
+==========================================================================================
+Client at index: 7
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 7 added
+==========================================================================================
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 1 added
+==========================================================================================
+Accepted connection from 127.0.0.1:39488
+Accepted connection from 127.0.0.1:39502
+ServerState {clients = fromList [(0,<socket: 87>),(1,<socket: 33>),(2,<socket: 81>),(3,<socket: 82>),(4,<socket: 83>),(6,<socket: 85>),(7,<socket: 86>)], currentIx = 1}
+==========================================================================================
+Client at index: 0
+ServerState {clients = fromList [(0,<socket: 87>),(1,<socket: 33>),(2,<socket: 81>),(3,<socket: 82>),(4,<socket: 83>),(5,<socket: 88>),(6,<socket: 85>),(7,<socket: 86>)], currentIx = 6}
+==========================================================================================
+Client at index: 1
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 1 added
+==========================================================================================
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 0 added
+==========================================================================================
+Accepted connection from 127.0.0.1:39514
+ServerState {clients = fromList [(0,<socket: 87>),(1,<socket: 89>),(2,<socket: 81>),(4,<socket: 83>),(5,<socket: 88>),(6,<socket: 85>),(7,<socket: 86>)], currentIx = 2}
+Accepted connection from 127.0.0.1:39522
+==========================================================================================
+Client at index: 6
+Score of 4 received
+ServerState {clients = fromList [(0,<socket: 87>),(1,<socket: 89>),(2,<socket: 81>),(3,<socket: 90>),(4,<socket: 83>),(5,<socket: 88>),(6,<socket: 85>),(7,<socket: 86>)], currentIx = 4}
+==========================================================================================
+Client at index: 2
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 2 added
+==========================================================================================
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 6 added
+==========================================================================================
+Accepted connection from 127.0.0.1:39524
+ServerState {clients = fromList [(0,<socket: 87>),(1,<socket: 89>),(2,<socket: 81>),(3,<socket: 90>),(4,<socket: 91>),(5,<socket: 88>),(6,<socket: 85>),(7,<socket: 86>)], currentIx = 5}
+==========================================================================================
+Client at index: 4
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 4 added
+==========================================================================================
+Accepted connection from 127.0.0.1:39528
+ServerState {clients = fromList [(0,<socket: 87>),(1,<socket: 89>),(2,<socket: 81>),(3,<socket: 90>),(4,<socket: 91>),(5,<socket: 92>),(6,<socket: 85>),(7,<socket: 86>)], currentIx = 6}
+==========================================================================================
+Client at index: 5
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 5 added
+==========================================================================================
+Accepted connection from 127.0.0.1:39534
+Accepted connection from 127.0.0.1:39540
+ServerState {clients = fromList [(0,<socket: 87>),(2,<socket: 81>),(3,<socket: 90>),(4,<socket: 91>),(5,<socket: 92>),(6,<socket: 85>),(7,<socket: 93>)], currentIx = 0}
+==========================================================================================
+Client at index: 6
+Score of 4 received
+ServerState {clients = fromList [(0,<socket: 87>),(1,<socket: 94>),(2,<socket: 81>),(3,<socket: 90>),(4,<socket: 91>),(5,<socket: 92>),(6,<socket: 85>),(7,<socket: 93>)], currentIx = 2}
+==========================================================================================
+Client at index: 0
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 0 added
+==========================================================================================
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 6 added
+==========================================================================================
+Accepted connection from 127.0.0.1:39548
+Accepted connection from 127.0.0.1:39560
+ServerState {clients = fromList [(0,<socket: 95>),(2,<socket: 81>),(3,<socket: 90>),(4,<socket: 91>),(5,<socket: 92>),(6,<socket: 85>),(7,<socket: 93>)], currentIx = 1}
+==========================================================================================
+Client at index: 2
+ServerState {clients = fromList [(0,<socket: 95>),(1,<socket: 96>),(2,<socket: 81>),(3,<socket: 90>),(4,<socket: 91>),(5,<socket: 92>),(6,<socket: 85>),(7,<socket: 93>)], currentIx = 2}
+==========================================================================================
+Client at index: 1
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 1 added
+==========================================================================================
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 2 added
+==========================================================================================
+Accepted connection from 127.0.0.1:39566
+Accepted connection from 127.0.0.1:39576
+ServerState {clients = fromList [(0,<socket: 95>),(1,<socket: 96>),(2,<socket: 97>),(3,<socket: 90>),(4,<socket: 91>),(5,<socket: 92>),(7,<socket: 93>)], currentIx = 3}
+==========================================================================================
+Client at index: 2
+Score of 4 received
+ServerState {clients = fromList [(0,<socket: 95>),(1,<socket: 96>),(2,<socket: 97>),(3,<socket: 90>),(4,<socket: 91>),(5,<socket: 92>),(6,<socket: 98>),(7,<socket: 93>)], currentIx = 7}
+==========================================================================================
+Client at index: 3
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 3 added
+==========================================================================================
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 2 added
+==========================================================================================
+Accepted connection from 127.0.0.1:39578
+ServerState {clients = fromList [(0,<socket: 95>),(1,<socket: 96>),(2,<socket: 97>),(3,<socket: 90>),(4,<socket: 99>),(5,<socket: 92>),(6,<socket: 98>),(7,<socket: 93>)], currentIx = 5}
+==========================================================================================
+Client at index: 7
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 7 added
+==========================================================================================
+Accepted connection from 127.0.0.1:39590
+ServerState {clients = fromList [(0,<socket: 95>),(1,<socket: 96>),(2,<socket: 97>),(3,<socket: 90>),(4,<socket: 99>),(5,<socket: 39>),(6,<socket: 98>),(7,<socket: 93>)], currentIx = 6}
+==========================================================================================
+Client at index: 5
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 5 added
+==========================================================================================
+Accepted connection from 127.0.0.1:39598
+Accepted connection from 127.0.0.1:39612
+ServerState {clients = fromList [(1,<socket: 96>),(2,<socket: 97>),(3,<socket: 90>),(4,<socket: 99>),(5,<socket: 39>),(6,<socket: 40>),(7,<socket: 93>)], currentIx = 7}
+==========================================================================================
+Client at index: 6
+Score of 4 received
+ServerState {clients = fromList [(0,<socket: 41>),(1,<socket: 96>),(2,<socket: 97>),(3,<socket: 90>),(4,<socket: 99>),(5,<socket: 39>),(6,<socket: 40>),(7,<socket: 93>)], currentIx = 1}
+==========================================================================================
+Client at index: 7
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 7 added
+==========================================================================================
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 6 added
+==========================================================================================
+Accepted connection from 127.0.0.1:39618
+Accepted connection from 127.0.0.1:39632
+ServerState {clients = fromList [(0,<socket: 41>),(1,<socket: 42>),(3,<socket: 90>),(4,<socket: 99>),(5,<socket: 39>),(6,<socket: 40>),(7,<socket: 93>)], currentIx = 2}
+==========================================================================================
+Client at index: 1
+Score of 4 received
+ServerState {clients = fromList [(0,<socket: 41>),(1,<socket: 42>),(2,<socket: 43>),(3,<socket: 90>),(4,<socket: 99>),(5,<socket: 39>),(6,<socket: 40>),(7,<socket: 93>)], currentIx = 3}
+==========================================================================================
+Client at index: 2
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 2 added
+==========================================================================================
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 1 added
+==========================================================================================
+Accepted connection from 127.0.0.1:39638
+Accepted connection from 127.0.0.1:39644
+ServerState {clients = fromList [(0,<socket: 41>),(1,<socket: 42>),(3,<socket: 44>),(4,<socket: 99>),(5,<socket: 39>),(6,<socket: 40>),(7,<socket: 93>)], currentIx = 4}
+ServerState {clients = fromList [(0,<socket: 41>),(1,<socket: 42>),(2,<socket: 45>),(3,<socket: 44>),(4,<socket: 99>),(5,<socket: 39>),(6,<socket: 40>),(7,<socket: 93>)], currentIx = 3}
+==========================================================================================
+Client at index: 4
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 4 added
+==========================================================================================
+==========================================================================================
+Client at index: 3
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 3 added
+==========================================================================================
+Accepted connection from 127.0.0.1:39660
+ServerState {clients = fromList [(0,<socket: 41>),(1,<socket: 42>),(2,<socket: 45>),(3,<socket: 44>),(4,<socket: 99>),(5,<socket: 39>),(6,<socket: 40>),(7,<socket: 46>)], currentIx = 0}
+==========================================================================================
+Client at index: 3
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 3 added
+==========================================================================================
+Accepted connection from 127.0.0.1:39672
+ServerState {clients = fromList [(0,<socket: 41>),(1,<socket: 42>),(2,<socket: 45>),(3,<socket: 44>),(4,<socket: 99>),(5,<socket: 47>),(6,<socket: 40>),(7,<socket: 46>)], currentIx = 6}
+==========================================================================================
+Client at index: 0
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 0 added
+==========================================================================================
+Accepted connection from 127.0.0.1:39688
+Accepted connection from 127.0.0.1:39692
+ServerState {clients = fromList [(0,<socket: 41>),(1,<socket: 42>),(3,<socket: 44>),(4,<socket: 99>),(5,<socket: 47>),(6,<socket: 48>)], currentIx = 7}
+==========================================================================================
+Client at index: 6
+Score of 4 received
+ServerState {clients = fromList [(0,<socket: 41>),(1,<socket: 42>),(3,<socket: 44>),(4,<socket: 99>),(5,<socket: 47>),(6,<socket: 48>),(7,<socket: 49>)], currentIx = 0}
+==========================================================================================
+Client at index: 7
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 7 added
+==========================================================================================
+Accepted connection from 127.0.0.1:39700
+Name of "BOB" received
+ServerState {clients = fromList [(0,<socket: 41>),(1,<socket: 42>),(2,<socket: 50>),(3,<socket: 44>),(4,<socket: 99>),(5,<socket: 47>),(6,<socket: 48>),(7,<socket: 49>)], currentIx = 3}
+==========================================================================================
+Client at index: 0
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 0 added
+==========================================================================================
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 6 added
+==========================================================================================
+Accepted connection from 127.0.0.1:39716
+ServerState {clients = fromList [(0,<socket: 41>),(1,<socket: 52>),(2,<socket: 50>),(3,<socket: 44>),(4,<socket: 99>),(5,<socket: 47>),(6,<socket: 48>),(7,<socket: 49>)], currentIx = 2}
+==========================================================================================
+Client at index: 3
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 3 added
+==========================================================================================
+Accepted connection from 127.0.0.1:39722
+Accepted connection from 127.0.0.1:39726
+ServerState {clients = fromList [(0,<socket: 41>),(1,<socket: 52>),(2,<socket: 50>),(3,<socket: 53>),(5,<socket: 47>),(6,<socket: 48>),(7,<socket: 49>)], currentIx = 4}
+==========================================================================================
+Client at index: 2
+ServerState {clients = fromList [(0,<socket: 41>),(1,<socket: 52>),(2,<socket: 50>),(3,<socket: 53>),(4,<socket: 54>),(5,<socket: 47>),(6,<socket: 48>),(7,<socket: 49>)], currentIx = 5}
+==========================================================================================
+Client at index: 4
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 4 added
+==========================================================================================
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 2 added
+==========================================================================================
+Accepted connection from 127.0.0.1:39730
+ServerState {clients = fromList [(0,<socket: 41>),(1,<socket: 52>),(2,<socket: 50>),(3,<socket: 57>),(4,<socket: 54>),(5,<socket: 47>),(6,<socket: 48>),(7,<socket: 49>)], currentIx = 4}
+==========================================================================================
+Client at index: 5
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 5 added
+==========================================================================================
+Accepted connection from 127.0.0.1:39740
+ServerState {clients = fromList [(0,<socket: 100>),(1,<socket: 52>),(2,<socket: 50>),(3,<socket: 57>),(4,<socket: 54>),(5,<socket: 47>),(6,<socket: 48>),(7,<socket: 49>)], currentIx = 1}
+==========================================================================================
+Client at index: 4
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 4 added
+==========================================================================================
+Accepted connection from 127.0.0.1:39746
+ServerState {clients = fromList [(1,<socket: 52>),(2,<socket: 50>),(3,<socket: 57>),(4,<socket: 54>),(5,<socket: 47>),(6,<socket: 48>),(7,<socket: 101>)], currentIx = 0}
+==========================================================================================
+Client at index: 1
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 1 added
+==========================================================================================
+Accepted connection from 127.0.0.1:39748
+ServerState {clients = fromList [(0,<socket: 102>),(1,<socket: 52>),(2,<socket: 50>),(3,<socket: 57>),(4,<socket: 54>),(5,<socket: 47>),(6,<socket: 48>),(7,<socket: 101>)], currentIx = 1}
+==========================================================================================
+Client at index: 0
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 0 added
+==========================================================================================
+Accepted connection from 127.0.0.1:39756
+Accepted connection from 127.0.0.1:39766
+ServerState {clients = fromList [(0,<socket: 102>),(1,<socket: 52>),(2,<socket: 50>),(3,<socket: 104>),(4,<socket: 54>),(5,<socket: 47>),(7,<socket: 101>)], currentIx = 4}
+==========================================================================================
+Client at index: 1
+ServerState {clients = fromList [(0,<socket: 102>),(1,<socket: 52>),(2,<socket: 50>),(3,<socket: 104>),(4,<socket: 54>),(5,<socket: 47>),(6,<socket: 105>),(7,<socket: 101>)], currentIx = 7}
+==========================================================================================
+Client at index: 4
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 4 added
+==========================================================================================
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 1 added
+==========================================================================================
+Accepted connection from 127.0.0.1:39768
+Accepted connection from 127.0.0.1:39784
+ServerState {clients = fromList [(0,<socket: 102>),(1,<socket: 52>),(2,<socket: 106>),(3,<socket: 104>),(5,<socket: 47>),(6,<socket: 105>),(7,<socket: 101>)], currentIx = 3}
+==========================================================================================
+Client at index: 7
+Score of 4 received
+ServerState {clients = fromList [(0,<socket: 102>),(1,<socket: 52>),(2,<socket: 106>),(3,<socket: 104>),(4,<socket: 107>),(5,<socket: 47>),(6,<socket: 105>),(7,<socket: 101>)], currentIx = 5}
+==========================================================================================
+Client at index: 3
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 3 added
+==========================================================================================
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 7 added
+==========================================================================================
+Accepted connection from 127.0.0.1:39792
+ServerState {clients = fromList [(0,<socket: 102>),(1,<socket: 52>),(2,<socket: 106>),(3,<socket: 104>),(4,<socket: 107>),(5,<socket: 108>),(6,<socket: 105>),(7,<socket: 101>)], currentIx = 6}
+==========================================================================================
+Client at index: 5
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 5 added
+==========================================================================================
+Accepted connection from 127.0.0.1:39804
+ServerState {clients = fromList [(0,<socket: 102>),(1,<socket: 52>),(2,<socket: 106>),(3,<socket: 104>),(4,<socket: 109>),(5,<socket: 108>),(6,<socket: 105>),(7,<socket: 101>)], currentIx = 5}
+==========================================================================================
+Client at index: 6
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 6 added
+==========================================================================================
+Accepted connection from 127.0.0.1:39814
+Accepted connection from 127.0.0.1:39816
+ServerState {clients = fromList [(0,<socket: 110>),(2,<socket: 106>),(3,<socket: 104>),(4,<socket: 109>),(5,<socket: 108>),(6,<socket: 105>),(7,<socket: 101>)], currentIx = 1}
+==========================================================================================
+Client at index: 5
+Score of 4 received
+ServerState {clients = fromList [(0,<socket: 110>),(1,<socket: 111>),(2,<socket: 106>),(3,<socket: 104>),(4,<socket: 109>),(5,<socket: 108>),(6,<socket: 105>),(7,<socket: 101>)], currentIx = 2}
+==========================================================================================
+Client at index: 1
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 1 added
+==========================================================================================
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 5 added
+==========================================================================================
+Accepted connection from 127.0.0.1:39818
+ServerState {clients = fromList [(0,<socket: 110>),(2,<socket: 106>),(3,<socket: 104>),(4,<socket: 112>),(5,<socket: 108>),(6,<socket: 105>),(7,<socket: 101>)], currentIx = 5}
+==========================================================================================
+Client at index: 2
+Score of 4 received
+Name of "BOB" received
+Seed: StdGen {unStdGen = SMGen 5156626420896634997 7958955049054603979}
+All events: [GameEvent 1 MoveRight,GameEvent 2 MoveDown,GameEvent 5 MoveLeft,GameEvent 13 MoveUp,GameEvent 23 MoveRight,GameEvent 24 MoveDown,GameEvent 35 MoveRight,GameEvent 49 MoveDown,GameEvent 50 MoveLeft]
+Valid score
+Score of 4 by user 2 added
+==========================================================================================
