@@ -23,6 +23,7 @@ import Data.Binary
 import qualified Data.ByteString.Lazy as B
 import qualified Data.IntMap.Strict as Map
 import qualified Data.List.NonEmpty as NE
+import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
@@ -64,7 +65,7 @@ main = do
 runTCPServer :: String -> PortNumber -> (Socket -> IO a) -> IO a
 runTCPServer host p app = withSocketsDo $ forever $ do
   addr <- resolve
-  E.bracketOnError (open addr) (flip gracefulClose 500) app
+  E.bracketOnError (open addr) (close) app
   where
     resolve = do
       let hints =
@@ -74,7 +75,7 @@ runTCPServer host p app = withSocketsDo $ forever $ do
               }
       NE.head <$> getAddrInfo (Just hints) (Just host) (Just (show p))
 
-    open addr = E.bracketOnError (openSocket addr) (flip gracefulClose 500) $ \sock -> do
+    open addr = E.bracketOnError (openSocket addr) (close) $ \sock -> do
       setSocketOption sock ReuseAddr 1
       setSocketOption sock UserTimeout 15_000_000
       -- withFdSocket sock setCloseOnExecIfNeeded
@@ -90,9 +91,9 @@ application sock = do
   dbConn <- openDatabase "highscores.db" -- The connection to the highscores DB
   replicateM_ maxPlayers . atomically $ writeTQueue threadPool () -- Making MAXPLAYERS spaces in the threadPool
   lf <- openFile "BSLog" WriteMode
-  
+
   concurrently_ (receive messageChan lf) (awaitConnection state threadPool dbConn messageChan)
-  
+
   hClose lf
   where
     whileM iob act = do
@@ -104,8 +105,8 @@ application sock = do
           (not <$> atomically (isEmptyTChan msgs))
           ( atomically (readTChan msgs)
               >>= \msg ->
-                putStrLn msg
-                  >> hPutStrLn logFile msg
+                Text.putStrLn msg
+                  >> Text.hPutStrLn logFile msg
                   >> hFlush logFile
                   >> threadDelay 1_000
           )
@@ -115,13 +116,13 @@ application sock = do
         _ <- atomically $ readTQueue threadPool
         (s, a) <- accept sock
         -- putStrLn $ "Accepted connection from " ++ show a
-        atomically $ writeTChan messageChan $ "Accepted connection from " ++ show a
+        textWriteTChan messageChan $ "Accepted connection from " ++ show a
         -- sendAll s "Connected\n"
         concurrently_
           (handleAppConnection state dbConn threadPool (TCPConn s) messageChan)
           (awaitConnection state threadPool dbConn messageChan)
 
-handleAppConnection :: MVar ServerState -> DB.Connection -> TQueue () -> ClientConnection -> TChan String -> IO ()
+handleAppConnection :: MVar ServerState -> DB.Connection -> TQueue () -> ClientConnection -> TChan Text -> IO ()
 handleAppConnection state dbConn threadpool cliConn messageChan = do
   st <- takeMVar state
   let indexName = Text.pack $ "Index is " ++ show (currentIx st)
@@ -131,34 +132,31 @@ handleAppConnection state dbConn threadpool cliConn messageChan = do
     Left MaxPlayers -> atomically retry -- figure out what to do if the queue of scores being uploaded is full; ideally create a queue and process asynchronously while not full
     Right newSt -> do
       putMVar state newSt
-      atomically $ writeTChan messageChan (show newSt)
+      textWriteTChan messageChan (show newSt)
       pure (currentIx st)
     Left _ -> error "Impossible"
 
   flip finally (disconnect cix state >> atomically (writeTQueue threadpool ())) $ do
     serverApp cix dbConn cliConn messageChan
 
-serverApp :: CIndex -> DB.Connection -> ClientConnection -> TChan String -> IO ()
+serverApp :: CIndex -> DB.Connection -> ClientConnection -> TChan Text -> IO ()
 serverApp cix dbConn tcpConn messageChan = do
-  atomically $ do
-    -- putStrLn $ replicate 90 '='
-    -- putStrLn $ "Client at index: " <> show cix
-    writeTChan messageChan $ replicate 90 '='
-    writeTChan messageChan $ "Client at index: " <> show cix
+
+  textWriteTChan messageChan $ replicate 90 '='
+  textWriteTChan messageChan $ "Client at index: " <> show cix
   s <- recvTCPData tcpConn messageToScore
-  atomically $
-    writeTChan messageChan $
+  textWriteTChan messageChan $
       "Score of " <> show s <> " received"
   name <- recvTCPData tcpConn messageToName
   -- putStrLn $ "Name of " <> show (T.toUpper name) <> " received"
-  atomically $ writeTChan messageChan $ "Name of " <> show (T.toUpper name) <> " received"
+  textWriteTChan messageChan $ "Name of " <> show (T.toUpper name) <> " received"
   seed <- recvTCPData tcpConn messageToSeed
   -- putStrLn $ "Seed: " <> show seed
-  atomically $ writeTChan messageChan $ "Seed: " <> show seed
+  textWriteTChan messageChan $ "Seed: " <> show seed
   evList <- recvTCPData tcpConn handleEventList
   -- putStrLn $ "First three events: " <> show (take 3 evList)
   -- putStrLn $ "All events: " <> show evList
-  atomically $ writeTChan messageChan $ "All events: " <> show evList
+  textWriteTChan messageChan $ "All events: " <> show evList
 
   -- Run the game replay
   let initState =
@@ -173,14 +171,17 @@ serverApp cix dbConn tcpConn messageChan = do
       putStrLn $ "Expected score: " <> show s
       putStrLn $ "Actual score: " <> show s'
     else do
-      atomically $ writeTChan messageChan "Valid score" -- placeholder
+      textWriteTChan messageChan "Valid score" -- placeholder
       -- time <- liftIO (round <$> getPOSIXTime)
       -- addScore dbConn name s time
-      atomically $ writeTChan messageChan $ "Score of " <> show s <> " by user " <> show cix <> " added"
-  atomically $ writeTChan messageChan $ replicate 90 '='
-  threadDelay 50_000
+      textWriteTChan messageChan $ "Score of " <> show s <> " by user " <> show cix <> " added"
+  textWriteTChan messageChan $ replicate 90 '='
+  -- threadDelay 50_000
 
--- gracefulClose (getSocket tcpConn) 500
+  -- gracefulClose (getSocket tcpConn) 500
+
+textWriteTChan :: TChan Text -> String -> IO ()
+textWriteTChan c = atomically . writeTChan c. Text.pack
 
 --- Receiving Functions
 
@@ -210,7 +211,7 @@ recvAll tcpConn size
 -- Constants and ServerState functions
 
 maxPlayers :: Int
-maxPlayers = 8
+maxPlayers = 4
 
 newServerState :: ServerState
 newServerState = ServerState mempty 0
