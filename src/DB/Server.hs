@@ -11,7 +11,7 @@ module DB.Server where
 
 import Control.Concurrent
 import Control.Concurrent.Async
-import Control.Concurrent.STM (TChan, TQueue, isEmptyTChan, newTChanIO, newTQueueIO, readTChan, readTQueue, retry, writeTChan, writeTQueue)
+import Control.Concurrent.STM (TChan, TQueue, isEmptyTChan, newTChanIO, newTQueueIO, readTChan, readTQueue, retry, writeTChan, writeTQueue, TVar, modifyTVar', readTVar, writeTVar, readTVarIO, newTVarIO)
 import Control.Exception (Exception, finally)
 import qualified Control.Exception as E
 import Control.Monad (forever, replicateM_, when)
@@ -65,7 +65,7 @@ main = do
 runTCPServer :: String -> PortNumber -> (Socket -> IO a) -> IO a
 runTCPServer host p app = withSocketsDo $ forever $ do
   addr <- resolve
-  E.bracketOnError (open addr) (close) app
+  E.bracketOnError (open addr) close app
   where
     resolve = do
       let hints =
@@ -75,26 +75,26 @@ runTCPServer host p app = withSocketsDo $ forever $ do
               }
       NE.head <$> getAddrInfo (Just hints) (Just host) (Just (show p))
 
-    open addr = E.bracketOnError (openSocket addr) (close) $ \sock -> do
+    open addr = E.bracketOnError (openSocket addr) close $ \sock -> do
       setSocketOption sock ReuseAddr 1
-      setSocketOption sock UserTimeout 15_000_000
+      setSocketOption sock UserTimeout 2_000_000
       -- withFdSocket sock setCloseOnExecIfNeeded
       bind sock $ addrAddress addr
-      listen sock 128
+      listen sock (4 * maxPlayers)
       pure sock
 
 application :: Socket -> IO ()
 application sock = do
   messageChan <- newTChanIO -- Channel for messages to come back to
   threadPool <- newTQueueIO -- The threadpool of available slots to use
-  state <- newMVar newServerState -- The server state being created
+  state <- newTVarIO newServerState -- The server state being created
   dbConn <- openDatabase "highscores.db" -- The connection to the highscores DB
   replicateM_ maxPlayers . atomically $ writeTQueue threadPool () -- Making MAXPLAYERS spaces in the threadPool
   lf <- openFile "BSLog" WriteMode
 
   concurrently_ (receive messageChan lf) (awaitConnection state threadPool dbConn messageChan)
 
-  hClose lf
+  -- hClose lf
   where
     whileM iob act = do
       b <- iob
@@ -122,21 +122,19 @@ application sock = do
           (handleAppConnection state dbConn threadPool (TCPConn s) messageChan)
           (awaitConnection state threadPool dbConn messageChan)
 
-handleAppConnection :: MVar ServerState -> DB.Connection -> TQueue () -> ClientConnection -> TChan Text -> IO ()
+handleAppConnection :: TVar ServerState -> DB.Connection -> TQueue () -> ClientConnection -> TChan Text -> IO ()
 handleAppConnection state dbConn threadpool cliConn messageChan = do
-  st <- takeMVar state
-  let indexName = Text.pack $ "Index is " ++ show (currentIx st)
-  Text.putStrLn indexName
-  -- runEff_ $ \io -> logAction logger indexName
+  st <- readTVarIO state
+
   cix <- case addClient st cliConn of -- Return the index that the player was inserted at
     Left MaxPlayers -> atomically retry -- figure out what to do if the queue of scores being uploaded is full; ideally create a queue and process asynchronously while not full
     Right newSt -> do
-      putMVar state newSt
-      textWriteTChan messageChan (show newSt)
+      atomically $ writeTVar state newSt
+      textWriteTChan messageChan (show newSt <> " Size: " <> show (numClients newSt))
       pure (currentIx st)
     Left _ -> error "Impossible"
 
-  flip finally (disconnect cix state >> atomically (writeTQueue threadpool ())) $ do
+  flip finally (atomically (writeTQueue threadpool ()) >> disconnect cix state) $ do
     serverApp cix dbConn cliConn messageChan
 
 serverApp :: CIndex -> DB.Connection -> ClientConnection -> TChan Text -> IO ()
@@ -176,7 +174,7 @@ serverApp cix dbConn tcpConn messageChan = do
       -- addScore dbConn name s time
       textWriteTChan messageChan $ "Score of " <> show s <> " by user " <> show cix <> " added"
   textWriteTChan messageChan $ replicate 90 '='
-  -- threadDelay 50_000
+  -- threadDelay 10_000
 
   -- gracefulClose (getSocket tcpConn) 500
 
@@ -211,7 +209,7 @@ recvAll tcpConn size
 -- Constants and ServerState functions
 
 maxPlayers :: Int
-maxPlayers = 4
+maxPlayers = 32
 
 newServerState :: ServerState
 newServerState = ServerState mempty 0
@@ -233,10 +231,9 @@ addClient s@(ServerState cs ix) c
 removeClient :: CIndex -> ClientMap -> ClientMap
 removeClient = Map.delete
 
-disconnect :: CIndex -> MVar ServerState -> IO ()
-disconnect cix state = do
-  st <- takeMVar state
-  putMVar state $ st {clients = removeClient cix (clients st)}
+disconnect :: CIndex -> TVar ServerState -> IO ()
+disconnect cix state = atomically $
+  modifyTVar' state $ \st -> st {clients = removeClient cix (clients st)}
 
 handleEventList :: EventListMessage -> EventList
 handleEventList bs =

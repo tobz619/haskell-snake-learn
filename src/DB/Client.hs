@@ -39,12 +39,12 @@ newtype TCPConn = TCPConn {getSocket :: Socket}
   deriving newtype Show
 
 serverName :: HostName
-serverName = "127.0.0.1"
--- serverName = "haskell-server.tobioloke.com"
+-- serverName = "127.0.0.1"
+serverName = "haskell-server.tobioloke.com"
 
 clientPort :: PortNumber
-clientPort = 34561
--- clientPort = 5000
+-- clientPort = 34561
+clientPort = 5000
 
 lenBytes :: Int
 lenBytes = fromIntegral $ finiteBitSize @MsgLenRep 0 `div` 8
