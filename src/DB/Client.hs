@@ -21,19 +21,17 @@ import qualified Data.List.NonEmpty as NE
 import Data.Maybe (fromMaybe)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
-import Data.Word (Word32, Word8)
-import GHC.IO (finally, mask)
+import Data.Word (Word8)
 import GameLogic (ScoreType)
 import Logging.Logger (EventList, GameEvent (..), TickNumber (..))
 import Network.Socket
-import Network.Socket.ByteString.Lazy (sendAll, recv)
+import Network.Socket.ByteString.Lazy (sendAll)
 import System.Random (mkStdGen)
 import UI.Gameplay (SeedSize)
 import UI.Keybinds (KeyEvent (..))
-import Control.Concurrent.STM (atomically, writeTQueue, TQueue, STM, newTQueue, flushTQueue)
-import Control.Monad.ST.Strict
-import Data.STRef.Strict
-import System.Timeout (timeout)
+import Control.Concurrent.STM (atomically, writeTQueue, TQueue, STM, flushTQueue, newTQueueIO)
+
+import qualified Control.Exception as E
 
 type MsgLenRep = Word8
 
@@ -120,41 +118,41 @@ sendName c = sendTextMessage c . nameToMessage
 
 runClientAppSTM :: SeedSize -> ScoreType -> Text.Text -> [GameEvent] -> IO ()
 runClientAppSTM seed score name evList = withSocketsDo $ do 
-    -- _ <- serverHello retries serverName clientPort
-    runTCPClient serverName clientPort app
+    q <- newTQueueIO
+    runTCPClient serverName clientPort (app q)
   where
-    app c = do
+    app tq c = do
       actions <- atomically $ do
-        q <- newTQueue
-        writeTQueue q $ sendScoreMessage c score
-        writeTQueue q $ sendName c name
-        writeTQueue q $ sendSeedMessage c seed
-        writeTQueue q $ sendEventList c evList
-        writeTQueue q $ closeConn c
-        writeTQueue q $ putStrLn "Closing conn"
-        flushTQueue q
+        writeTQueue tq $ putStrLn $ "Sending seed: " ++ show (mkStdGen 4)
+        writeTQueue tq $ sendScoreMessage c score
+        writeTQueue tq $ sendName c name
+        writeTQueue tq $ sendSeedMessage c seed
+        writeTQueue tq $ sendEventList c evList
+        writeTQueue tq $ putStrLn "Closing conn"
+        flushTQueue tq
       sequence_ actions
 
 
 -- ackhdlr = TL.decodeUtf8
 
 runTCPClient :: HostName -> PortNumber -> (TCPConn -> IO b) -> IO b
-runTCPClient hostName port action = mask $ \restore -> do
+runTCPClient hostName port action = flip withAsync wait $ do
   addr <- resolve
-  tcpSock <- withAsync (connectClientTCPSocket addr) wait
-  flip withAsync wait $ restore (action tcpSock) `finally` closeConn tcpSock
+  E.bracket (connectClientTCPSocket addr) closeConn action
+
   where
     resolve = do
       let hints = defaultHints {addrSocketType = Stream}
       NE.head <$> getAddrInfo (pure hints) (pure hostName) (pure (show port))
 
-    connectClientTCPSocket addr = do
-      sock <- socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr)
-      print $ addrAddress addr
-      setSocketOption sock NoDelay 1
-      _ <- timeout 2_000_000 $ connect sock $ addrAddress addr
-      -- _ <- recv sock 1024
-      pure $ TCPConn sock
+    connectClientTCPSocket addr = E.bracketOnError 
+      (socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr)) close $ \sock -> do
+        print $ addrAddress addr
+        setSocketOption sock NoDelay 1
+        setSocketOption sock Linger 20_000_000
+        connect sock $ addrAddress addr
+        -- _ <- recv sock 1024
+        pure $ TCPConn sock
 
 testClient :: IO ()
 testClient =
@@ -165,12 +163,11 @@ testClient =
           (scanl' (+) 1 moves)
           [MoveRight, MoveDown, MoveLeft, MoveUp, MoveRight, MoveDown, MoveRight, MoveDown, MoveLeft]
    in do
-        putStrLn $ "Sending seed: " ++ show (mkStdGen 4)
         runClientAppSTM 4 4 ("BOB" :: Name) events
 
 
-manyTestClients :: Int -> IO [()]
-manyTestClients n = traverse (\(v,act) -> act >> print v) $ zip ([1..] :: [Int]) (replicate n testClient)
+manyTestClients :: Int -> IO ()
+manyTestClients n = mapM_ (\(v,act) -> act >> print v) $ zip ([1..] :: [Int]) (replicate n testClient)
 
 -- repTest = do
 --  evs <- newMVar events
