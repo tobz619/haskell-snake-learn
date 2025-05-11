@@ -149,7 +149,7 @@ runTCPClient hostName port action = flip withAsync wait $ do
       (socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr)) close $ \sock -> do
         print $ addrAddress addr
         setSocketOption sock NoDelay 1
-        setSocketOption sock Linger 20_000_000
+        setSocketOption sock Linger 5
         connect sock $ addrAddress addr
         -- _ <- recv sock 1024
         pure $ TCPConn sock
