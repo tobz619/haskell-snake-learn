@@ -221,7 +221,8 @@ handleHighScorePromptEvent (VtyEvent (V.EvKey V.KEnter [])) conn w time = do
     HighScoreFormState Nothing (Just form) ->
       do
         let HighScoreForm (Just c1) (Just c2) (Just c3) = F.formState form
-        liftIO $ DBHS.addScore conn (Text.pack [c1, c2, c3]) (score w) time
+        -- liftIO $ DBHS.addScore conn (Text.pack [c1, c2, c3]) (score w) time
+        -- runClientAppSTM seed scire bane evList
         put (HighScoreFormState Nothing Nothing)
     _ -> return ()
 handleHighScorePromptEvent (VtyEvent ev) _ _ _ = do

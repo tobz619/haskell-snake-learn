@@ -12,18 +12,13 @@ module Logging.ServerLogger where
 import Bluefin.Compound (mapHandle, useImplIn)
 import Bluefin.Eff
 import Bluefin.IO
-import Bluefin.Writer (Writer, execWriter, tell)
 import Control.Concurrent.STM (TChan, newTChanIO, readTChan, writeTChan)
 import Control.Monad.STM (atomically)
-import Control.Monad.Writer (WriterT)
-import qualified Control.Monad.Writer.Lazy as W
 import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import Network.Socket (SockAddr (..))
-import qualified System.IO as IO
 import Text.Read (readMaybe)
-import Control.Monad (replicateM)
 
 -- newtype Logger i o e = Logger (Writer o e)
 

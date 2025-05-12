@@ -30,8 +30,7 @@ runReplayG es rps = case runState (runReplay es) rps of
   ([], newS)
    | isGameOver (gameState newS) -> gameState newS
    | otherwise -> runReplayG [] (stepReplayState newS) 
-   -- ^ Keep stepping the state forward until the game hits the end state incase 
-   -- the player gets a   
+   -- ^ Keep stepping the state forward until the game hits the end state.
   (newEvs, newS) -> runReplayG newEvs newS
 
 isGameOver :: GameState -> Bool
@@ -53,18 +52,6 @@ runReplay evs = do
       pure newEvs
     else
       pure evs
-
-
-  -- case
-  -- runState
-  --   (runMove evs)
-  --   ( ReplayState
-  --       (Playing $ initWorld defaultHeight defaultWidth seed)
-  --       (TickNumber 0)
-  --   )
-  --   of 
-  --     ([], s) -> s
-  --     (newEvs, )
 
 canExecute :: EventList -> ReplayState -> Bool
 canExecute [] _ = False
