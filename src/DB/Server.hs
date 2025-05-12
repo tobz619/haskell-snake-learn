@@ -11,7 +11,7 @@ module DB.Server where
 
 import Control.Concurrent
 import Control.Concurrent.Async
-import Control.Concurrent.STM (TChan, TQueue, isEmptyTChan, newTChanIO, newTQueueIO, readTChan, readTQueue, retry, writeTChan, writeTQueue, TMVar, takeTMVar, putTMVar, newTMVarIO)
+import Control.Concurrent.STM (TChan, TQueue, isEmptyTChan, newTChanIO, newTQueueIO, readTChan, readTQueue, retry, writeTChan, writeTQueue, TMVar, takeTMVar, putTMVar, newTMVarIO, readTMVar)
 import Control.Exception (Exception, finally)
 import qualified Control.Exception as E
 import Control.Monad (forever, replicateM_, when)
@@ -115,8 +115,8 @@ application sock = do
 
     awaitConnection state threadPool dbConn messageChan =
       do
-        _ <- atomically $ readTQueue threadPool
         (s, a) <- accept sock
+        _ <- atomically $ readTQueue threadPool
         textWriteTChan messageChan $ "Accepted connection from " ++ show a
         -- sendAll s "Connected\n"
         concurrently_ (handleAppConnection state dbConn threadPool (TCPConn s) messageChan) (awaitConnection state threadPool dbConn messageChan)
@@ -128,18 +128,22 @@ handleAppConnection state dbConn threadpool cliConn messageChan = do
 
   ~(!cix, !cc) <- case addClient st cliConn of -- Return the index that the player was inserted at
     Left MaxPlayers -> atomically (putTMVar state st) >> pure (-1,-1) -- figure out what to do if the queue of scores being uploaded is full; ideally create a queue and process asynchronously while not full
-    Right newSt -> do
+    Right (newSt, ix) -> do
       atomically $ putTMVar state newSt
       textWriteTChan messageChan (show newSt <> " Size: " <> show (numClients newSt))
-      pure (currentIx st, clientCount st)
+      pure (ix, clientCount newSt)
     Left _ -> error "Impossible"
 
   if cix < 0
     
     then handleAppConnection state dbConn threadpool cliConn messageChan
     
-    else flip finally (atomically (writeTQueue threadpool ()) >> disconnect cix state) $ do
+    else flip finally (disconnectMsg cliConn >> disconnect cix state >> atomically (writeTQueue threadpool ())) $ do
             serverApp cix cc dbConn cliConn messageChan
+
+  where disconnectMsg conn = do
+          textWriteTChan messageChan $ "Disconnecting " <> show conn
+
 
 serverApp :: CIndex -> Int -> DB.Connection -> ClientConnection -> TChan Text -> IO ()
 serverApp cix cliCount dbConn tcpConn messageChan = do
@@ -223,12 +227,12 @@ numClients = Map.size . clients
 
 -- | Adds a client to the existing @ServerState@ at the current index. If the index is full, try the
 -- (next one @\`mod\`@ @maxPlayers@) recursively until a space is found. If there are more than maxPlayers, return an error.
-addClient :: ServerState -> TCPConn -> Either ServerStateError ServerState
+addClient :: ServerState -> TCPConn -> Either ServerStateError (ServerState, CIndex)
 addClient s@(ServerState cc cs ix) c
   | numClients s >= maxPlayers = Left MaxPlayers
   | otherwise =
       maybe
-        (pure $ ServerState (cc + 1) (Map.insert ix c cs) ((cc + 1) `mod` maxPlayers)) -- If no player found return a new state and the index the current player was inserted at
+        (pure $ (ServerState (cc + 1) (Map.insert ix c cs) ((cc + 1) `mod` maxPlayers), ix)) -- If no player found return a new state and the index the current player was inserted at
         (const $ addClient (s {currentIx = (ix + 1) `mod` maxPlayers}) c) -- If a player still exists at our current index, try again at index plus one
         (Map.lookup ix (clients s)) -- Find the existing index
 
