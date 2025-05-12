@@ -11,7 +11,7 @@ module DB.Server where
 
 import Control.Concurrent
 import Control.Concurrent.Async
-import Control.Concurrent.STM (TChan, TQueue, isEmptyTChan, newTChanIO, newTQueueIO, readTChan, readTQueue, retry, writeTChan, writeTQueue, TVar, modifyTVar', readTVar, writeTVar, readTVarIO, newTVarIO)
+import Control.Concurrent.STM (TChan, TQueue, isEmptyTChan, newTChanIO, newTQueueIO, readTChan, readTQueue, retry, writeTChan, writeTQueue)
 import Control.Exception (Exception, finally)
 import qualified Control.Exception as E
 import Control.Monad (forever, replicateM_, when)
@@ -33,6 +33,7 @@ import qualified Database.SQLite.Simple as DB
 import GameLogic (GameState (Playing, getWorld), World (..), defaultHeight, defaultWidth, initWorld)
 import Logging.Logger (EventList, GameEvent (..), TickNumber (..))
 import Logging.Replay (ReplayState (ReplayState), Seed, runReplayG)
+import Network.TLS
 import Network.Socket
 import Network.Socket.ByteString.Lazy
 import System.IO (IOMode (..), hFlush, openFile)
@@ -77,19 +78,19 @@ runTCPServer host p app = withSocketsDo $ forever $ do
 
     open addr = E.bracketOnError (openSocket addr) close $ \sock -> do
       setSocketOption sock ReuseAddr 1
-      setSocketOption sock UserTimeout 2_000_000
+      setSocketOption sock UserTimeout 7_000_000
       -- withFdSocket sock setCloseOnExecIfNeeded
       bind sock $ addrAddress addr
-      listen sock (4 * maxPlayers)
+      listen sock 1024
       pure sock
 
 application :: Socket -> IO ()
 application sock = do
   messageChan <- newTChanIO -- Channel for messages to come back to
   threadPool <- newTQueueIO -- The threadpool of available slots to use
-  state <- newTVarIO newServerState -- The server state being created
+  state <- newMVar newServerState -- The server state being created
   dbConn <- openDatabase "highscores.db" -- The connection to the highscores DB
-  replicateM_ maxPlayers . atomically $ writeTQueue threadPool () -- Making MAXPLAYERS spaces in the threadPool
+  atomically <$> replicateM_ maxPlayers $ writeTQueue threadPool () -- Making MAXPLAYERS spaces in the threadPool
   lf <- openFile "BSLog" WriteMode
 
   concurrently_ (receive messageChan lf) (awaitConnection state threadPool dbConn messageChan)
@@ -108,37 +109,35 @@ application sock = do
                 Text.putStrLn msg
                   >> Text.hPutStrLn logFile msg
                   >> hFlush logFile
-                  >> threadDelay 1_000
+                  -- >> threadDelay 1_000
           )
 
     awaitConnection state threadPool dbConn messageChan =
       do
         _ <- atomically $ readTQueue threadPool
         (s, a) <- accept sock
-        -- putStrLn $ "Accepted connection from " ++ show a
         textWriteTChan messageChan $ "Accepted connection from " ++ show a
         -- sendAll s "Connected\n"
-        concurrently_
-          (handleAppConnection state dbConn threadPool (TCPConn s) messageChan)
-          (awaitConnection state threadPool dbConn messageChan)
+        _ <- forkFinally (handleAppConnection state dbConn threadPool (TCPConn s) messageChan) (\_ -> awaitConnection state threadPool dbConn messageChan)
+        pure ()
 
-handleAppConnection :: TVar ServerState -> DB.Connection -> TQueue () -> ClientConnection -> TChan Text -> IO ()
+handleAppConnection :: MVar ServerState -> DB.Connection -> TQueue () -> ClientConnection -> TChan Text -> IO ()
 handleAppConnection state dbConn threadpool cliConn messageChan = do
-  st <- readTVarIO state
+  st <- takeMVar state
 
-  cix <- case addClient st cliConn of -- Return the index that the player was inserted at
-    Left MaxPlayers -> atomically retry -- figure out what to do if the queue of scores being uploaded is full; ideally create a queue and process asynchronously while not full
+  ~(!cix, !cc) <- case addClient st cliConn of -- Return the index that the player was inserted at
+    Left MaxPlayers -> putMVar state st >> atomically retry -- figure out what to do if the queue of scores being uploaded is full; ideally create a queue and process asynchronously while not full
     Right newSt -> do
-      atomically $ writeTVar state newSt
+      putMVar state newSt
       textWriteTChan messageChan (show newSt <> " Size: " <> show (numClients newSt))
-      pure (currentIx st)
+      pure (currentIx st, clientCount st)
     Left _ -> error "Impossible"
 
   flip finally (atomically (writeTQueue threadpool ()) >> disconnect cix state) $ do
-    serverApp cix dbConn cliConn messageChan
+    serverApp cix cc dbConn cliConn messageChan
 
-serverApp :: CIndex -> DB.Connection -> ClientConnection -> TChan Text -> IO ()
-serverApp cix dbConn tcpConn messageChan = do
+serverApp :: CIndex -> Int -> DB.Connection -> ClientConnection -> TChan Text -> IO ()
+serverApp cix cliCount dbConn tcpConn messageChan = do
 
   textWriteTChan messageChan $ replicate 90 '='
   textWriteTChan messageChan $ "Client at index: " <> show cix
@@ -172,7 +171,7 @@ serverApp cix dbConn tcpConn messageChan = do
       textWriteTChan messageChan "Valid score" -- placeholder
       -- time <- liftIO (round <$> getPOSIXTime)
       -- addScore dbConn name s time
-      textWriteTChan messageChan $ "Score of " <> show s <> " by user " <> show cix <> " added"
+      textWriteTChan messageChan $ "Score of " <> show s <> " by user " <> show cliCount <> " added"
   textWriteTChan messageChan $ replicate 90 '='
   -- threadDelay 10_000
 
@@ -209,10 +208,10 @@ recvAll tcpConn size
 -- Constants and ServerState functions
 
 maxPlayers :: Int
-maxPlayers = 32
+maxPlayers = 16
 
 newServerState :: ServerState
-newServerState = ServerState 0 mempty 0
+newServerState = ServerState 1 mempty 0
 
 numClients :: ServerState -> Int
 numClients = Map.size . clients
@@ -225,15 +224,16 @@ addClient s@(ServerState cc cs ix) c
   | otherwise =
       maybe
         (pure $ ServerState (cc + 1) (Map.insert ix c cs) ((cc + 1) `mod` maxPlayers)) -- If no player found return a new state and the index the current player was inserted at
-        (const $ addClient (s {currentIx = (ix + 1) `mod` maxPlayers}) c) -- If a player still exists at our current index, try again at plus one
+        (const $ addClient (s {currentIx = (ix + 1) `mod` maxPlayers}) c) -- If a player still exists at our current index, try again at index plus one
         (Map.lookup ix (clients s)) -- Find the existing index
 
 removeClient :: CIndex -> ClientMap -> ClientMap
 removeClient = Map.delete
 
-disconnect :: CIndex -> TVar ServerState -> IO ()
-disconnect cix state = atomically $
-  modifyTVar' state $ \st -> st {clients = removeClient cix (clients st)}
+disconnect :: CIndex -> MVar ServerState -> IO ()
+disconnect cix state = do
+  st <- takeMVar state
+  putMVar state $ st { clients = removeClient cix (clients st) }
 
 handleEventList :: EventListMessage -> EventList
 handleEventList bs =
