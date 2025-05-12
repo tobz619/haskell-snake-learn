@@ -11,7 +11,7 @@ module DB.Server where
 
 import Control.Concurrent
 import Control.Concurrent.Async
-import Control.Concurrent.STM (TChan, TQueue, isEmptyTChan, newTChanIO, newTQueueIO, readTChan, readTQueue, retry, writeTChan, writeTQueue, TMVar, takeTMVar, putTMVar, newTMVarIO, readTMVar)
+import Control.Concurrent.STM (TChan, TMVar, TQueue, isEmptyTChan, newTChanIO, newTMVarIO, newTQueueIO, putTMVar, readTChan, readTMVar, readTQueue, retry, takeTMVar, writeTChan, writeTQueue)
 import Control.Exception (Exception, finally)
 import qualified Control.Exception as E
 import Control.Monad (forever, replicateM_, when)
@@ -33,13 +33,13 @@ import qualified Database.SQLite.Simple as DB
 import GameLogic (GameState (Playing, getWorld), World (..), defaultHeight, defaultWidth, initWorld)
 import Logging.Logger (EventList, GameEvent (..), TickNumber (..))
 import Logging.Replay (ReplayState (ReplayState), Seed, runReplayG)
-import Network.TLS
 import Network.Socket
 import Network.Socket.ByteString.Lazy
+import Network.TLS
 import System.IO (IOMode (..), hFlush, openFile)
 import System.Random (mkStdGen)
 
-data ServerState = ServerState {clientCount ::  Int, clients :: ClientMap, currentIx :: CIndex}
+data ServerState = ServerState {clientCount :: Int, clients :: ClientMap, currentIx :: CIndex}
   deriving (Show)
 
 type ClientMap = Map.IntMap TCPConn
@@ -95,9 +95,9 @@ application sock = do
   lf <- openFile "BSLog" WriteMode
 
   concurrently_ (receive messageChan lf) (awaitConnection state threadPool dbConn messageChan)
-
-  -- hClose lf
   where
+    -- hClose lf
+
     whileM iob act = do
       b <- iob
       when b $ act >> whileM iob act
@@ -116,6 +116,10 @@ application sock = do
     awaitConnection state threadPool dbConn messageChan =
       do
         (s, a) <- accept sock
+        -- let be = getBackend s
+            -- pars = defaultParamsServer
+        -- ctx <- contextNew be pars
+        -- handshake ctx 
         _ <- atomically $ readTQueue threadPool
         textWriteTChan messageChan $ "Accepted connection from " ++ show a
         -- sendAll s "Connected\n"
@@ -127,7 +131,7 @@ handleAppConnection state dbConn threadpool cliConn messageChan = do
   -- textWriteTChan messageChan "Taking app state"
 
   ~(!cix, !cc) <- case addClient st cliConn of -- Return the index that the player was inserted at
-    Left MaxPlayers -> atomically (putTMVar state st) >> pure (-1,-1) -- figure out what to do if the queue of scores being uploaded is full; ideally create a queue and process asynchronously while not full
+    Left MaxPlayers -> atomically (putTMVar state st) >> pure (-1, -1) -- figure out what to do if the queue of scores being uploaded is full; ideally create a queue and process asynchronously while not full
     Right (newSt, ix) -> do
       atomically $ putTMVar state newSt
       textWriteTChan messageChan (show newSt <> " Size: " <> show (numClients newSt))
@@ -135,33 +139,25 @@ handleAppConnection state dbConn threadpool cliConn messageChan = do
     Left _ -> error "Impossible"
 
   if cix < 0
-    
     then handleAppConnection state dbConn threadpool cliConn messageChan
-    
     else flip finally (disconnectMsg cliConn >> disconnect cix state >> atomically (writeTQueue threadpool ())) $ do
-            serverApp cix cc dbConn cliConn messageChan
-
-  where disconnectMsg conn = do
-          textWriteTChan messageChan $ "Disconnecting " <> show conn
-
+      serverApp cix cc dbConn cliConn messageChan
+  where
+    disconnectMsg conn = do
+      textWriteTChan messageChan $ "Disconnecting " <> show conn
 
 serverApp :: CIndex -> Int -> DB.Connection -> ClientConnection -> TChan Text -> IO ()
 serverApp cix cliCount dbConn tcpConn messageChan = do
-
   textWriteTChan messageChan $ replicate 90 '='
   textWriteTChan messageChan $ "Client at index: " <> show cix
   s <- recvTCPData tcpConn messageToScore
   textWriteTChan messageChan $
-      "Score of " <> show s <> " received"
+    "Score of " <> show s <> " received"
   name <- recvTCPData tcpConn messageToName
-  -- putStrLn $ "Name of " <> show (T.toUpper name) <> " received"
   textWriteTChan messageChan $ "Name of " <> show (T.toUpper name) <> " received"
   seed <- recvTCPData tcpConn messageToSeed
-  -- putStrLn $ "Seed: " <> show seed
   textWriteTChan messageChan $ "Seed: " <> show seed
   evList <- recvTCPData tcpConn handleEventList
-  -- putStrLn $ "First three events: " <> show (take 3 evList)
-  -- putStrLn $ "All events: " <> show evList
   textWriteTChan messageChan $ "All events: " <> show evList
 
   -- Run the game replay
@@ -182,12 +178,13 @@ serverApp cix cliCount dbConn tcpConn messageChan = do
       -- addScore dbConn name s time
       textWriteTChan messageChan $ "Score of " <> show s <> " by user " <> show (cliCount + 1) <> " added"
   textWriteTChan messageChan $ replicate 90 '='
-  -- threadDelay 10_000
 
-  -- gracefulClose (getSocket tcpConn) 500
+-- threadDelay 10_000
+
+-- gracefulClose (getSocket tcpConn) 500
 
 textWriteTChan :: TChan Text -> String -> IO ()
-textWriteTChan c = atomically . writeTChan c. Text.pack
+textWriteTChan c = atomically . writeTChan c . Text.pack
 
 --- Receiving Functions
 
@@ -242,7 +239,7 @@ removeClient = Map.delete
 disconnect :: CIndex -> TMVar ServerState -> IO ()
 disconnect cix state = atomically $ do
   st <- takeTMVar state
-  putTMVar state $ st { clients = removeClient cix (clients st) }
+  putTMVar state $ st {clients = removeClient cix (clients st)}
 
 handleEventList :: EventListMessage -> EventList
 handleEventList bs =
