@@ -11,7 +11,7 @@ module DB.Server where
 
 import Control.Concurrent
 import Control.Concurrent.Async
-import Control.Concurrent.STM (TChan, TQueue, isEmptyTChan, newTChanIO, newTQueueIO, readTChan, readTQueue, retry, writeTChan, writeTQueue)
+import Control.Concurrent.STM (TChan, TQueue, isEmptyTChan, newTChanIO, newTQueueIO, readTChan, readTQueue, retry, writeTChan, writeTQueue, TMVar, takeTMVar, putTMVar, newTMVarIO)
 import Control.Exception (Exception, finally)
 import qualified Control.Exception as E
 import Control.Monad (forever, replicateM_, when)
@@ -76,10 +76,11 @@ runTCPServer host p app = withSocketsDo $ forever $ do
               }
       NE.head <$> getAddrInfo (Just hints) (Just host) (Just (show p))
 
-    open addr = E.bracketOnError (openSocket addr) close $ \sock -> do
+    open addr = do
+      sock <- openSocket addr
       setSocketOption sock ReuseAddr 1
       setSocketOption sock UserTimeout 7_000_000
-      -- withFdSocket sock setCloseOnExecIfNeeded
+      withFdSocket sock setCloseOnExecIfNeeded
       bind sock $ addrAddress addr
       listen sock 1024
       pure sock
@@ -88,7 +89,7 @@ application :: Socket -> IO ()
 application sock = do
   messageChan <- newTChanIO -- Channel for messages to come back to
   threadPool <- newTQueueIO -- The threadpool of available slots to use
-  state <- newMVar newServerState -- The server state being created
+  state <- newTMVarIO newServerState -- The server state being created
   dbConn <- openDatabase "highscores.db" -- The connection to the highscores DB
   atomically <$> replicateM_ maxPlayers $ writeTQueue threadPool () -- Making MAXPLAYERS spaces in the threadPool
   lf <- openFile "BSLog" WriteMode
@@ -118,23 +119,27 @@ application sock = do
         (s, a) <- accept sock
         textWriteTChan messageChan $ "Accepted connection from " ++ show a
         -- sendAll s "Connected\n"
-        _ <- forkFinally (handleAppConnection state dbConn threadPool (TCPConn s) messageChan) (\_ -> awaitConnection state threadPool dbConn messageChan)
-        pure ()
+        concurrently_ (handleAppConnection state dbConn threadPool (TCPConn s) messageChan) (awaitConnection state threadPool dbConn messageChan)
 
-handleAppConnection :: MVar ServerState -> DB.Connection -> TQueue () -> ClientConnection -> TChan Text -> IO ()
+handleAppConnection :: TMVar ServerState -> DB.Connection -> TQueue () -> ClientConnection -> TChan Text -> IO ()
 handleAppConnection state dbConn threadpool cliConn messageChan = do
-  st <- takeMVar state
+  st <- atomically $ takeTMVar state
+  -- textWriteTChan messageChan "Taking app state"
 
   ~(!cix, !cc) <- case addClient st cliConn of -- Return the index that the player was inserted at
-    Left MaxPlayers -> putMVar state st >> atomically retry -- figure out what to do if the queue of scores being uploaded is full; ideally create a queue and process asynchronously while not full
+    Left MaxPlayers -> atomically (putTMVar state st) >> pure (-1,-1) -- figure out what to do if the queue of scores being uploaded is full; ideally create a queue and process asynchronously while not full
     Right newSt -> do
-      putMVar state newSt
+      atomically $ putTMVar state newSt
       textWriteTChan messageChan (show newSt <> " Size: " <> show (numClients newSt))
       pure (currentIx st, clientCount st)
     Left _ -> error "Impossible"
 
-  flip finally (atomically (writeTQueue threadpool ()) >> disconnect cix state) $ do
-    serverApp cix cc dbConn cliConn messageChan
+  if cix < 0
+    
+    then handleAppConnection state dbConn threadpool cliConn messageChan
+    
+    else flip finally (atomically (writeTQueue threadpool ()) >> disconnect cix state) $ do
+            serverApp cix cc dbConn cliConn messageChan
 
 serverApp :: CIndex -> Int -> DB.Connection -> ClientConnection -> TChan Text -> IO ()
 serverApp cix cliCount dbConn tcpConn messageChan = do
@@ -171,7 +176,7 @@ serverApp cix cliCount dbConn tcpConn messageChan = do
       textWriteTChan messageChan "Valid score" -- placeholder
       -- time <- liftIO (round <$> getPOSIXTime)
       -- addScore dbConn name s time
-      textWriteTChan messageChan $ "Score of " <> show s <> " by user " <> show cliCount <> " added"
+      textWriteTChan messageChan $ "Score of " <> show s <> " by user " <> show (cliCount + 1) <> " added"
   textWriteTChan messageChan $ replicate 90 '='
   -- threadDelay 10_000
 
@@ -211,7 +216,7 @@ maxPlayers :: Int
 maxPlayers = 16
 
 newServerState :: ServerState
-newServerState = ServerState 1 mempty 0
+newServerState = ServerState 0 mempty 0
 
 numClients :: ServerState -> Int
 numClients = Map.size . clients
@@ -230,10 +235,10 @@ addClient s@(ServerState cc cs ix) c
 removeClient :: CIndex -> ClientMap -> ClientMap
 removeClient = Map.delete
 
-disconnect :: CIndex -> MVar ServerState -> IO ()
-disconnect cix state = do
-  st <- takeMVar state
-  putMVar state $ st { clients = removeClient cix (clients st) }
+disconnect :: CIndex -> TMVar ServerState -> IO ()
+disconnect cix state = atomically $ do
+  st <- takeTMVar state
+  putTMVar state $ st { clients = removeClient cix (clients st) }
 
 handleEventList :: EventListMessage -> EventList
 handleEventList bs =
