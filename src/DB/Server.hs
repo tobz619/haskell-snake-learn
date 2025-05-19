@@ -9,13 +9,13 @@
 
 module DB.Server where
 
-import Control.Concurrent
+import Control.Concurrent (threadDelay)
 import Control.Concurrent.Async
-import Control.Concurrent.STM (TChan, TMVar, TQueue, isEmptyTChan, newTChanIO, newTMVarIO, newTQueueIO, putTMVar, readTChan, readTMVar, readTQueue, retry, takeTMVar, writeTChan, writeTQueue)
+import Control.Concurrent.STM
 import Control.Exception (Exception, finally)
 import qualified Control.Exception as E
 import Control.Monad (forever, replicateM_, when)
-import Control.Monad.STM (atomically)
+import qualified DB.Authenticate as Auth
 import DB.Client
 import DB.Highscores (Name, Score, openDatabase)
 import qualified Data.Bimap as BM
@@ -24,7 +24,6 @@ import qualified Data.ByteString.Lazy as B
 import qualified Data.IntMap.Strict as Map
 import qualified Data.List.NonEmpty as NE
 import Data.Text (Text)
-import qualified Data.Text as T
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import qualified Data.Text.Lazy as TL
@@ -35,11 +34,10 @@ import Logging.Logger (EventList, GameEvent (..), TickNumber (..))
 import Logging.Replay (ReplayState (ReplayState), Seed, runReplayG)
 import Network.Socket
 import Network.Socket.ByteString.Lazy
-import Network.TLS
 import System.IO (IOMode (..), hFlush, openFile)
 import System.Random (mkStdGen)
 
-data ServerState = ServerState {clientCount :: Int, clients :: ClientMap, currentIx :: CIndex}
+data ServerState = ServerState {clientCount :: !Int, clients :: !ClientMap, currentIx :: !CIndex}
   deriving (Show)
 
 type ClientMap = Map.IntMap TCPConn
@@ -48,7 +46,12 @@ type CIndex = Int
 
 type ClientConnection = TCPConn
 
-data ServerStateError = MaxPlayers | UnexpectedClose deriving stock (Show, Eq)
+data ServerStateError
+  = ConnectFailure
+  | MaxPlayers
+  | UnexpectedClose
+  | HelloTooSlow !ClientConnection
+  deriving stock (Show)
 
 instance Exception ServerStateError
 
@@ -117,9 +120,9 @@ application sock = do
       do
         (s, a) <- accept sock
         -- let be = getBackend s
-            -- pars = defaultParamsServer
+        -- pars = defaultParamsServer
         -- ctx <- contextNew be pars
-        -- handshake ctx 
+        -- handshake ctx
         _ <- atomically $ readTQueue threadPool
         textWriteTChan messageChan $ "Accepted connection from " ++ show a
         -- sendAll s "Connected\n"
@@ -127,34 +130,46 @@ application sock = do
 
 handleAppConnection :: TMVar ServerState -> DB.Connection -> TQueue () -> ClientConnection -> TChan Text -> IO ()
 handleAppConnection state dbConn threadpool cliConn messageChan = do
-  st <- atomically $ takeTMVar state
-  -- textWriteTChan messageChan "Taking app state"
-
-  ~(!cix, !cc) <- case addClient st cliConn of -- Return the index that the player was inserted at
-    Left MaxPlayers -> atomically (putTMVar state st) >> pure (-1, -1) -- figure out what to do if the queue of scores being uploaded is full; ideally create a queue and process asynchronously while not full
-    Right (newSt, ix) -> do
-      atomically $ putTMVar state newSt
-      textWriteTChan messageChan (show newSt <> " Size: " <> show (numClients newSt))
-      pure (ix, clientCount newSt)
-    Left _ -> error "Impossible"
-
-  if cix < 0
-    then handleAppConnection state dbConn threadpool cliConn messageChan
-    else flip finally (disconnectMsg cliConn >> disconnect cix state >> atomically (writeTQueue threadpool ())) $ do
-      serverApp cix cc dbConn cliConn messageChan
+  initHandshake <- race (threadDelay 2_000_000) (recvTCPData cliConn id)
+  either
+    ( const $
+        textWriteTChan messageChan "Nothing received, closing"
+          >> close (getSocket cliConn)
+    )
+    connHandling
+    initHandshake
   where
-    disconnectMsg conn = do
-      textWriteTChan messageChan $ "Disconnecting " <> show conn
+    connHandling b
+      | b /= Auth.helloMessage =
+          textWriteTChan messageChan "Incorrect hello, closing"
+      | otherwise = do
+          st <- atomically $ takeTMVar state
+          -- textWriteTChan messageChan "Taking app state"
+
+          ~(!cix, !cc) <- case addClient st cliConn of -- Return the index that the player was inserted at
+            Left MaxPlayers -> atomically (putTMVar state st) >> pure (-1, -1) -- figure out what to do if the queue of scores being uploaded is full; ideally create a queue and process asynchronously while not full
+            Right (newSt, ix) -> do
+              atomically $ putTMVar state newSt
+              textWriteTChan messageChan (show newSt <> " Size: " <> show (numClients newSt))
+              pure (ix, clientCount newSt)
+            Left _ -> error "Impossible"
+
+          if cix < 0
+            then handleAppConnection state dbConn threadpool cliConn messageChan
+            else flip finally (disconnectMsg cliConn >> disconnect cix state >> atomically (writeTQueue threadpool ())) $ do
+              serverApp cix cc dbConn cliConn messageChan
+      where
+        disconnectMsg conn = do
+          textWriteTChan messageChan $ "Disconnecting " <> show conn
 
 serverApp :: CIndex -> Int -> DB.Connection -> ClientConnection -> TChan Text -> IO ()
-serverApp cix cliCount dbConn tcpConn messageChan = do
+serverApp cix cliCount dbConn tcpConn messageChan = E.handle recvHandler $ do
   textWriteTChan messageChan $ replicate 90 '='
   textWriteTChan messageChan $ "Client at index: " <> show cix
   s <- recvTCPData tcpConn messageToScore
-  textWriteTChan messageChan $
-    "Score of " <> show s <> " received"
+  textWriteTChan messageChan $ "Score of " <> show s <> " received"
   name <- recvTCPData tcpConn messageToName
-  textWriteTChan messageChan $ "Name of " <> show (T.toUpper name) <> " received"
+  textWriteTChan messageChan $ "Name of " <> show (Text.toUpper name) <> " received"
   seed <- recvTCPData tcpConn messageToSeed
   textWriteTChan messageChan $ "Seed: " <> show seed
   evList <- recvTCPData tcpConn handleEventList
@@ -176,12 +191,14 @@ serverApp cix cliCount dbConn tcpConn messageChan = do
       textWriteTChan messageChan "Valid score" -- placeholder
       -- time <- liftIO (round <$> getPOSIXTime)
       -- addScore dbConn name s time
-      textWriteTChan messageChan $ "Score of " <> show s <> " by user " <> show (cliCount + 1) <> " added"
+      textWriteTChan messageChan $ "Score of " <> show s <> " by user " <> show cliCount <> " added"
   textWriteTChan messageChan $ replicate 90 '='
 
--- threadDelay 10_000
+  where recvHandler UnexpectedClose = do
+          textWriteTChan messageChan $ "Lost connection with: " <> show (getSocket tcpConn)
 
--- gracefulClose (getSocket tcpConn) 500
+          
+        recvHandler _ = pure ()
 
 textWriteTChan :: TChan Text -> String -> IO ()
 textWriteTChan c = atomically . writeTChan c . Text.pack
@@ -210,6 +227,7 @@ recvAll tcpConn size
           pure $ bs <> rest
         else pure bs
 
+
 -------
 -- Constants and ServerState functions
 
@@ -229,7 +247,7 @@ addClient s@(ServerState cc cs ix) c
   | numClients s >= maxPlayers = Left MaxPlayers
   | otherwise =
       maybe
-        (pure $ (ServerState (cc + 1) (Map.insert ix c cs) ((cc + 1) `mod` maxPlayers), ix)) -- If no player found return a new state and the index the current player was inserted at
+        (pure (ServerState (cc + 1) (Map.insert ix c cs) ((cc + 1) `mod` maxPlayers), ix)) -- If no player found return a new state and the index the current player was inserted at
         (const $ addClient (s {currentIx = (ix + 1) `mod` maxPlayers}) c) -- If a player still exists at our current index, try again at index plus one
         (Map.lookup ix (clients s)) -- Find the existing index
 
