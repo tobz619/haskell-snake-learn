@@ -1,17 +1,20 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE NumericUnderscores #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeApplications #-}
 
 module DB.Client where
 
 import Control.Concurrent.Async
-import DB.Highscores (Name)
-import Data.Bimap (Bimap)
-import qualified Data.Bimap as BM
 -- import Data.Int (Int64)
 
+import Control.Concurrent.STM (STM, TQueue, atomically, flushTQueue, newTQueueIO, writeTQueue)
+import qualified Control.Exception as E
+import DB.Highscores (Name)
+import qualified DB.Authenticate as Auth
+import Data.Bimap (Bimap)
+import qualified Data.Bimap as BM
 import Data.Binary (encode)
 import Data.Bits (FiniteBits (finiteBitSize))
 import Data.ByteString.Lazy (ByteString)
@@ -24,28 +27,25 @@ import qualified Data.Text.Encoding as Text
 import Data.Word (Word8)
 import GameLogic (ScoreType)
 import Logging.Logger (EventList, GameEvent (..), TickNumber (..))
-import Network.TLS
 import Network.Socket
 import Network.Socket.ByteString.Lazy (sendAll)
+import Network.TLS
 import System.Random (mkStdGen)
 import UI.Gameplay (SeedSize)
 import UI.Keybinds (KeyEvent (..))
-import Control.Concurrent.STM (atomically, writeTQueue, TQueue, STM, flushTQueue, newTQueueIO)
-
-import qualified Control.Exception as E
 
 type MsgLenRep = Word8
 
-newtype TCPConn = TCPConn {getSocket :: Socket} 
-  deriving newtype Show
+newtype TCPConn = TCPConn {getSocket :: Socket}
+  deriving newtype (Show)
 
-serverName :: HostName
+serverName, serverName' :: HostName
 serverName = "127.0.0.1"
--- serverName = "haskell-server.tobioloke.com"
+serverName' = "haskell-server.tobioloke.com"
 
-clientPort :: PortNumber
+clientPort, clientPort' :: PortNumber
 clientPort = 34561
--- clientPort = 5000
+clientPort' = 5000
 
 lenBytes :: Int
 lenBytes = fromIntegral $ finiteBitSize @MsgLenRep 0 `div` 8
@@ -95,7 +95,8 @@ sendEventList :: TCPConn -> EventList -> IO ()
 sendEventList c = sendBSMessage c . B.concat . map gameEvToMessage
 
 sendBSMessage :: TCPConn -> BSMessage a -> IO ()
-sendBSMessage tcpConn msg = sendAll (getSocket tcpConn) $
+sendBSMessage tcpConn msg =
+  sendAll (getSocket tcpConn) $
     encode @MsgLenRep (fromIntegral $ B.length msg) <> msg
 
 queueBSMessage :: a -> (a -> BSMessage a) -> TQueue ByteString -> STM ()
@@ -117,13 +118,18 @@ sendName c = sendTextMessage c . nameToMessage
   where
     nameToMessage = id
 
+sendHello :: TCPConn -> IO ()
+sendHello c = sendBSMessage c Auth.helloMessage
+
 runClientAppSTM :: SeedSize -> ScoreType -> Text.Text -> [GameEvent] -> IO ()
-runClientAppSTM seed score name evList = withSocketsDo $ do 
-    q <- newTQueueIO
-    runTCPClient serverName clientPort (app q)
+runClientAppSTM seed score name evList = withSocketsDo $ do
+  q <- newTQueueIO
+  runTCPClient serverName' clientPort' (app q)
   where
     app tq c = do
       actions <- atomically $ do
+        writeTQueue tq $ putStrLn $ "Sending hello message"
+        writeTQueue tq $ sendHello c
         writeTQueue tq $ putStrLn $ "Sending seed: " ++ show (mkStdGen 4)
         writeTQueue tq $ sendScoreMessage c score
         writeTQueue tq $ sendName c name
@@ -136,15 +142,16 @@ runClientAppSTM seed score name evList = withSocketsDo $ do
 runTCPClient :: HostName -> PortNumber -> (TCPConn -> IO b) -> IO b
 runTCPClient hostName port action = flip withAsync wait $ do
   addr <- resolve
-  E.bracket (connectClientTCPSocket addr) closeConn action
-
+  E.bracketOnError (connectClientTCPSocket addr) closeConn action
   where
     resolve = do
       let hints = defaultHints {addrSocketType = Stream}
       NE.head <$> getAddrInfo (pure hints) (pure hostName) (pure (show port))
 
-    connectClientTCPSocket addr = E.bracketOnError 
-      (socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr)) close $ \sock -> do
+    connectClientTCPSocket addr = E.bracketOnError
+      (socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr))
+      close
+      $ \sock -> do
         print $ addrAddress addr
         setSocketOption sock NoDelay 1
         setSocketOption sock Linger 5
@@ -164,9 +171,8 @@ testClient =
    in do
         runClientAppSTM 4 4 ("BOB" :: Name) events
 
-
 manyTestClients :: Int -> IO ()
-manyTestClients n = mapM_ (\(v,act) -> act >> print v) $ zip ([1..] :: [Int]) (replicate n testClient)
+manyTestClients n = mapM_ (\(v, act) -> act >> print v) $ zip ([1 ..] :: [Int]) (replicate n testClient)
 
 -- repTest = do
 --  evs <- newMVar events
