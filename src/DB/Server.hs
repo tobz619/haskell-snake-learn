@@ -61,7 +61,7 @@ port = 34561
 main :: IO ()
 main = do
   putStrLn $ "Running server on localhost:" <> show port <> " ..."
-  runTCPServer "0.0.0.0" port $ application
+  runTCPServer "0.0.0.0" port application
 
 ---------------------------------------------------
 -- Server stuff
@@ -104,16 +104,16 @@ application sock = do
     whileM iob act = do
       b <- iob
       when b $ act >> whileM iob act
+
     receive msgs logFile =
       forever $
         whileM
           (not <$> atomically (isEmptyTChan msgs))
-          ( atomically (readTChan msgs)
-              >>= \msg ->
-                Text.putStrLn msg
-                  >> Text.hPutStrLn logFile msg
-                  >> hFlush logFile
-                  -- >> threadDelay 1_000
+          ( atomically (readTChan msgs) >>= \msg ->
+              Text.putStrLn msg
+                >> Text.hPutStrLn logFile msg
+                >> hFlush logFile
+                -- >> threadDelay 1_000
           )
 
     awaitConnection state threadPool dbConn messageChan =
@@ -123,13 +123,13 @@ application sock = do
         -- pars = defaultParamsServer
         -- ctx <- contextNew be pars
         -- handshake ctx
-        _ <- atomically $ readTQueue threadPool
         textWriteTChan messageChan $ "Accepted connection from " ++ show a
         -- sendAll s "Connected\n"
         concurrently_ (handleAppConnection state dbConn threadPool (TCPConn s) messageChan) (awaitConnection state threadPool dbConn messageChan)
 
 handleAppConnection :: TMVar ServerState -> DB.Connection -> TQueue () -> ClientConnection -> TChan Text -> IO ()
-handleAppConnection state dbConn threadpool cliConn messageChan = do
+handleAppConnection state dbConn threadPool cliConn messageChan = do
+  _ <- atomically $ readTQueue threadPool
   initHandshake <- race (threadDelay 2_000_000) (recvTCPData cliConn id)
   either
     ( const $
@@ -155,8 +155,8 @@ handleAppConnection state dbConn threadpool cliConn messageChan = do
             Left _ -> error "Impossible"
 
           if cix < 0
-            then handleAppConnection state dbConn threadpool cliConn messageChan
-            else flip finally (disconnectMsg cliConn >> disconnect cix state >> atomically (writeTQueue threadpool ())) $ do
+            then handleAppConnection state dbConn threadPool cliConn messageChan
+            else flip finally (disconnectMsg cliConn >> disconnect cix state >> atomically (writeTQueue threadPool ())) $ do
               serverApp cix cc dbConn cliConn messageChan
       where
         disconnectMsg conn = do
@@ -193,12 +193,10 @@ serverApp cix cliCount dbConn tcpConn messageChan = E.handle recvHandler $ do
       -- addScore dbConn name s time
       textWriteTChan messageChan $ "Score of " <> show s <> " by user " <> show cliCount <> " added"
   textWriteTChan messageChan $ replicate 90 '='
-
-  where recvHandler UnexpectedClose = do
-          textWriteTChan messageChan $ "Lost connection with: " <> show (getSocket tcpConn)
-
-          
-        recvHandler _ = pure ()
+  where
+    recvHandler UnexpectedClose = do
+      textWriteTChan messageChan $ "Lost connection with: " <> show (getSocket tcpConn)
+    recvHandler _ = pure ()
 
 textWriteTChan :: TChan Text -> String -> IO ()
 textWriteTChan c = atomically . writeTChan c . Text.pack
@@ -226,7 +224,6 @@ recvAll tcpConn size
           rest <- recvAll tcpConn missing
           pure $ bs <> rest
         else pure bs
-
 
 -------
 -- Constants and ServerState functions
