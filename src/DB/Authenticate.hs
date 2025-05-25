@@ -28,7 +28,5 @@ An app can't protect itself from someone who owns the machine. Absolutely nothin
 But a drive-by script kiddie that's gloating over your cafe wifi would do no harm.
 -}
 
-
-
 helloMessage :: BSMessage a
 helloMessage = "{client:v1}"

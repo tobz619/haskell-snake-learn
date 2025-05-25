@@ -6,7 +6,7 @@ import Brick (App (..), BrickEvent (AppEvent, VtyEvent), EventM, customMain, get
 import Brick.BChan (newBChan, writeBChan)
 import Brick.Main (halt)
 import Brick.Types (Widget)
-import Control.Concurrent (MVar, forkIO, readMVar, threadDelay, swapMVar)
+import Control.Concurrent (MVar, forkIO, readMVar, threadDelay, swapMVar, takeMVar, putMVar)
 import Control.Monad (forever, void, when)
 import Control.Monad.IO.Class (liftIO)
 import GameLogic (GameState (Playing, NewHighScore, GameOver), defaultHeight, defaultWidth, initWorld)
@@ -22,29 +22,30 @@ import Data.List (scanl')
 import UI.Keybinds (KeyEvent(..))
 import Control.Monad.State.Strict (runState)
 
-runReplayApp :: StdGen -> MVar EventList -> IO ()
-runReplayApp seed mEvList = do
+runReplayApp :: StdGen -> MVar EventList -> MVar Float -> IO ()
+runReplayApp seed mEvList mSpeedMod = do
   chan <- newBChan 10
   _ <- forkIO $ forever $ do
+    speedModifier <- readMVar mSpeedMod
     writeBChan chan Tick
-    threadDelay 100_000
+    threadDelay $ ceiling (1 / speedModifier * 100_000)
   let initialVty = V.mkVty V.defaultConfig
   buildVty <- initialVty
-  void $ customMain buildVty initialVty (Just chan) (replayApp mEvList) (initState seed)
+  void $ customMain buildVty initialVty (Just chan) (replayApp mEvList mSpeedMod) (initState seed)
 
-replayApp :: MVar EventList -> App ReplayState Tick MenuOptions
-replayApp evs =
+replayApp :: MVar EventList -> MVar Float -> App ReplayState Tick MenuOptions
+replayApp evs speedMod =
   App
     { appDraw = drawUI,
       appChooseCursor = neverShowCursor,
-      appHandleEvent = flip replayEventHandler evs,
-      appStartEvent = replayEventHandler (AppEvent Tick) evs,
+      appHandleEvent = \brickEv -> replayEventHandler brickEv evs speedMod,
+      appStartEvent = replayEventHandler (AppEvent Tick) evs speedMod,
       appAttrMap = const theMap
     }
 
-replayEventHandler :: BrickEvent n Tick -> MVar EventList -> EventM n ReplayState ()
-replayEventHandler (VtyEvent (V.EvKey (V.KChar 'c') [V.MCtrl])) _ = halt
-replayEventHandler (AppEvent Tick) mVarEv = do
+replayEventHandler :: BrickEvent n Tick -> MVar EventList -> MVar Float -> EventM n ReplayState ()
+replayEventHandler (VtyEvent (V.EvKey (V.KChar 'c') [V.MCtrl])) _ _ = halt
+replayEventHandler (AppEvent Tick) mVarEv _ = do
   modify stepReplayState
   rps <- get
   evlist <- liftIO $ readMVar mVarEv
@@ -53,7 +54,20 @@ replayEventHandler (AppEvent Tick) mVarEv = do
     put newS
     void . liftIO $ swapMVar mVarEv newEvs
 
-replayEventHandler _ _ = return ()
+replayEventHandler (VtyEvent (V.EvKey (V.KChar 'r') [])) _ mSpeedMod =  liftIO $ do
+  s <- takeMVar mSpeedMod
+  putMVar mSpeedMod (normalSpeed s)
+
+replayEventHandler (VtyEvent (V.EvKey V.KLeft [])) _ mSpeedMod =  liftIO $ do
+  s <- takeMVar mSpeedMod
+  putMVar mSpeedMod (speedDown s)
+  
+
+replayEventHandler (VtyEvent (V.EvKey V.KRight [])) _ mSpeedMod =  liftIO $ do
+  s <- takeMVar mSpeedMod
+  putMVar mSpeedMod (speedUp s)
+
+replayEventHandler _ _ _ = return ()
 
 
 initState :: StdGen -> ReplayState
@@ -73,13 +87,26 @@ drawUI rps = center <$> drawGS gs
 replayExample :: IO ()
 replayExample = do
   evs <- newMVar events
-  runReplayApp (mkStdGen 4) evs
+  speed <- newMVar 1
+  runReplayApp (mkStdGen 4) evs speed
   where
     moves = [1,3,8,10,1,11,14,1,1]
     events = zipWith (GameEvent . TickNumber)
       (scanl' (+) 1 moves)
       [MoveRight, MoveDown, MoveLeft, MoveUp, MoveRight, MoveDown, MoveRight, MoveDown, MoveLeft]
-      -- ++
-      -- zipWith GameEvent
-      --   (drop 1 $ iterate (+ 3) (sum moves))
-      --   (cycle [MoveUp, MoveLeft, MoveDown, MoveRight])
+      ++
+      zipWith (GameEvent . TickNumber)
+        (drop 1 $ iterate (+ 3) (sum moves))
+        (cycle [MoveUp, MoveLeft, MoveDown, MoveRight])
+
+
+speedUp, speedDown, normalSpeed :: Float -> Float
+speedUp x
+  | x >= 16 = x
+  | otherwise = x * 2
+
+speedDown x
+  | x <= (1/4) = x
+  | otherwise = x / 2
+
+normalSpeed = const 1
