@@ -13,8 +13,9 @@ import Graphics.Vty as V
   ( Event (EvKey),
     Key (KDown, KEnter, KEsc, KLeft, KRight, KUp),
   )
+import Linear.V2 (V2)
 
-data KeyEvent = MoveUp | MoveDown | MoveLeft | MoveRight | Back | Select | Pause | GameEnded | Halt | Quit
+data KeyEvent = MoveUp | MoveDown | MoveLeft | MoveRight | FoodEaten !(V2 Int) | Back | Select | Pause | GameEnded | Halt | QuitGame
   deriving (Show, Eq, Ord)
 
 allKeyEvents :: K.KeyEvents KeyEvent
@@ -40,7 +41,7 @@ keyBindings =
     (Back, [K.bind V.KEsc]),
     (Pause, [K.bind 'p']),
     (Halt, [K.ctrl 'c']),
-    (Quit, [K.bind 'q'])
+    (QuitGame, [K.bind 'q'])
   ]
 
 getKey :: K.KeyConfig KeyEvent -> KeyEvent -> Event

@@ -10,7 +10,6 @@ import Control.Monad.State
     execState,
   )
 import Data.Sequence.NonEmpty (NESeq ((:<||), (:||>)), (|>))
-import qualified Data.Sequence.NonEmpty as NES(head)
 import qualified Data.Sequence.NonEmpty as S
 import Database.SQLite.Simple (Connection)
 import Lens.Micro (over)
@@ -50,7 +49,7 @@ type ScoreType = Word16
 data Stream a = a :| Stream a
   deriving (Show)
 
-data Direction = U | D | L | R
+data Direction = U | D | L | R | NoDir
   deriving (Eq, Show)
 
 data World = World
@@ -58,7 +57,8 @@ data World = World
     dir :: Direction,
     food :: Coord,
     foods :: Stream Coord,
-    score :: ScoreType
+    score :: ScoreType,
+    foodEaten :: Maybe Coord
   }
 
 instance Show World where
@@ -97,9 +97,10 @@ advanceWorld w@World {..} = case die w of
               execState nextFood $
                 w
                   { snake = (moveSnake dir . growSnake) snake,
-                    score = score + 1
+                    score = score + 1,
+                    foodEaten = Just food
                   }
-            else w {snake = moveSnake dir snake}
+            else w {snake = moveSnake dir snake, foodEaten = Nothing}
      in Playing newSnake
   gs -> gs
 
@@ -123,6 +124,7 @@ moveSnake U s@(hd :<|| _) = over _y (+ 1) hd :<|| S.init s
 moveSnake D s@(hd :<|| _) = over _y (subtract 1) hd :<|| S.init s
 moveSnake R s@(hd :<|| _) = over _x (+ 1) hd :<|| S.init s
 moveSnake L s@(hd :<|| _) = over _x (subtract 1) hd :<|| S.init s
+moveSnake NoDir s = s
 
 nextFood :: State World ()
 nextFood = do
@@ -137,6 +139,7 @@ chDir to (Playing World {..}) = Frozen $ World {dir = turnDir dir to, ..}
 chDir _ s = s
 
 turnDir :: Direction -> Direction -> Direction
+turnDir NoDir to = to
 turnDir from to
   | opposite from == to || to == from = from
   | otherwise = to
@@ -145,6 +148,7 @@ turnDir from to
     opposite L = R
     opposite R = L
     opposite D = U
+    opposite NoDir = to
 
 pauseToggle :: GameState -> GameState
 pauseToggle st = case st of
@@ -157,14 +161,15 @@ initWorld height width initGen =
   let (f :| fs) = fromList $ randomRs (V2 1 1, V2 (height - 1) (width - 1)) initGen
       xm = defaultWidth `div` 2
       ym = defaultHeight `div` 2
-      g =
+      w =
         World
           { snake = S.singleton (V2 xm ym),
             food = f,
             foods = fs,
             score = 0,
-            dir = U
+            dir = NoDir,
+            foodEaten = Nothing
           }
-   in execState nextFood g
+   in execState nextFood w
   where
     fromList = foldr (:|) (error "Stream must be infinite!")
