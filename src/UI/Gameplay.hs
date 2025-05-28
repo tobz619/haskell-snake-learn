@@ -1,17 +1,21 @@
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE BangPatterns #-}
 
 module UI.Gameplay where
 
-import Bluefin.Eff (Eff, runPureEff, (:>), (:&))
+import Bluefin.Compound (mapHandle, useImplIn)
+import Bluefin.Eff (Eff, runPureEff, (:&), (:>))
 import Bluefin.Reader
+import Bluefin.State (evalState)
+import qualified Bluefin.State as BFS
 import Brick
 import Brick.BChan (newBChan, writeBChan)
 import Brick.Focus (focusRingCursor)
@@ -44,10 +48,7 @@ import Lens.Micro.TH (makeLenses)
 import Linear.V2 (V2 (..))
 import Logging.Logger
 import System.Random
-import UI.Keybinds (KeyEvent (GameEnded), gameplayDispatcher)
-import Bluefin.Compound (mapHandle, useImplIn)
-import Bluefin.State (evalState)
-
+import UI.Keybinds (KeyEvent (..), gameplayDispatcher)
 
 -- | Marks passing of time.
 --  Each delta is fed into the app.
@@ -163,8 +164,9 @@ highScoreMkForm =
     fieldy = const $ Vector.iterateN 26 succ 'A'
     listDrawElement _ a = txt $ Text.singleton a
 
-eventHandler :: BrickEvent MenuOptions Tick
-                -> EventM MenuOptions GameplayState ()
+eventHandler ::
+  BrickEvent MenuOptions Tick ->
+  EventM MenuOptions GameplayState ()
 eventHandler (VtyEvent (V.EvKey (V.KChar 'c') [V.MCtrl])) = M.halt
 eventHandler ev = do
   gs <- use gameState
@@ -179,8 +181,11 @@ eventHandler ev = do
       gameState .= Starting w
     ToMenu -> M.halt
     Frozen _ -> do zoom gameState $ handleGameplayEvent' ev
-    Playing _ -> do
+    Playing w -> do
       zoom gameState $ handleGameplayEvent' ev
+      case foodEaten w of
+        Nothing -> pure () 
+        Just c -> (gameLog .= runPureEff (runGameplayEventLogger gps (logEat c))) >> liftIO (putStr "Bang ")
       gameLog .= runPureEff (runGameplayEventLogger gps (logMove ev))
       tickNo %= (+ 1) -- advance the ticknumber by one
     Starting w -> do
@@ -268,7 +273,7 @@ handleStartGameEvent ev@(VtyEvent (V.EvKey k _)) -- Start the game and move the 
       do
         handleMenuEvent (VtyEvent (V.EvKey V.KEnter []))
         zoom gameState $ handleGameplayEvent' ev
-  | k == V.KEnter = handleMenuEvent ev
+  | k == V.KEnter = handleStartGameEvent (VtyEvent (V.EvKey V.KUp []))
   | otherwise = return ()
 handleStartGameEvent _ = return ()
 
@@ -279,7 +284,7 @@ drawUI gps = [drawDebug gps] <> gpdia <> hsdia <> form <> (C.centerLayer <$> dra
     gs = gps ^. gameState
     gpdia = maybe [] (pure . C.centerLayer . (`D.renderDialog` emptyWidget)) (gps ^. gameStateDialog)
     hsdia = maybe [] (pure . C.centerLayer . (`D.renderDialog` emptyWidget)) (gps ^. highScoreDialogs . hsDialog)
-    form = maybe [] (pure . C.center . F.renderForm) (gps ^. highScoreDialogs . hsForm)
+    form = maybe [] (pure . C.centerLayer . F.renderForm) (gps ^. highScoreDialogs . hsForm)
 
 -- | Draws the game depending on the state of the game
 drawGS :: GameState -> [Widget MenuOptions]
@@ -303,14 +308,14 @@ drawDebug gps = currentTick <=> currentLog
     currentTick = hLimit 10 $ vBox [txt $ Text.pack $ show $ gps ^. tickNo]
     currentLog = vLimit 20 $ hLimit 45 $ vBox $ txt . Text.pack . show <$> (gps ^. gameLog)
 
-drawStats :: World -> Widget MenuOptions
+drawStats :: World -> Widget n
 drawStats w =
   hLimit 11 $
     vBox
       [ drawScore $ score w
       ]
 
-drawScore :: (Show a, Num a) => a -> Widget MenuOptions
+drawScore :: (Show a, Num a) => a -> Widget n
 drawScore n =
   withBorderStyle BS.unicodeBold $
     B.borderWithLabel (txt "Score") $
@@ -363,7 +368,6 @@ theMap =
       (L.listAttr, bg V.magenta)
     ]
 
-
 -- Logging Functions
 
 -- | Log a move and add it to the overall EventList as an effect
@@ -376,6 +380,13 @@ logMove = handleMovement gameplayDispatcher
       let logaction = getKeyEvent disp altConfig event
           tick = gameplaystate ^. tickNo
       addKeyToLog evListSt tick logaction
+
+-- | Log a food getting eaten
+logEat :: (e :> es) => Coord -> Logger GameplayState EventList e -> Eff es EventList
+logEat !v2 (Logger evListSt readstate) = do
+  gps <- ask readstate
+  let tick = gps ^. tickNo
+  addToLog evListSt tick (FoodEaten v2)
 
 -- | Log the end of the game
 logGameEnd :: (e :> es) => Logger GameplayState EventList e -> Eff es EventList
@@ -392,5 +403,5 @@ resetLog = pure []
 runGameplayEventLogger :: GameplayState -> (forall e. Logger GameplayState EventList e -> Eff (e :& es) r) -> Eff es r
 runGameplayEventLogger gps f =
   evalState (gps ^. gameLog) $ \st ->
-    runReader gps $ \rea -> 
+    runReader gps $ \rea ->
       useImplIn f (Logger (mapHandle st) (mapHandle rea))
