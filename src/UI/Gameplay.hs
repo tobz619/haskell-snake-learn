@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE NumericUnderscores #-}
@@ -7,7 +8,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE BangPatterns #-}
 
 module UI.Gameplay where
 
@@ -32,6 +32,7 @@ import qualified Brick.Widgets.List as L
 import Control.Concurrent (forkIO, threadDelay)
 import Control.Monad (forever, void)
 import Control.Monad.IO.Class (MonadIO (liftIO))
+import Control.Monad.State.Class (MonadState)
 import DB.Highscores as DBHS (addScore, openDatabase, promptAddHighScore)
 import Data.Maybe (fromMaybe)
 import qualified Data.Text as Text
@@ -47,6 +48,7 @@ import Lens.Micro.Mtl
 import Lens.Micro.TH (makeLenses)
 import Linear.V2 (V2 (..))
 import Logging.Logger
+import System.IO
 import System.Random
 import UI.Keybinds (KeyEvent (..), gameplayDispatcher)
 
@@ -65,7 +67,8 @@ data GameplayState = GameplayState
     _gameStateDialog :: Maybe (Dialog GameState MenuOptions),
     _highScoreDialogs :: HighScoreFormState,
     _tickNo :: Word16,
-    _gameLog :: EventList
+    _gameLog :: EventList,
+    _gameSeed :: (SeedType, StdGen)
   }
 
 data HighScoreFormState = HighScoreFormState
@@ -75,7 +78,7 @@ data HighScoreFormState = HighScoreFormState
 
 data HighScoreForm = HighScoreForm {_cha1 :: Maybe Char, _cha2 :: Maybe Char, _cha3 :: Maybe Char}
 
-type SeedSize = Word64
+type SeedType = Int
 
 makeLenses ''GameplayState
 makeLenses ''HighScoreForm
@@ -89,7 +92,7 @@ gameplay = do
   chan <- newBChan 10
   _ <- forkIO $ forever $ do
     writeBChan chan Tick
-    threadDelay (1_000_000 `div` 16) -- 20 ticks per second
+    threadDelay (1_000_000 `div` 16) -- 16 ticks per second
   let initialVty = V.mkVty V.defaultConfig
   buildVty <- initialVty
   void $ customMain buildVty initialVty (Just chan) gameApp defState
@@ -105,7 +108,7 @@ gameApp =
     }
 
 defState :: GameplayState
-defState = GameplayState Restarting Nothing (HighScoreFormState Nothing Nothing) 0 []
+defState = GameplayState Restarting Nothing (HighScoreFormState Nothing Nothing) 0 [] undefined
 
 dialogShower :: GameState -> Maybe (Dialog GameState MenuOptions)
 dialogShower (Paused w) = Just $ D.dialog (Just (txt "PAUSE MENU")) (Just (Resume, options)) 40
@@ -164,6 +167,11 @@ highScoreMkForm =
     fieldy = const $ Vector.iterateN 26 succ 'A'
     listDrawElement _ a = txt $ Text.singleton a
 
+genSeed :: (MonadState s m, MonadIO m) => m (SeedType, StdGen)
+genSeed = do
+  a <- randomRIO (minBound :: SeedType, maxBound :: SeedType)
+  pure (a, mkStdGen a)
+
 eventHandler ::
   BrickEvent MenuOptions Tick ->
   EventM MenuOptions GameplayState ()
@@ -173,32 +181,38 @@ eventHandler ev = do
   gps <- get
   case gs of
     Restarting -> do
-      (genVal :: SeedSize, g) <- genWord64 <$> newStdGen
+      vals@(genVal :: SeedType, g) <- genSeed
       let w = initWorld defaultHeight defaultWidth g
       -- sendGenToServer serverLocation g
       tickNo .= 0 -- Reset the tick number to 0.
       gameLog .= runPureEff resetLog
       gameState .= Starting w
+      gameSeed .= vals
     ToMenu -> M.halt
     Frozen _ -> do zoom gameState $ handleGameplayEvent' ev
     Playing w -> do
+      zoom gameState $ handleGameplayEvent' ev
+      tickNo %= (+ 1) -- advance the ticknumber by one
       case foodEaten w of
-        Nothing -> pure () 
+        Nothing -> pure ()
         Just c -> gameLog .= runPureEff (runGameplayEventLogger gps (logEat c)) -- Log if food is eaten
-      
       gps' <- get
       gameLog .= runPureEff (runGameplayEventLogger gps' (logMove ev)) -- Log if a direction has been pressed
-      tickNo %= (+ 1) -- advance the ticknumber by one
-      zoom gameState $ handleGameplayEvent' ev
+
     Starting w -> do
       dia <- use gameStateDialog
       case dia of
         Nothing -> gameStateDialog .= dialogShower (Starting w)
         _ -> handleStartGameEvent ev
     NewHighScore w -> do
+      gameLog .= runPureEff (runGameplayEventLogger gps logGameEnd)
+      gps' <- get
+      h <- liftIO $ openFile "Seed-Events" WriteMode
+      liftIO $ hPrint h (gps' ^. gameSeed)
+      liftIO $ hPrint h (gps' ^. gameLog)
+
       conn <- liftIO $ openDatabase "highscores.db"
       hs <- liftIO $ promptAddHighScore conn (score w)
-      gameLog .= runPureEff (runGameplayEventLogger gps logGameEnd)
       if hs
         then do
           gameStateDialog .= Nothing
@@ -214,9 +228,7 @@ eventHandler ev = do
         _ -> return ()
     p -> do
       dia <- use gameStateDialog
-      case dia of
-        Nothing -> gameStateDialog .= dialogShower p
-        _ -> handleMenuEvent ev
+      maybe (gameStateDialog .= dialogShower p) (const $ handleMenuEvent ev) dia
 
 handleHighScorePromptEvent :: BrickEvent MenuOptions Tick -> Connection -> World -> Int -> EventM MenuOptions HighScoreFormState ()
 handleHighScorePromptEvent (VtyEvent (V.EvKey V.KEnter [])) conn w time = do
@@ -275,13 +287,20 @@ handleStartGameEvent ev@(VtyEvent (V.EvKey k _)) -- Start the game and move the 
       do
         handleMenuEvent (VtyEvent (V.EvKey V.KEnter []))
         zoom gameState $ handleGameplayEvent' ev
+        gps <- get
+        gameLog .= runPureEff (runGameplayEventLogger gps (logMove ev)) -- Log if a direction has been pressed
   | k == V.KEnter = handleStartGameEvent (VtyEvent (V.EvKey V.KUp []))
   | otherwise = return ()
 handleStartGameEvent _ = return ()
 
 -- | Draws the overall UI of the game
 drawUI :: GameplayState -> [Widget MenuOptions]
-drawUI gps = [drawDebug gps] <> gpdia <> hsdia <> form <> (C.centerLayer <$> drawGS gs)
+drawUI gps =
+  -- [drawDebug gps] <>
+  gpdia
+    <> hsdia
+    <> form
+    <> (C.centerLayer <$> drawGS gs)
   where
     gs = gps ^. gameState
     gpdia = maybe [] (pure . C.centerLayer . (`D.renderDialog` emptyWidget)) (gps ^. gameStateDialog)
@@ -402,7 +421,7 @@ resetLog :: Eff es EventList
 resetLog = pure []
 
 -- | Run the associated logging action with the associated state
-runGameplayEventLogger ::  GameplayState -> (forall e. Logger GameplayState EventList e -> Eff (e :& es) r) -> Eff es r
+runGameplayEventLogger :: GameplayState -> (forall e. Logger GameplayState EventList e -> Eff (e :& es) r) -> Eff es r
 runGameplayEventLogger gps f =
   evalState (gps ^. gameLog) $ \st ->
     runReader gps $ \rea ->
