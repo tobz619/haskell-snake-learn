@@ -182,12 +182,14 @@ eventHandler ev = do
     ToMenu -> M.halt
     Frozen _ -> do zoom gameState $ handleGameplayEvent' ev
     Playing w -> do
-      zoom gameState $ handleGameplayEvent' ev
       case foodEaten w of
         Nothing -> pure () 
-        Just c -> (gameLog .= runPureEff (runGameplayEventLogger gps (logEat c))) >> liftIO (putStr "Bang ")
-      gameLog .= runPureEff (runGameplayEventLogger gps (logMove ev))
+        Just c -> gameLog .= runPureEff (runGameplayEventLogger gps (logEat c)) -- Log if food is eaten
+      
+      gps' <- get
+      gameLog .= runPureEff (runGameplayEventLogger gps' (logMove ev)) -- Log if a direction has been pressed
       tickNo %= (+ 1) -- advance the ticknumber by one
+      zoom gameState $ handleGameplayEvent' ev
     Starting w -> do
       dia <- use gameStateDialog
       case dia of
@@ -306,7 +308,7 @@ drawDebug :: GameplayState -> Widget n
 drawDebug gps = currentTick <=> currentLog
   where
     currentTick = hLimit 10 $ vBox [txt $ Text.pack $ show $ gps ^. tickNo]
-    currentLog = vLimit 20 $ hLimit 45 $ vBox $ txt . Text.pack . show <$> (gps ^. gameLog)
+    currentLog = vLimit 20 $ hLimit 45 $ vBox $ txt . Text.pack . show <$> take 20 (gps ^. gameLog)
 
 drawStats :: World -> Widget n
 drawStats w =
@@ -400,7 +402,7 @@ resetLog :: Eff es EventList
 resetLog = pure []
 
 -- | Run the associated logging action with the associated state
-runGameplayEventLogger :: GameplayState -> (forall e. Logger GameplayState EventList e -> Eff (e :& es) r) -> Eff es r
+runGameplayEventLogger ::  GameplayState -> (forall e. Logger GameplayState EventList e -> Eff (e :& es) r) -> Eff es r
 runGameplayEventLogger gps f =
   evalState (gps ^. gameLog) $ \st ->
     runReader gps $ \rea ->

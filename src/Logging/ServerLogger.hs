@@ -19,10 +19,11 @@ import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import Network.Socket (SockAddr (..))
 import Text.Read (readMaybe)
+import Bluefin.Writer (Writer, tell, execWriter)
 
 -- newtype Logger i o e = Logger (Writer o e)
 
-newtype Logger e = Logger (IOE e)
+data Logger e = Logger (IOE e) (Writer Text e)
 
 -- type ClientLogger = Logger (TChan ClientLogItem) Text
 type ClientLogger = Logger
@@ -35,16 +36,17 @@ instance Show ClientLogItem where
 
 
 
-spawnClientLogger :: (e1 :> es) => IOE e1 -> (forall e. Logger e -> Eff (e :& es) r) -> Eff es r
-spawnClientLogger w k = useImplIn k $ Logger (mapHandle w)
+spawnClientLogger :: (e1 :> es, e2 :> es) => IOE e1 -> Writer Text e2 ->  (forall e. Logger e -> Eff (e :& es) r) -> Eff es r
+spawnClientLogger io w k = useImplIn k $ Logger (mapHandle io) (mapHandle w)
 
 logAction :: (e :> es) => ClientLogger e -> Text -> Eff es ()
-logAction (Logger io) msg = do
+logAction (Logger io w) msg = do
   effIO io $ Text.putStrLn msg
+  tell w (msg `Text.append` "\n")
 
 -- sendToQueue :: TChan ClientLogItem -> ClientLogItem -> ClientLogger e -> IO ()
 sendToQueue :: (e :> es) => TChan ClientLogItem -> ClientLogItem -> Logger e -> Eff es ()
-sendToQueue clq cl l@(Logger io) = do
+sendToQueue clq cl l@(Logger io w) = do
   logAction
     l
     ("Writing clientID " <> Text.pack (show (clientID cl)) <> " to the queue")
@@ -55,8 +57,8 @@ sendToQueue clq cl l@(Logger io) = do
 
 -- logClient :: TChan ClientLogItem -> ClientLogger e -> IO ClientLogItem
 logClient :: (e :> es, Show b) => TChan b -> Logger e -> Eff es b
-logClient clq l@(Logger io) = do
-  logAction l "Pulling from the client from the queue"
+logClient clq l@(Logger io _) = do
+  logAction l "Pulling the client from the queue"
   cl <- effIO io $ atomically $ readTChan clq
   logAction l ("Got client: " <> Text.pack (show cl))
   pure cl
@@ -67,7 +69,7 @@ someProgramBF io = do
   chan <- effIO io newTChanIO
   a <- effIO io $ putStr "Give an number: " >> getLine
   b <- effIO io $ putStr "Give an number: " >> getLine
-  _ <- spawnClientLogger io $ \clientLogger -> do
+  out <- execWriter $ \w -> spawnClientLogger io w $ \clientLogger -> do
     logAction clientLogger "abc"
     let res = maybe "Failure" show ((+) <$> readMaybe a <*> readMaybe b)
     logAction clientLogger ("The result of the computation is: " <> Text.pack res)
@@ -78,6 +80,7 @@ someProgramBF io = do
 
   -- effIO io $ print (length chan)
   -- effIO io $ Text.putStrLn accumLog
+  effIO io $ Text.putStrLn out
   pure ()
 
 runProgram :: IO ()
