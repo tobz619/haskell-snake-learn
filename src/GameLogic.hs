@@ -119,12 +119,20 @@ eatFood c (s :<|| _) = c == s
 growSnake :: Snake -> Snake
 growSnake snake@(_ :||> t) = snake |> t
 
-moveSnake :: Direction -> Snake -> Snake
+moveSnake, reverseSnake :: Direction -> Snake -> Snake
 moveSnake U s@(hd :<|| _) = over _y (+ 1) hd :<|| S.init s
 moveSnake D s@(hd :<|| _) = over _y (subtract 1) hd :<|| S.init s
 moveSnake R s@(hd :<|| _) = over _x (+ 1) hd :<|| S.init s
 moveSnake L s@(hd :<|| _) = over _x (subtract 1) hd :<|| S.init s
 moveSnake NoDir s = s
+
+reverseSnake U s@(_ :||> lst) = S.init s :||> over _y (subtract 1) lst
+reverseSnake D s@(_ :||> lst) = S.init s :||> over _y (+ 1) lst
+reverseSnake L s@(_ :||> lst) = S.init s :||> over _x (subtract 1) lst
+reverseSnake R s@(_ :||> lst) = S.init s :||> over _x (+ 1) lst
+reverseSnake NoDir s = s
+
+
 
 nextFood :: State World ()
 nextFood = do

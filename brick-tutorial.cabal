@@ -43,20 +43,19 @@ library
                       microlens-mtl,
                       microlens-th,
                       network,
-                      random,
                       mtl,
                       nonempty-containers^>=0.3.4.5,
                       network-simple-tls,
+                      random==1.3.1,
                       scotty,
+                      splitmix,
                       sqlite-simple,
                       stm,
                       time,
                       text,
                       tls,
                       vector,
-                      websockets,
-                      word-wrap,
-                      wuss
+                      word-wrap
 
     hs-source-dirs:   src
     default-language: Haskell2010

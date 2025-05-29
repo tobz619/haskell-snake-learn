@@ -31,7 +31,7 @@ import Network.Socket
 import Network.Socket.ByteString.Lazy (sendAll)
 import Network.TLS
 import System.Random (mkStdGen)
-import UI.Gameplay (SeedSize)
+import UI.Gameplay (SeedType)
 import UI.Keybinds (KeyEvent (..))
 
 type MsgLenRep = Word8
@@ -73,12 +73,12 @@ gameEvToMessage (GameEvent tn ev) = looked <> tickNoToBytes tn
     looked = fromMaybe B.empty (BM.lookup ev keyEvBytesMap)
     tickNoToBytes (TickNumber tno) = encode tno
 
-type SeedMessage = BSMessage SeedSize
+type SeedMessage = BSMessage SeedType
 
-sendSeedMessage :: TCPConn -> SeedSize -> IO ()
+sendSeedMessage :: TCPConn -> SeedType -> IO ()
 sendSeedMessage c = sendBSMessage c . seedToMessage
   where
-    seedToMessage :: SeedSize -> SeedMessage
+    seedToMessage :: SeedType -> SeedMessage
     seedToMessage = encode
 
 type ScoreMessage = BSMessage ScoreType
@@ -121,7 +121,7 @@ sendName c = sendTextMessage c . nameToMessage
 sendHello :: TCPConn -> IO ()
 sendHello c = sendBSMessage c Auth.helloMessage
 
-runClientAppSTM :: SeedSize -> ScoreType -> Text.Text -> [GameEvent] -> IO ()
+runClientAppSTM :: SeedType -> ScoreType -> Text.Text -> [GameEvent] -> IO ()
 runClientAppSTM seed score name evList = withSocketsDo $ do
   q <- newTQueueIO
   runTCPClient serverName' clientPort' (app q)

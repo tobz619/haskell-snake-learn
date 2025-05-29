@@ -17,7 +17,7 @@ import UI.Keybinds
 import Data.Word (Word16)
 import Bluefin.State ( State, modify, get )
 
-newtype TickNumber = TickNumber TickType deriving newtype (Eq, Show)
+newtype TickNumber = TickNumber TickType deriving newtype (Eq, Show, Num)
 type TickType = Word16
 
 -- | Pairing of tick events to significant moves
