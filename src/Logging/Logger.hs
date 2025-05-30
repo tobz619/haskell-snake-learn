@@ -26,7 +26,7 @@ data GameEvent = GameEvent TickNumber KeyEvent
 
 type EventList = [GameEvent]
 
-data Logger i o e = Logger (State o e) (Reader i e)
+data Logger o e = Logger (State o e) 
 
 getKeyEvent :: (t -> Either a (K.KeyDispatcher KeyEvent m)) -> t -> BrickEvent n e -> Maybe KeyEvent
 getKeyEvent dispatcher altConfig (VtyEvent (V.EvKey k mods)) = do
