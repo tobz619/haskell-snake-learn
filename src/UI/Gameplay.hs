@@ -185,7 +185,7 @@ eventHandler ev = do
       let w = initWorld defaultHeight defaultWidth g
       -- sendGenToServer serverLocation g
       tickNo .= 0 -- Reset the tick number to 0.
-      gameLog .= runPureEff resetLog
+      resetLog
       gameState .= Starting w
       gameSeed .= vals
     ToMenu -> M.halt
@@ -193,11 +193,8 @@ eventHandler ev = do
     Playing w -> do
       zoom gameState $ handleGameplayEvent' ev
       tickNo %= (+ 1) -- advance the ticknumber by one
-      case foodEaten w of
-        Nothing -> pure ()
-        Just c -> gameLog .= runPureEff (runGameplayEventLogger gps (logEat c)) -- Log if food is eaten
-      gps' <- get
-      gameLog .= runPureEff (runGameplayEventLogger gps' (logMove ev)) -- Log if a direction has been pressed
+      mapM_ logEat (foodEaten w) -- Log if food is eaten
+      logMove ev -- Log if a direction has been pressed
 
     Starting w -> do
       dia <- use gameStateDialog
@@ -205,7 +202,8 @@ eventHandler ev = do
         Nothing -> gameStateDialog .= dialogShower (Starting w)
         _ -> handleStartGameEvent ev
     NewHighScore w -> do
-      gameLog .= runPureEff (runGameplayEventLogger gps logGameEnd)
+      -- runPureEff (runGameplayEventLogger logGameEnd)
+      logGameEnd
       gps' <- get
       h <- liftIO $ openFile "Seed-Events" WriteMode
       liftIO $ hPrint h (gps' ^. gameSeed)
@@ -287,8 +285,7 @@ handleStartGameEvent ev@(VtyEvent (V.EvKey k _)) -- Start the game and move the 
       do
         handleMenuEvent (VtyEvent (V.EvKey V.KEnter []))
         zoom gameState $ handleGameplayEvent' ev
-        gps <- get
-        gameLog .= runPureEff (runGameplayEventLogger gps (logMove ev)) -- Log if a direction has been pressed
+        logMove ev -- Log if a direction has been pressed
   | k == V.KEnter = handleStartGameEvent (VtyEvent (V.EvKey V.KUp []))
   | otherwise = return ()
 handleStartGameEvent _ = return ()
@@ -296,7 +293,7 @@ handleStartGameEvent _ = return ()
 -- | Draws the overall UI of the game
 drawUI :: GameplayState -> [Widget MenuOptions]
 drawUI gps =
-  -- [drawDebug gps] <>
+  [drawDebug gps] <>
   gpdia
     <> hsdia
     <> form
@@ -392,37 +389,31 @@ theMap =
 -- Logging Functions
 
 -- | Log a move and add it to the overall EventList as an effect
-logMove :: (e :> es) => BrickEvent n events -> Logger GameplayState EventList e -> Eff es EventList
+logMove :: BrickEvent n events -> EventM n GameplayState ()
 logMove = handleMovement gameplayDispatcher
   where
-    handleMovement :: (e1 :> es) => ([a1] -> Either a2 (K.KeyDispatcher KeyEvent m)) -> BrickEvent n e2 -> Logger GameplayState EventList e1 -> Eff es EventList
-    handleMovement disp event (Logger evListSt readstate) = do
-      gameplaystate <- ask readstate
+    handleMovement :: ([a1] -> Either a2 (K.KeyDispatcher KeyEvent m)) -> BrickEvent n e2 -> EventM n GameplayState ()
+    handleMovement disp event = do
       let logaction = getKeyEvent disp altConfig event
-          tick = gameplaystate ^. tickNo
-      addKeyToLog evListSt tick logaction
+      addKeyToLog' logaction
+
+    addKeyToLog' = maybe (pure ()) addToLog'
 
 -- | Log a food getting eaten
-logEat :: (e :> es) => Coord -> Logger GameplayState EventList e -> Eff es EventList
-logEat !v2 (Logger evListSt readstate) = do
-  gps <- ask readstate
-  let tick = gps ^. tickNo
-  addToLog evListSt tick (FoodEaten v2)
+logEat :: Coord -> EventM n GameplayState ()
+logEat !v2 = addToLog' (FoodEaten v2)
 
 -- | Log the end of the game
-logGameEnd :: (e :> es) => Logger GameplayState EventList e -> Eff es EventList
-logGameEnd (Logger evListSt readstate) = do
-  gps <- ask readstate
+logGameEnd :: EventM n GameplayState ()
+logGameEnd = addToLog' GameEnded
+
+addToLog' :: KeyEvent -> EventM n GameplayState ()
+addToLog' ev = do
+  gps <- get
   let tick = gps ^. tickNo
-  addToLog evListSt tick GameEnded
+  gameLog %= (GameEvent (TickNumber tick) ev :)
+
 
 -- | Reset the log to an empty list
-resetLog :: Eff es EventList
-resetLog = pure []
-
--- | Run the associated logging action with the associated state
-runGameplayEventLogger :: GameplayState -> (forall e. Logger GameplayState EventList e -> Eff (e :& es) r) -> Eff es r
-runGameplayEventLogger gps f =
-  evalState (gps ^. gameLog) $ \st ->
-    runReader gps $ \rea ->
-      useImplIn f (Logger (mapHandle st) (mapHandle rea))
+resetLog :: EventM n GameplayState ()
+resetLog = gameLog .= []
