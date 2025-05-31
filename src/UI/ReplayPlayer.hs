@@ -18,21 +18,21 @@ import qualified Graphics.Vty.CrossPlatform as V
 import Linear.V2 (V2 (..))
 import Logging.Replay (ReplayState (..), canExecute, runMove, stepReplayState)
 import System.Random (StdGen, mkStdGen)
-import UI.Types 
+import UI.Types
 import UI.Gameplay (drawGS, theMap)
 
-runReplayApp :: StdGen -> MVar EventList -> MVar Float -> IO ()
+runReplayApp :: StdGen -> InputList -> MVar Float -> IO ()
 runReplayApp seed mEvList mSpeedMod = do
   chan <- newBChan 10
   _ <- forkIO $ forever $ do
     speedModifier <- readMVar mSpeedMod
     writeBChan chan Tick
-    threadDelay $ ceiling (1 / speedModifier * (1_000_000 / 16))
+    threadDelay $ ceiling (1 / abs speedModifier * (1_000_000 / 16))
   let initialVty = V.mkVty V.defaultConfig
   buildVty <- initialVty
   void $ customMain buildVty initialVty (Just chan) (replayApp mEvList mSpeedMod) (initState seed)
 
-replayApp :: MVar EventList -> MVar Float -> App ReplayState Tick MenuOptions
+replayApp :: InputList -> MVar Float -> App ReplayState Tick MenuOptions
 replayApp evs speedMod =
   App
     { appDraw = drawUI,
@@ -42,16 +42,8 @@ replayApp evs speedMod =
       appAttrMap = const theMap
     }
 
-replayEventHandler :: BrickEvent n Tick -> MVar EventList -> MVar Float -> EventM n ReplayState ()
+replayEventHandler :: BrickEvent n Tick -> InputList -> MVar Float -> EventM n ReplayState ()
 replayEventHandler (VtyEvent (V.EvKey (V.KChar 'c') [V.MCtrl])) _ _ = halt
-replayEventHandler (AppEvent Tick) mVarEv _ = do
-  rps <- get
-  evlist <- liftIO $ readMVar mVarEv
-  when (canExecute evlist rps) $ do
-    let (newEvs, newS) = runState (runMove evlist) rps
-    put newS
-    void . liftIO $ swapMVar mVarEv newEvs
-  modify stepReplayState
 
 replayEventHandler (VtyEvent (V.EvKey k _)) _ mSpeedMod = liftIO $ do
   case k of
@@ -60,10 +52,22 @@ replayEventHandler (VtyEvent (V.EvKey k _)) _ mSpeedMod = liftIO $ do
     V.KLeft -> modifyMVar_ mSpeedMod (pure . speedDown)
     V.KRight -> modifyMVar_ mSpeedMod (pure . speedUp)
     _ -> pure ()
+
+replayEventHandler (AppEvent Tick) evList mSpeedMod = do
+  rps <- get
+  speed <- liftIO $ readMVar mSpeedMod
+  mapM_ (\_ -> do
+    runMove speed evList
+    )
+    (canExecute evList rps)
+  speed' <- liftIO $ readMVar mSpeedMod
+  modify $ stepReplayState speed'
+
+
 replayEventHandler _ _ _ = pure ()
 
 initState :: StdGen -> ReplayState
-initState seed = ReplayState {rTickNo = TickNumber 0, rGameState = start}
+initState seed = ReplayState {rTickNo = TickNumber 0, rGameState = start, rIndex = 0}
   where
     start = Playing $ initWorld defaultHeight defaultWidth seed
 
@@ -76,7 +80,7 @@ drawUI rps = center <$> drawGS gs
 
 replayExample :: IO ()
 replayExample = do
-  evs <- newMVar evs2
+  let evs = mkInputList evs2
   speed <- newMVar 1
   runReplayApp (mkStdGen seed2) evs speed
   -- where
@@ -103,8 +107,6 @@ evs2 =
 
 seed2 :: SeedType
 seed2 = 9157570410566699885
-
-
 
 
 
