@@ -104,6 +104,18 @@ advanceWorld w@World {..} = case die w of
      in Playing newSnake
   gs -> gs
 
+stepReverseGameState :: GameState -> GameState
+stepReverseGameState (Playing w) = reverseGameState w
+stepReverseGameState (Frozen w) = reverseGameState w
+stepReverseGameState gs = gs
+
+reverseGameState :: World -> GameState
+reverseGameState w@World {..} = case die w of
+  Playing _ -> 
+    let newSnake = w {snake = reverseSnake dir snake}
+    in Playing newSnake
+  gs -> gs
+
 -- | Die if the current head position is disallowed
 die :: World -> GameState
 die g@World {..} =
@@ -127,13 +139,15 @@ moveSnake R s@(hd :<|| _) = over _x (+ 1) hd :<|| S.init s
 moveSnake L s@(hd :<|| _) = over _x (subtract 1) hd :<|| S.init s
 moveSnake NoDir s = s
 
-reverseSnake U s@(_ :||> lst) = S.init s :||> over _y (subtract 1) lst
-reverseSnake D s@(_ :||> lst) = S.init s :||> over _y (+ 1) lst
-reverseSnake L s@(_ :||> lst) = S.init s :||> over _x (subtract 1) lst
-reverseSnake R s@(_ :||> lst) = S.init s :||> over _x (+ 1) lst
+reverseSnake U s@(_ :||> lst) = S.tail s :||> over _y (+ 1) lst
+reverseSnake D s@(_ :||> lst) = S.tail s :||> over _y (subtract 1) lst
+reverseSnake L s@(_ :||> lst) = S.tail s :||> over _x (+ 1) lst
+reverseSnake R s@(_ :||> lst) = S.tail s :||> over _x (subtract 1) lst
+-- reverseSnake U s = moveSnake D (S.reverse s)
+-- reverseSnake D s = moveSnake U (S.reverse s)
+-- reverseSnake R s = moveSnake L (S.reverse s)
+-- reverseSnake L s = moveSnake R (S.reverse s)
 reverseSnake NoDir s = s
-
-
 
 nextFood :: State World ()
 nextFood = do
@@ -143,8 +157,8 @@ nextFood = do
     then put (g {foods = fs}) >> nextFood
     else put $ g {food = f, foods = fs}
 
-unEatFood :: Coord -> State World ()
-unEatFood old = do
+prevFood :: Coord -> State World ()
+prevFood old = do
   g@World {food, foods} <- get
   put $ g {
     food = old,

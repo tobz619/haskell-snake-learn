@@ -21,7 +21,8 @@ import DB.Highscores (Name, Score, openDatabase)
 import qualified Data.Bimap as BM
 import Data.Binary
 import qualified Data.ByteString.Lazy as B
-import qualified Data.IntMap.Strict as Map
+import qualified Data.Map as Map
+import qualified Data.IntMap.Strict as IMap
 import qualified Data.List.NonEmpty as NE
 import Data.Text (Text)
 import qualified Data.Text as Text
@@ -41,7 +42,7 @@ import UI.Types
 data ServerState = ServerState {clientCount :: !Int, clients :: !ClientMap, currentIx :: !CIndex}
   deriving (Show)
 
-type ClientMap = Map.IntMap TCPConn
+type ClientMap = IMap.IntMap TCPConn
 
 type CIndex = Int
 
@@ -181,6 +182,8 @@ serverApp cix cliCount dbConn tcpConn messageChan = E.handle recvHandler $ do
         ReplayState
           (Playing $ initWorld defaultHeight defaultWidth seed)
           (TickNumber 0)
+          Map.empty
+          0
       !game = runReplayG evList initState
       s' = (score . getWorld) game
   if s /= s'
@@ -236,7 +239,7 @@ newServerState :: ServerState
 newServerState = ServerState 0 mempty 0
 
 numClients :: ServerState -> Int
-numClients = Map.size . clients
+numClients = IMap.size . clients
 
 -- | Adds a client to the existing @ServerState@ at the current index. If the index is full, try the
 -- (next one @\`mod\`@ @maxPlayers@) recursively until a space is found. If there are more than maxPlayers, return an error.
@@ -245,12 +248,12 @@ addClient s@(ServerState cc cs ix) c
   | numClients s >= maxPlayers = Left MaxPlayers
   | otherwise =
       maybe
-        (pure (ServerState (cc + 1) (Map.insert ix c cs) ((cc + 1) `mod` maxPlayers), ix)) -- If no player found return a new state and the index the current player was inserted at
+        (pure (ServerState (cc + 1) (IMap.insert ix c cs) ((cc + 1) `mod` maxPlayers), ix)) -- If no player found return a new state and the index the current player was inserted at
         (const $ addClient (s {currentIx = (ix + 1) `mod` maxPlayers}) c) -- If a player still exists at our current index, try again at index plus one
-        (Map.lookup ix (clients s)) -- Find the existing index
+        (IMap.lookup ix (clients s)) -- Find the existing index
 
 removeClient :: CIndex -> ClientMap -> ClientMap
-removeClient = Map.delete
+removeClient = IMap.delete
 
 disconnect :: CIndex -> TMVar ServerState -> IO ()
 disconnect cix state = atomically $ do
