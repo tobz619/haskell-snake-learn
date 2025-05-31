@@ -20,6 +20,7 @@ library
                       UI.HighscoreScreens, 
                       UI.MainMenu,
                       UI.ReplayPlayer,
+                      UI.Types,
                       DB.Authenticate, 
                       DB.Client,
                       DB.Highscores, 

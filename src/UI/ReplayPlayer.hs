@@ -7,12 +7,11 @@ import Brick.BChan (newBChan, writeBChan)
 import Brick.Main (halt)
 import Brick.Types (Widget)
 import Brick.Widgets.Center (center)
-import Control.Concurrent (MVar, forkIO, modifyMVar_, putMVar, readMVar, swapMVar, takeMVar, threadDelay)
+import Control.Concurrent (MVar, forkIO, modifyMVar_, readMVar, swapMVar, threadDelay)
 import Control.Concurrent.MVar (newMVar)
 import Control.Monad (forever, void, when)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.State.Strict (runState)
-import Data.List (scanl')
 import GameLogic (GameState (GameOver, NewHighScore, Playing), defaultHeight, defaultWidth, initWorld)
 import qualified Graphics.Vty as V
 import qualified Graphics.Vty.CrossPlatform as V
@@ -20,7 +19,8 @@ import Linear.V2 (V2 (..))
 import Logging.Logger (EventList, GameEvent (GameEvent), TickNumber (TickNumber))
 import Logging.Replay (ReplayState (..), canExecute, runMove, stepReplayState)
 import System.Random (StdGen, mkStdGen)
-import UI.Gameplay (MenuOptions, SeedType, Tick (Tick), drawGS, theMap)
+import UI.Types ( SeedType, MenuOptions, Tick(..) )
+import UI.Gameplay (drawGS, theMap)
 import UI.Keybinds (KeyEvent (..))
 
 runReplayApp :: StdGen -> MVar EventList -> MVar Float -> IO ()
@@ -57,21 +57,22 @@ replayEventHandler (AppEvent Tick) mVarEv _ = do
 
 replayEventHandler (VtyEvent (V.EvKey k _)) _ mSpeedMod = liftIO $ do
   case k of
-    V.KChar 'r' -> modifyMVar_ mSpeedMod (pure . normalSpeed)
+    V.KChar 'n' -> modifyMVar_ mSpeedMod (pure . normalSpeed)
+    V.KChar 'r' -> modifyMVar_ mSpeedMod (pure . negate)
     V.KLeft -> modifyMVar_ mSpeedMod (pure . speedDown)
     V.KRight -> modifyMVar_ mSpeedMod (pure . speedUp)
     _ -> pure ()
 replayEventHandler _ _ _ = pure ()
 
 initState :: StdGen -> ReplayState
-initState seed = ReplayState {tickNo = TickNumber 0, gameState = start}
+initState seed = ReplayState {rTickNo = TickNumber 0, rGameState = start}
   where
     start = Playing $ initWorld defaultHeight defaultWidth seed
 
 drawUI :: ReplayState -> [Widget MenuOptions]
 drawUI rps = center <$> drawGS gs
   where
-    gs = case gameState rps of
+    gs = case rGameState rps of
       NewHighScore w -> GameOver w -- Short circuit the GameState to GameOver so it renders properly
       g -> g
 
@@ -80,18 +81,13 @@ replayExample = do
   evs <- newMVar evs2
   speed <- newMVar 1
   runReplayApp (mkStdGen seed2) evs speed
-  where
-    moves = [1, 3, 8, 10, 1, 11, 14, 1, 1]
-    events =
-      zipWith
-        (GameEvent . TickNumber)
-        (scanl' (+) 1 moves)
-        [MoveRight, MoveDown, MoveLeft, MoveUp, MoveRight, MoveDown, MoveRight, MoveDown, MoveLeft]
-
--- ++
--- zipWith (GameEvent . TickNumber)
---   (drop 1 $ iterate (+ 3) (sum moves))
---   (cycle [MoveUp, MoveLeft, MoveDown, MoveRight])
+  -- where
+  --   moves = [1, 3, 8, 10, 1, 11, 14, 1, 1]
+  --   events =
+  --     zipWith
+  --       (GameEvent . TickNumber)
+  --       (scanl' (+) 1 moves)
+  --       [MoveRight, MoveDown, MoveLeft, MoveUp, MoveRight, MoveDown, MoveRight, MoveDown, MoveLeft]
 
 speedUp, speedDown, normalSpeed :: Float -> Float
 speedUp x

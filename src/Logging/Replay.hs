@@ -18,15 +18,15 @@ type Replay = EventList -> GameState
 data PlayState = Forward Int | Reverse Int
 
 data ReplayState = ReplayState
-  { gameState :: GameState,
-    tickNo :: TickNumber
+  { rGameState :: GameState,
+    rTickNo :: TickNumber
   }
 
 -- runReplayG :: Replay
 runReplayG :: EventList -> ReplayState -> GameState
 runReplayG es rps = case runState (runReplay es) rps of
   ([], newS)
-   | isGameOver (gameState newS) -> gameState newS
+   | isGameOver (rGameState newS) -> rGameState newS
    | otherwise -> runReplayG [] (stepReplayState newS) 
    -- ^ Keep stepping the state forward until the game hits the end state.
   (newEvs, newS) -> runReplayG newEvs newS
@@ -61,7 +61,7 @@ runMove evList@(GameEvent _ kev : _) = do
   rps <- get
   if canExecute evList rps
     then do
-      put $ rps {gameState = executeMove kev (gameState rps)}
+      put $ rps {rGameState = executeMove kev (rGameState rps)}
       return $ drop 1 evList
     else do
       put . stepReplayState =<< get
