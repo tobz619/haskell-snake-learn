@@ -116,8 +116,9 @@ die g@World {..} =
 eatFood :: Coord -> Snake -> Bool
 eatFood c (s :<|| _) = c == s
 
-growSnake :: Snake -> Snake
+growSnake, shrinkSnake :: Snake -> Snake
 growSnake snake@(_ :||> t) = snake |> t
+shrinkSnake snake = S.withNonEmpty snake id (S.init snake)
 
 moveSnake, reverseSnake :: Direction -> Snake -> Snake
 moveSnake U s@(hd :<|| _) = over _y (+ 1) hd :<|| S.init s
@@ -141,6 +142,15 @@ nextFood = do
   if f `elem` snake
     then put (g {foods = fs}) >> nextFood
     else put $ g {food = f, foods = fs}
+
+unEatFood :: Coord -> State World ()
+unEatFood old = do
+  g@World {food, foods} <- get
+  put $ g {
+    food = old,
+    foods = food :| foods
+  }
+
 
 chDir :: Direction -> GameState -> GameState
 chDir to (Playing World {..}) = Frozen $ World {dir = turnDir dir to, ..}

@@ -6,8 +6,6 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE TypeOperators #-}
 
 module UI.Gameplay where
 
@@ -40,49 +38,17 @@ import Data.Time.Clock.POSIX (getPOSIXTime)
 import qualified Data.Vector as Vector
 import Data.Word (Word16, Word64)
 import Database.SQLite.Simple (Connection)
-import GameLogic hiding (Stream)
+import GameLogic
 import qualified Graphics.Vty as V
 import qualified Graphics.Vty.CrossPlatform as V
 import Lens.Micro
 import Lens.Micro.Mtl
-import Lens.Micro.TH (makeLenses)
 import Linear.V2 (V2 (..))
 import Logging.Logger
 import System.IO
 import System.Random
 import UI.Keybinds (KeyEvent (..), gameplayDispatcher)
-
--- | Marks passing of time.
---  Each delta is fed into the app.
-data Tick = Tick
-
--- | The type of the cell
-data Cell = Snake | Food | Empty
-
-data MenuOptions = Resume | Restart | Quit | Yes | No | OpChar Int
-  deriving (Show, Eq, Ord)
-
-data GameplayState = GameplayState
-  { _gameState :: GameState,
-    _gameStateDialog :: Maybe (Dialog GameState MenuOptions),
-    _highScoreDialogs :: HighScoreFormState,
-    _tickNo :: Word16,
-    _gameLog :: EventList,
-    _gameSeed :: (SeedType, StdGen)
-  }
-
-data HighScoreFormState = HighScoreFormState
-  { _hsDialog :: Maybe (Dialog HighScoreFormState MenuOptions),
-    _hsForm :: Maybe (Form HighScoreForm () MenuOptions)
-  }
-
-data HighScoreForm = HighScoreForm {_cha1 :: Maybe Char, _cha2 :: Maybe Char, _cha3 :: Maybe Char}
-
-type SeedType = Int
-
-makeLenses ''GameplayState
-makeLenses ''HighScoreForm
-makeLenses ''HighScoreFormState
+import UI.Types
 
 altConfig :: [a]
 altConfig = []
@@ -195,7 +161,6 @@ eventHandler ev = do
       tickNo %= (+ 1) -- advance the ticknumber by one
       mapM_ logEat (foodEaten w) -- Log if food is eaten
       logMove ev -- Log if a direction has been pressed
-
     Starting w -> do
       dia <- use gameStateDialog
       case dia of
@@ -293,8 +258,8 @@ handleStartGameEvent _ = return ()
 -- | Draws the overall UI of the game
 drawUI :: GameplayState -> [Widget MenuOptions]
 drawUI gps =
-  [drawDebug gps] <>
-  gpdia
+  [drawDebug gps]
+    <> gpdia
     <> hsdia
     <> form
     <> (C.centerLayer <$> drawGS gs)
@@ -412,7 +377,6 @@ addToLog' ev = do
   gps <- get
   let tick = gps ^. tickNo
   gameLog %= (GameEvent (TickNumber tick) ev :)
-
 
 -- | Reset the log to an empty list
 resetLog :: EventM n GameplayState ()

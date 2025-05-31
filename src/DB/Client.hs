@@ -31,7 +31,7 @@ import Network.Socket
 import Network.Socket.ByteString.Lazy (sendAll)
 import Network.TLS
 import System.Random (mkStdGen)
-import UI.Gameplay (SeedType)
+import UI.Types (SeedType)
 import UI.Keybinds (KeyEvent (..))
 
 type MsgLenRep = Word8
