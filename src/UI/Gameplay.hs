@@ -47,7 +47,7 @@ import Linear.V2 (V2 (..))
 import Logging.Logger
 import System.IO
 import System.Random
-import UI.Keybinds (KeyEvent (..), gameplayDispatcher)
+import UI.Keybinds (gameplayDispatcher)
 import UI.Types
 
 altConfig :: [a]
@@ -144,7 +144,6 @@ eventHandler ::
 eventHandler (VtyEvent (V.EvKey (V.KChar 'c') [V.MCtrl])) = M.halt
 eventHandler ev = do
   gs <- use gameState
-  gps <- get
   case gs of
     Restarting -> do
       vals@(genVal :: SeedType, g) <- genSeed
@@ -167,7 +166,6 @@ eventHandler ev = do
         Nothing -> gameStateDialog .= dialogShower (Starting w)
         _ -> handleStartGameEvent ev
     NewHighScore w -> do
-      -- runPureEff (runGameplayEventLogger logGameEnd)
       logGameEnd
       gps' <- get
       h <- liftIO $ openFile "Seed-Events" WriteMode
@@ -351,33 +349,4 @@ theMap =
       (L.listAttr, bg V.magenta)
     ]
 
--- Logging Functions
 
--- | Log a move and add it to the overall EventList as an effect
-logMove :: BrickEvent n events -> EventM n GameplayState ()
-logMove = handleMovement gameplayDispatcher
-  where
-    handleMovement :: ([a1] -> Either a2 (K.KeyDispatcher KeyEvent m)) -> BrickEvent n e2 -> EventM n GameplayState ()
-    handleMovement disp event = do
-      let logaction = getKeyEvent disp altConfig event
-      addKeyToLog' logaction
-
-    addKeyToLog' = maybe (pure ()) addToLog'
-
--- | Log a food getting eaten
-logEat :: Coord -> EventM n GameplayState ()
-logEat !v2 = addToLog' (FoodEaten v2)
-
--- | Log the end of the game
-logGameEnd :: EventM n GameplayState ()
-logGameEnd = addToLog' GameEnded
-
-addToLog' :: KeyEvent -> EventM n GameplayState ()
-addToLog' ev = do
-  gps <- get
-  let tick = gps ^. tickNo
-  gameLog %= (GameEvent (TickNumber tick) ev :)
-
--- | Reset the log to an empty list
-resetLog :: EventM n GameplayState ()
-resetLog = gameLog .= []

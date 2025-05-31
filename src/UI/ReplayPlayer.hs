@@ -16,12 +16,10 @@ import GameLogic (GameState (GameOver, NewHighScore, Playing), defaultHeight, de
 import qualified Graphics.Vty as V
 import qualified Graphics.Vty.CrossPlatform as V
 import Linear.V2 (V2 (..))
-import Logging.Logger (EventList, GameEvent (GameEvent), TickNumber (TickNumber))
 import Logging.Replay (ReplayState (..), canExecute, runMove, stepReplayState)
 import System.Random (StdGen, mkStdGen)
-import UI.Types ( SeedType, MenuOptions, Tick(..) )
+import UI.Types 
 import UI.Gameplay (drawGS, theMap)
-import UI.Keybinds (KeyEvent (..))
 
 runReplayApp :: StdGen -> MVar EventList -> MVar Float -> IO ()
 runReplayApp seed mEvList mSpeedMod = do

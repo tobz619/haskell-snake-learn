@@ -13,10 +13,8 @@ import Graphics.Vty as V
   ( Event (EvKey),
     Key (KDown, KEnter, KEsc, KLeft, KRight, KUp),
   )
-import Linear.V2 (V2)
+import UI.Types
 
-data KeyEvent = MoveUp | MoveDown | MoveLeft | MoveRight | FoodEaten !(V2 Int) | Back | Select | Pause | GameEnded | Halt | QuitGame
-  deriving (Show, Eq, Ord)
 
 allKeyEvents :: K.KeyEvents KeyEvent
 allKeyEvents =
@@ -53,20 +51,20 @@ getKey keyConf = maybe (V.EvKey KEsc []) (\(k, mods) -> V.EvKey k (Set.toList mo
 mkHandler :: Text -> (Event -> EventM n s ()) -> K.KeyConfig KeyEvent -> KeyEvent -> K.KeyEventHandler KeyEvent (EventM n s)
 mkHandler name handler keyConf keyEvent = K.onEvent keyEvent name (handler (getKey keyConf keyEvent))
 
-mkGameplayHandlers :: [(KeyEvent, K.BindingState)] -> [(Text, KeyEvent, EventM n s ())] -> [K.KeyEventHandler KeyEvent (EventM n s)]
-mkGameplayHandlers new = map (\(t, kev, f) -> gameplayHandler new t (pure f) kev)
+mkGameplayHandlers :: [ConfigBinding] -> [(Text, KeyEvent, EventM n s ())] -> [K.KeyEventHandler KeyEvent (EventM n s)]
+mkGameplayHandlers override = map (\(t, kev, f) -> gameplayHandler override t (pure f) kev)
   where
     gameplayHandler newConf label f = mkHandler label f (keyConfig newConf)
 
-keyConfig :: [(KeyEvent, K.BindingState)] -> K.KeyConfig KeyEvent
+keyConfig :: [ConfigBinding] -> K.KeyConfig KeyEvent
 keyConfig = K.newKeyConfig allKeyEvents keyBindings
 
-gameplayDispatcher :: [(KeyEvent, K.BindingState)] -> Either [(K.Binding, [K.KeyHandler KeyEvent (EventM n GameState)])] (K.KeyDispatcher KeyEvent (EventM n GameState))
-gameplayDispatcher new = K.keyDispatcher (keyConfig new) gameplayHandlers
+gameplayDispatcher :: [ConfigBinding] -> Either [(K.Binding, [K.KeyHandler KeyEvent (EventM n GameState)])] (K.KeyDispatcher KeyEvent (EventM n GameState))
+gameplayDispatcher override = K.keyDispatcher (keyConfig override) gameplayHandlers
   where
     gameplayHandlers =
       mkGameplayHandlers
-        new
+        override
         [ ("up", MoveUp, modify (chDir U)),
           ("down", MoveDown, modify (chDir D)),
           ("left", MoveLeft, modify (chDir L)),
