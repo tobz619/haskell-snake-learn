@@ -26,13 +26,17 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import Data.Word (Word8)
 import GameLogic (ScoreType)
-import Logging.Logger (EventList, GameEvent (..), TickNumber (..))
 import Network.Socket
 import Network.Socket.ByteString.Lazy (sendAll)
 import Network.TLS
 import System.Random (mkStdGen)
-import UI.Types (SeedType)
-import UI.Keybinds (KeyEvent (..))
+import UI.Types
+    ( SeedType,
+      EventList,
+      GameEvent(..),
+      TickNumber(TickNumber),
+      KeyEvent(MoveLeft, GameEnded, MoveUp, MoveRight, MoveDown) ) 
+
 
 type MsgLenRep = Word8
 

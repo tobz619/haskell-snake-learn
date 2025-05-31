@@ -7,9 +7,8 @@ import Brick (get, put)
 import Control.Monad.State (MonadState, runState, modify, State)
 import qualified Data.Map as Map
 import GameLogic (Direction (..), GameState (GameOver, getWorld, NewHighScore), chDir, stepGameState)
-import Logging.Logger (EventList, GameEvent (..), TickNumber (TickNumber))
 import System.Random (StdGen)
-import UI.Keybinds (KeyEvent (..))
+import UI.Types
 
 type Seed = StdGen
 

@@ -24,3 +24,4 @@ cabal.project.local~
 .ghc.environment.*
 brick-2.5
 BSLog
+Seed-Events

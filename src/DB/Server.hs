@@ -30,12 +30,13 @@ import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Encoding as TL
 import qualified Database.SQLite.Simple as DB
 import GameLogic (GameState (Playing, getWorld), World (..), defaultHeight, defaultWidth, initWorld)
-import Logging.Logger (EventList, GameEvent (..), TickNumber (..))
 import Logging.Replay (ReplayState (ReplayState), Seed, runReplayG)
 import Network.Socket
 import Network.Socket.ByteString.Lazy
 import System.IO (IOMode (..), hFlush, openFile)
 import System.Random (mkStdGen)
+import UI.Types
+    ( EventList, GameEvent(GameEvent), TickNumber(TickNumber) )
 
 data ServerState = ServerState {clientCount :: !Int, clients :: !ClientMap, currentIx :: !CIndex}
   deriving (Show)
