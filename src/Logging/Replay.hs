@@ -10,7 +10,7 @@ import System.Random (StdGen)
 import UI.Types
 import qualified Data.Vector.Strict as V
 import Brick
-import Control.Monad (when)
+import Control.Monad (when, unless)
 
 type Seed = StdGen
 
@@ -25,8 +25,7 @@ data ReplayState = ReplayState
     rRewindIndex :: !Int
   }
 
-
--- runReplayG :: Replay
+-- | Runs a silent replay that will return the final GameState of the Game.
 runReplayG :: EventList -> ReplayState -> GameState
 runReplayG es rps = case execState (runReplay (mkInputList es)) rps of
   newS
@@ -57,11 +56,13 @@ addCheckPoint evList = do
   gs <- gets rGameState
   tn <- gets rTickNo
   cpMap <- gets rCheckPoint
-  mapM_ (\g -> when (isFoodEvent g) $ modify (\r -> r {rCheckPoint = Map.insert tn gs cpMap}))
+  mapM_ (\g -> when (isCheckPointEvent g) $ modify (\r -> r {rCheckPoint = Map.insert tn gs cpMap}))
         (canExecute evList rps)
 
-    where isFoodEvent (GameEvent _ k ) = case k of
+    where isCheckPointEvent (GameEvent _ k ) = case k of
               FoodEaten _ -> True
+              GameEnded -> True
+              GameStarted -> True
               _ -> False
 
 
@@ -70,15 +71,15 @@ handleSpeed s evList
   | s > 0 = do
              rps <- get
              let rws = rGameStateVec rps
-             either (stepRewindF evList) (\_ -> runMove evList) rws
+             either (stepRewindF evList) (\_ -> addCheckPoint evList >> runMove evList) rws
 
   | otherwise = do
             rps <- get
             let rws = either id mkRewindBuffer (rGameStateVec rps)
             modify (\r -> r {rGameStateVec = Left rws})
-            stepRewindR rws 
+            stepRewindR rws
 
-
+-- | Runs the move found in the pairs library
 runMove :: (MonadState ReplayState m) => InputList -> m ()
 runMove evList = do
       rps <- get
@@ -86,28 +87,21 @@ runMove evList = do
         (\(GameEvent _ kev) -> do
           modify $ \r -> r {rGameState = executeMove kev (rGameState rps) pairs}
           modify $ \r -> r {rEvIndex = rEvIndex rps + 1}
-          runMove evList -- Make sure all events are executed at that moment!
+          -- runMove evList -- Make sure all events are executed at that moment!
         )
         (canExecute evList rps)
-      modify stepReplayState
-
-      
-      
-      
-      
+      gs <- gets rGameState
+      unless (isGameOver gs) $ modify stepReplayState
 
 
-
--- stepRewindF :: MonadState ReplayState m => InputList -> ReplayState -> RewindBuffer -> m ()
 stepRewindF :: MonadState ReplayState m => InputList -> RewindBuffer -> m ()
 stepRewindF evList arr = do
   ix <- gets rRewindIndex
   if ix < 0
-    then do 
+    then do
     modify (\rps -> rps {
-      rGameStateVec = pure mempty,
+      rGameStateVec = pure (V.toList arr),
       rEvIndex = fst $ arr V.! 0,
-      rTickNo = rTickNo rps - 1, 
       rRewindIndex = 0
       }
       )
@@ -115,23 +109,23 @@ stepRewindF evList arr = do
   else do
       modify (\rps -> rps {
         rGameState = snd $ arr V.! rRewindIndex rps,
-        rEvIndex =  fst $ arr V.! rRewindIndex rps
+        rEvIndex =  fst $ arr V.! rRewindIndex rps,
+        rTickNo = rTickNo rps + 1
         }
         )
       modify decreaseRewindIndex
 
-      
+
 
 stepRewindR :: MonadState ReplayState m => RewindBuffer -> m ()
 stepRewindR arr = do
   ix <- gets rRewindIndex
-  if ix >= endOfArray
-    then pure ()
-    else do 
+  unless (ix >= endOfArray) $ do
       modify (increaseRewindIndex arr)
       modify (\rps -> rps {
         rGameState = snd $ arr V.! rRewindIndex rps,
-        rEvIndex = fst $ arr V.! rRewindIndex rps
+        rEvIndex = fst $ arr V.! rRewindIndex rps,
+        rTickNo = rTickNo rps - 1
         }
         )
     where endOfArray = V.length arr - 1

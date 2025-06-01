@@ -153,6 +153,7 @@ eventHandler ev = do
       resetLog
       gameState .= Starting w
       gameSeed .= vals
+      logGameStart
     ToMenu -> M.halt
     Frozen _ -> do zoom gameState $ handleGameplayEvent' ev
     Playing w -> do
@@ -164,7 +165,7 @@ eventHandler ev = do
       dia <- use gameStateDialog
       case dia of
         Nothing -> gameStateDialog .= dialogShower (Starting w)
-        _ -> handleStartGameEvent ev
+        _ -> handleStartGameEvent ev 
     NewHighScore w -> do
       logGameEnd
       gps' <- get
@@ -219,7 +220,7 @@ handleGameplayEvent' (AppEvent Tick) = modify stepGameState
 handleGameplayEvent' (VtyEvent (V.EvKey k mods)) = do
   disp <- case gameplayDispatcher altConfig of
     Right disp -> return disp
-    Left _ -> undefined
+    Left _ -> error "Somehow didn't get a dispatcher: this is impossible"
   void $ K.handleKey disp k mods
 handleGameplayEvent' _ = return ()
 
