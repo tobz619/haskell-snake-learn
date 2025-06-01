@@ -30,6 +30,7 @@ library
                       Logging.Replay,
                       Logging.ServerLogger
     build-depends:    base >= 4.10 && < 5,
+                      array,
                       async,
                       bimap,
                       binary,

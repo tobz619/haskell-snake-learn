@@ -14,8 +14,8 @@ import Data.Word (Word16)
 import Bluefin.State (State)
 import Linear.V2 (V2)
 import qualified Brick.Keybindings as K
-import Data.Vector.Strict
-import qualified Data.Map as Map
+import qualified Data.Vector.Strict as V
+import qualified Data.Map.Strict as Map
 
 type ConfigBinding = (KeyEvent, K.BindingState)
 
@@ -31,12 +31,17 @@ data GameEvent = GameEvent TickNumber KeyEvent
 
 type EventList = [GameEvent]
 
-type InputList = Vector GameEvent
+type InputList = V.Vector GameEvent
 
 type CheckPointMap = Map.Map TickNumber GameState
 
+type RewindBuffer = V.Vector (Int, GameState)
+
+mkRewindBuffer :: [(Int, GameState)] -> RewindBuffer
+mkRewindBuffer = V.fromListN 256
+
 mkInputList :: [GameEvent] -> InputList
-mkInputList = fromList
+mkInputList = V.fromList
 
 newtype Logger i e = Logger (State i e)
 
