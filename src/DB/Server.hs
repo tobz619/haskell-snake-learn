@@ -183,6 +183,7 @@ serverApp cix cliCount dbConn tcpConn messageChan = E.handle recvHandler $ do
           (Playing $ initWorld defaultHeight defaultWidth seed)
           (TickNumber 0)
           Map.empty
+          (Right [])
           0
       !game = runReplayG evList initState
       s' = (score . getWorld) game
