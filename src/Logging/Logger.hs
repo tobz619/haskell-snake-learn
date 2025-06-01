@@ -69,9 +69,11 @@ logMove = handleMovement gameplayDispatcher
 logEat :: Coord -> EventM n GameplayState ()
 logEat !v2 = addToLog' (FoodEaten v2)
 
--- | Log the end of the game
-logGameEnd :: EventM n GameplayState ()
+
+-- | Log the start or end of the game
+logGameEnd,logGameStart :: EventM n GameplayState ()
 logGameEnd = addToLog' GameEnded
+logGameStart = addToLog' GameStarted
 
 addToLog' :: KeyEvent -> EventM n GameplayState ()
 addToLog' ev = do

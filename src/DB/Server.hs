@@ -185,6 +185,7 @@ serverApp cix cliCount dbConn tcpConn messageChan = E.handle recvHandler $ do
           Map.empty
           (Right [])
           0
+          0
       !game = runReplayG evList initState
       s' = (score . getWorld) game
   if s /= s'

@@ -22,7 +22,7 @@ type ConfigBinding = (KeyEvent, K.BindingState)
 newtype TickNumber = TickNumber TickType deriving newtype (Eq, Show, Num, Ord)
 type TickType = Word16
 
-data KeyEvent = MoveUp | MoveDown | MoveLeft | MoveRight | FoodEaten !(V2 Int) | Back | Select | Pause | GameEnded | Halt | QuitGame
+data KeyEvent = MoveUp | MoveDown | MoveLeft | MoveRight | FoodEaten !(V2 Int) | Back | Select | Pause | GameStarted | GameEnded | Halt | QuitGame
   deriving (Show, Eq, Ord)
 
 -- | Pairing of tick events to significant moves
