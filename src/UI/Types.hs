@@ -16,17 +16,20 @@ import Linear.V2 (V2)
 import qualified Brick.Keybindings as K
 import qualified Data.Vector.Strict as V
 import qualified Data.Map.Strict as Map
+import Data.List (nub)
 
 type ConfigBinding = (KeyEvent, K.BindingState)
 
 newtype TickNumber = TickNumber TickType deriving newtype (Eq, Show, Num, Ord)
 type TickType = Word16
 
+newtype EvNumber = EvNumber Int deriving newtype (Eq, Show, Num, Ord)
+
 data KeyEvent = MoveUp | MoveDown | MoveLeft | MoveRight | FoodEaten !(V2 Int) | Back | Select | Pause | GameStarted | GameEnded | Halt | QuitGame
   deriving (Show, Eq, Ord)
 
 -- | Pairing of tick events to significant moves
-data GameEvent = GameEvent TickNumber KeyEvent
+data GameEvent = GameEvent { gEvTick :: TickNumber, gEvEvent :: KeyEvent}
   deriving (Show)
 
 type EventList = [GameEvent]
@@ -35,10 +38,16 @@ type InputList = V.Vector GameEvent
 
 type CheckPointMap = Map.Map TickNumber GameState
 
-type RewindBuffer = V.Vector (Int, GameState)
+data RewindType = RewindType {
+  rwTick :: TickNumber,
+  rwEv :: EvNumber,
+  rwGS :: GameState
+  } deriving Eq
 
-mkRewindBuffer :: [(Int, GameState)] -> RewindBuffer
-mkRewindBuffer = V.fromListN 256
+type RewindBuffer = V.Vector RewindType
+
+mkRewindBuffer :: [RewindType] -> RewindBuffer
+mkRewindBuffer = V.fromListN 256 . nub
 
 mkInputList :: [GameEvent] -> InputList
 mkInputList = V.fromList
