@@ -20,17 +20,17 @@ import Data.List (nub)
 
 type ConfigBinding = (KeyEvent, K.BindingState)
 
-newtype TickNumber = TickNumber TickType deriving newtype (Eq, Show, Num, Ord)
+newtype TickNumber = TickNumber TickType deriving newtype (Eq, Show, Read,Num, Ord)
 type TickType = Word16
 
-newtype EvNumber = EvNumber Int deriving newtype (Eq, Show, Num, Ord)
+newtype EvNumber = EvNumber Int deriving newtype (Eq, Show, Read,Num, Ord)
 
 data KeyEvent = MoveUp | MoveDown | MoveLeft | MoveRight | FoodEaten !(V2 Int) | Back | Select | Pause | GameStarted | GameEnded | Halt | QuitGame
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Read)
 
 -- | Pairing of tick events to significant moves
 data GameEvent = GameEvent { gEvTick :: TickNumber, gEvEvent :: KeyEvent}
-  deriving (Show)
+  deriving (Show, Eq, Read)
 
 type EventList = [GameEvent]
 
@@ -70,7 +70,7 @@ data GameplayState = GameplayState
     _highScoreDialogs :: HighScoreFormState,
     _tickNo :: TickType,
     _gameLog :: EventList,
-    _gameSeed :: (SeedType, StdGen)
+    _gameSeed :: SeedType
   }
 
 data HighScoreFormState = HighScoreFormState
