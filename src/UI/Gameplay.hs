@@ -152,7 +152,7 @@ eventHandler ev = do
       tickNo .= 0 -- Reset the tick number to 0.
       resetLog
       gameState .= Starting w
-      gameSeed .= vals
+      gameSeed .= genVal
       logGameStart
     ToMenu -> M.halt
     Frozen _ -> do zoom gameState $ handleGameplayEvent' ev

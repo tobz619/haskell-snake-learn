@@ -1,5 +1,6 @@
 {-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeApplications #-}
 
 module UI.ReplayPlayer where
 
@@ -95,9 +96,9 @@ drawDebug gps evList = currentTick <=> nextEvTick <=> evIndex <=> rIndex <=> arr
 
 replayExample :: IO ()
 replayExample = do
-  let evs = mkInputList evs3
+  let evs = mkInputList evs2
   speed <- newMVar 1
-  runReplayApp (mkStdGen seed3) evs speed
+  runReplayApp (mkStdGen seed2) evs speed
 
 -- where
 --   moves = [1, 3, 8, 10, 1, 11, 14, 1, 1]
@@ -106,6 +107,15 @@ replayExample = do
 --       (GameEvent . TickNumber)
 --       (scanl' (+) 1 moves)
 --       [MoveRight, MoveDown, MoveLeft, MoveUp, MoveRight, MoveDown, MoveRight, MoveDown, MoveLeft]
+
+readReplayFromFile :: IO ()
+readReplayFromFile = do
+  contents <- lines <$> readFile "Seed-Events"
+  let seed = read @SeedType $ head contents 
+      evs = mkInputList . mkEvs $ read @[GameEvent] $ contents !! 1
+  speed <- newMVar 1
+  runReplayApp (mkStdGen seed) evs speed
+   
 
 speedUp, speedDown, normalSpeed :: Float -> Float
 speedUp x

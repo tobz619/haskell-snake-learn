@@ -42,7 +42,7 @@ isGameOver _ = False
 runReplay ::  InputList -> State ReplayState ()
 runReplay evs = do
   modify stepReplayState
-  runMove evs
+  runMoveM evs
 
 canExecute :: InputList -> ReplayState -> Maybe GameEvent
 canExecute evList (ReplayState _ t1 _ _ (EvNumber ix) _) =
@@ -70,7 +70,7 @@ handleSpeed :: MonadState ReplayState m => Float -> InputList -> m ()
 handleSpeed s evList
   | s > 0 = do
              rws <- gets rGameStateVec
-             either (stepRewindF evList) (\_ -> runMove evList >> addCheckPoint evList) rws
+             either (stepRewindF evList) (\_ -> runMoveM evList >> addCheckPoint evList) rws
              gs <- gets rGameState
              unless (isGameOver gs) $ modify stepReplayState
 
@@ -83,16 +83,22 @@ handleSpeed s evList
             stepRewindR rws
 
 -- | Runs the move found in the pairs library
-runMove :: (MonadState ReplayState m) => InputList -> m ()
-runMove evList = do
-      rps <- get
-      mapM_
-        (\(GameEvent _ kev) -> do
-          modify $ \r -> r {rGameState = executeMove kev (rGameState r) pairs}
-          modify $ \r -> r {rEvIndex = rEvIndex r + 1}
-        )
-        (canExecute evList rps)
+runMove :: InputList -> ReplayState -> Maybe ReplayState
+runMove evList rps =
 
+        (\(GameEvent _ kev) ->
+          rps {
+            rGameState = executeMove kev (rGameState rps) pairs,
+            rEvIndex = rEvIndex rps + 1
+          }
+        ) <$>
+        canExecute evList rps
+
+
+runMoveM :: MonadState ReplayState m => InputList -> m ()
+runMoveM evList = do 
+  rps <- get 
+  mapM_ put (runMove evList rps)
 
 -- stepRewindF :: MonadState ReplayState m =>  RewindBuffer -> m ()
 stepRewindF evList arr = do
@@ -105,7 +111,7 @@ stepRewindF evList arr = do
       rTickNo = rwTick $ arr V.! ix
       }
       )
-    runMove evList
+    runMoveM evList
   else do
     modify (\rps -> rps {
       rGameState = rwGS $ arr V.! ix,
@@ -150,9 +156,9 @@ stepReplayState (ReplayState {..}) =
     rGameState = stepGameState rGameState,
     rTickNo = rTickNo + 1,
     rCheckPoint = rCheckPoint,
-    rGameStateVec = (RewindType rTickNo rEvIndex rGameState :) <$> rGameStateVec, 
-    rEvIndex = rEvIndex, 
-    rRewindIndex = rRewindIndex 
+    rGameStateVec = (RewindType rTickNo rEvIndex rGameState :) <$> rGameStateVec,
+    rEvIndex = rEvIndex,
+    rRewindIndex = rRewindIndex
     }
 
 
