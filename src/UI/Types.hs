@@ -8,14 +8,12 @@ module UI.Types where
 import GameLogic hiding (Stream)
 import Lens.Micro.TH (makeLenses)
 import Brick.Widgets.Dialog (Dialog)
-import System.Random (StdGen)
 import Brick.Forms (Form)
 import Data.Word (Word16)
 import Bluefin.State (State)
 import Linear.V2 (V2)
 import qualified Brick.Keybindings as K
 import qualified Data.Vector.Strict as V
-import qualified Data.Map.Strict as Map
 import Data.List (nub)
 
 type ConfigBinding = (KeyEvent, K.BindingState)

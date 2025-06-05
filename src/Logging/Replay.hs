@@ -3,7 +3,7 @@
 
 module Logging.Replay where
 
-import Control.Monad.State (MonadState, State, execState)
+import Control.Monad.State (MonadState)
 import qualified Data.Map.Strict as Map
 import GameLogic (Direction (..), GameState (..), chDir, stepGameState, initWorld, defaultHeight, defaultWidth)
 import System.Random (StdGen)
