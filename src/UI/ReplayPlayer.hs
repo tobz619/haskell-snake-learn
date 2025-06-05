@@ -4,7 +4,13 @@
 
 module UI.ReplayPlayer where
 
-import Brick (App (..), BrickEvent (AppEvent, VtyEvent), EventM, customMain, neverShowCursor)
+import Brick
+    ( App(..),
+      BrickEvent(AppEvent, VtyEvent),
+      EventM,
+      customMain,
+      neverShowCursor,
+      modify )
 import Brick.BChan (newBChan, writeBChan)
 import Brick.Main (halt)
 import Brick.Types (Widget)
@@ -23,7 +29,6 @@ import Logging.Replay (ReplayState (..), handleSpeed, initState)
 import System.Random (StdGen, mkStdGen)
 import UI.Gameplay (drawGS, theMap)
 import UI.Types
-import Brick (modify)
 import Data.List (uncons)
 import Text.Read (readMaybe)
 import Data.Maybe (fromMaybe)
@@ -99,24 +104,24 @@ drawDebug gps evList = currentTick <=> nextEvTick <=> evIndex <=> rIndex <=> arr
 -- currentLog = vLimit 20 $ hLimit 45 $ vBox $ txt . Text.pack . show <$> take 20 (rEventList gps)
 
 nextCheckPoint :: ReplayState -> ReplayState
-nextCheckPoint rps = let tNow = rTickNo rps 
+nextCheckPoint rps = let tNow = rTickNo rps
                          cpVec = rCheckPoint rps
                          finder _ (Just x) = Just x
                          finder r Nothing
                           | rTickNo r > tNow  = Just (r {rCheckPoint = cpVec, rGameStateVec = Right []})
                           | otherwise = Nothing
-                      in fromMaybe rps $ 
+                      in fromMaybe rps $
                           Vec.foldr finder Nothing cpVec
 
 
 prevCheckPoint :: ReplayState -> ReplayState
-prevCheckPoint rps = let tNow = rTickNo rps 
+prevCheckPoint rps = let tNow = rTickNo rps
                          cpVec = rCheckPoint rps
                          finder _ (Just x) = Just x
                          finder r Nothing
                           | tNow - rTickNo r < 80 = Just (r {rCheckPoint = cpVec, rGameStateVec = Right []})
                           | otherwise = Nothing
-                      in fromMaybe rps $ 
+                      in fromMaybe rps $
                           Vec.foldr finder Nothing cpVec
 
 
