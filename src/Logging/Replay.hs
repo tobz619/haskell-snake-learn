@@ -5,12 +5,13 @@ module Logging.Replay where
 
 import Control.Monad.State (MonadState, State, execState)
 import qualified Data.Map.Strict as Map
-import GameLogic (Direction (..), GameState (..), chDir, stepGameState)
+import GameLogic (Direction (..), GameState (..), chDir, stepGameState, initWorld, defaultHeight, defaultWidth)
 import System.Random (StdGen)
 import UI.Types
 import qualified Data.Vector.Strict as V
 import Brick
 import Control.Monad (when, unless)
+import Data.Maybe (fromMaybe)
 
 type Seed = StdGen
 
@@ -19,30 +20,49 @@ type Replay = EventList -> GameState
 data ReplayState = ReplayState
   { rGameState :: !GameState,
     rTickNo :: !TickNumber,
-    rCheckPoint :: CheckPointMap,
+    rCheckPoint :: Checkpoints,
     rGameStateVec :: Either RewindBuffer [RewindType],
     rEvIndex :: !EvNumber,
     rRewindIndex :: !Int
   }
 
+type Checkpoints = V.Vector ReplayState
+
+
 -- | Runs a silent replay that will return the final GameState of the Game.
 runReplayG :: EventList -> ReplayState -> GameState
-runReplayG es rps = case execState (runReplay (mkInputList es)) rps of
-  newS
-   | isGameOver (rGameState newS) -> rGameState newS
-   | otherwise -> runReplayG es (stepReplayState newS)
+runReplayG es = rGameState . V.last .  generateAllStates es
    -- ^ Keep stepping the state forward until the game hits the end state.
+
+generateCheckPoints :: EventList -> ReplayState -> V.Vector ReplayState
+generateCheckPoints es = takeEvery 20 . generateAllStates es
+
+generateAllStates :: EventList -> ReplayState -> V.Vector ReplayState
+generateAllStates es = V.unfoldr (runReplay (mkInputList es))
+
+
+takeEvery :: Int -> V.Vector a -> V.Vector a
+takeEvery n xs
+  | V.null xs = xs
+  | otherwise = one V.++ rest
+  where one = V.take 1 xs
+        rest = takeEvery n (V.drop n xs)
+
 
 isGameOver :: GameState -> Bool
 isGameOver (GameOver _) = True
 isGameOver (NewHighScore _) = True
+isGameOver (Paused _) = True
 isGameOver _ = False
 
 -- runReplay :: Seed -> EventList -> ReplayState
-runReplay ::  InputList -> State ReplayState ()
-runReplay evs = do
-  modify stepReplayState
-  runMoveM evs
+-- runReplay ::  InputList -> ReplayState -> Maybe (a, ReplayState)
+runReplay :: InputList -> ReplayState -> Maybe (ReplayState, ReplayState)
+runReplay evs rps = let nextState = stepReplayState rps
+                        ret = fromMaybe nextState (runMove evs nextState)
+                     in if isGameOver (rGameState rps)
+                          then Nothing
+                          else Just (ret, ret)
 
 canExecute :: InputList -> ReplayState -> Maybe GameEvent
 canExecute evList (ReplayState _ t1 _ _ (EvNumber ix) _) =
@@ -51,19 +71,10 @@ canExecute evList (ReplayState _ t1 _ _ (EvNumber ix) _) =
                       else Nothing
 
 addCheckPoint :: MonadState ReplayState m => InputList -> m ()
-addCheckPoint evList = do
-  rps <- get
-  gs <- gets rGameState
+addCheckPoint inList = do
   tn <- gets rTickNo
-  cpMap <- gets rCheckPoint
-  mapM_ (\g -> when (isCheckPointEvent g) $ modify (\r -> r {rCheckPoint = Map.insert tn gs cpMap}))
-        (canExecute evList rps)
-
-    where isCheckPointEvent (GameEvent _ k ) = case k of
-              FoodEaten _ -> True
-              GameEnded -> True
-              GameStarted -> True
-              _ -> False
+  when (tn `mod` 50 == 0) 
+    (modify $ \r -> r {rCheckPoint = r `V.cons` rCheckPoint r})
 
 
 handleSpeed :: MonadState ReplayState m => Float -> InputList -> m ()
@@ -82,6 +93,7 @@ handleSpeed s evList
             modify (\r -> r {rGameStateVec = Left rws})
             stepRewindR rws
 
+
 -- | Runs the move found in the pairs library
 runMove :: InputList -> ReplayState -> Maybe ReplayState
 runMove evList rps =
@@ -96,11 +108,11 @@ runMove evList rps =
 
 
 runMoveM :: MonadState ReplayState m => InputList -> m ()
-runMoveM evList = do 
-  rps <- get 
+runMoveM evList = do
+  rps <- get
   mapM_ put (runMove evList rps)
 
--- stepRewindF :: MonadState ReplayState m =>  RewindBuffer -> m ()
+stepRewindF :: MonadState ReplayState m => InputList -> RewindBuffer -> m ()
 stepRewindF evList arr = do
   ix <- gets rRewindIndex
   if ix <= 0
@@ -175,3 +187,17 @@ pairs =
       (MoveRight, chDir R),
       (GameEnded, GameOver . getWorld ) -- Should hopefully only ever poll @GameState@s with a valid world 
     ]
+
+initState :: StdGen -> ReplayState
+initState seed =
+  ReplayState
+    { rTickNo = TickNumber 0,
+      rGameState = start,
+      rGameStateVec = Right [newRwType start],
+      rCheckPoint = V.empty,
+      rEvIndex = 0,
+      rRewindIndex = 0
+    }
+  where
+    start = Playing $ initWorld defaultHeight defaultWidth seed
+    newRwType = RewindType (TickNumber 0) (EvNumber 0)

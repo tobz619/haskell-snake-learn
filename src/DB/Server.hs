@@ -31,7 +31,7 @@ import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Encoding as TL
 import qualified Database.SQLite.Simple as DB
 import GameLogic (GameState (Playing, getWorld), World (..), defaultHeight, defaultWidth, initWorld)
-import Logging.Replay (ReplayState (ReplayState), Seed, runReplayG)
+import Logging.Replay (ReplayState (ReplayState), Seed, runReplayG, initState)
 import Network.Socket
 import Network.Socket.ByteString.Lazy
 import System.IO (IOMode (..), hFlush, openFile)
@@ -178,15 +178,7 @@ serverApp cix cliCount dbConn tcpConn messageChan = E.handle recvHandler $ do
   textWriteTChan messageChan $ "All events: " <> show evList
 
   -- Run the game replay
-  let initState =
-        ReplayState
-          (Playing $ initWorld defaultHeight defaultWidth seed)
-          (TickNumber 0)
-          Map.empty
-          (Right [])
-          0
-          0
-      !game = runReplayG evList initState
+  let !game = runReplayG evList (initState seed)
       s' = (score . getWorld) game
   if s /= s'
     then do
