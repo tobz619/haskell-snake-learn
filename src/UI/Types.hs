@@ -20,7 +20,9 @@ import Data.List (nub)
 
 type ConfigBinding = (KeyEvent, K.BindingState)
 
-newtype TickNumber = TickNumber TickType deriving newtype (Eq, Show, Read,Num, Ord)
+newtype TickNumber = TickNumber TickType 
+  deriving newtype (Eq, Show, Read,Num, Ord, Enum, Real, Integral)
+
 type TickType = Word16
 
 newtype EvNumber = EvNumber Int deriving newtype (Eq, Show, Read,Num, Ord)
@@ -35,8 +37,6 @@ data GameEvent = GameEvent { gEvTick :: TickNumber, gEvEvent :: KeyEvent}
 type EventList = [GameEvent]
 
 type InputList = V.Vector GameEvent
-
-type CheckPointMap = Map.Map TickNumber GameState
 
 data RewindType = RewindType {
   rwTick :: TickNumber,
