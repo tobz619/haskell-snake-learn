@@ -18,5 +18,5 @@ Run with `cabal run`.
 - I want to practice my Haskell + Nix workflow
 
 ## Current problems
-- I want the 'PAUSED' text to appear overlayed on the game and I can't figure out how to do this with Brick - yet.
-- I have no idea how to implement DB for high scores.
+- Adding the replay data to the database.
+- Being able to query that database and download the relevant replay on request.
