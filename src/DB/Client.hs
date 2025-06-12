@@ -6,12 +6,12 @@
 
 module DB.Client where
 
-import Control.Concurrent.Async
+import Control.Concurrent.Async ( wait, withAsync )
 -- import Data.Int (Int64)
 
 import Control.Concurrent.STM (STM, TQueue, atomically, flushTQueue, newTQueueIO, writeTQueue)
 import qualified Control.Exception as E
-import DB.Highscores (Name)
+import DB.Types
 import qualified DB.Authenticate as Auth
 import Data.Bimap (Bimap)
 import qualified Data.Bimap as BM
@@ -24,11 +24,8 @@ import qualified Data.List.NonEmpty as NE
 import Data.Maybe (fromMaybe)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
-import Data.Word (Word8)
-import GameLogic (ScoreType)
 import Network.Socket
 import Network.Socket.ByteString.Lazy (sendAll)
-import Network.TLS
 import System.Random (mkStdGen)
 import UI.Types
     ( SeedType,
@@ -36,12 +33,8 @@ import UI.Types
       GameEvent(..),
       TickNumber(TickNumber),
       KeyEvent(MoveLeft, GameEnded, MoveUp, MoveRight, MoveDown) ) 
+import GameLogic (ScoreType)
 
-
-type MsgLenRep = Word8
-
-newtype TCPConn = TCPConn {getSocket :: Socket}
-  deriving newtype (Show)
 
 serverName, serverName' :: HostName
 serverName = "127.0.0.1"
@@ -53,11 +46,6 @@ clientPort' = 5000
 
 lenBytes :: Int
 lenBytes = fromIntegral $ finiteBitSize @MsgLenRep 0 `div` 8
-
--- | A way to mark which kind of bytestring message can be produced.
-type BSMessage a = ByteString
-
-type TextMessage a = Text.Text
 
 keyEvBytesMap :: Bimap KeyEvent ByteString
 keyEvBytesMap =
@@ -77,15 +65,12 @@ gameEvToMessage (GameEvent tn ev) = looked <> tickNoToBytes tn
     looked = fromMaybe B.empty (BM.lookup ev keyEvBytesMap)
     tickNoToBytes (TickNumber tno) = encode tno
 
-type SeedMessage = BSMessage SeedType
-
 sendSeedMessage :: TCPConn -> SeedType -> IO ()
 sendSeedMessage c = sendBSMessage c . seedToMessage
   where
     seedToMessage :: SeedType -> SeedMessage
     seedToMessage = encode
 
-type ScoreMessage = BSMessage ScoreType
 
 sendScoreMessage :: TCPConn -> ScoreType -> IO ()
 sendScoreMessage c = sendBSMessage c . scoreToMessage
@@ -93,7 +78,6 @@ sendScoreMessage c = sendBSMessage c . scoreToMessage
     scoreToMessage :: ScoreType -> ScoreMessage
     scoreToMessage = encode
 
-type EventListMessage = BSMessage EventList
 
 sendEventList :: TCPConn -> EventList -> IO ()
 sendEventList c = sendBSMessage c . B.concat . map gameEvToMessage

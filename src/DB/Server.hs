@@ -17,7 +17,8 @@ import qualified Control.Exception as E
 import Control.Monad (forever, replicateM_, when)
 import qualified DB.Authenticate as Auth
 import DB.Client
-import DB.Highscores (Name, Score, openDatabase)
+import DB.Highscores (openDatabase)
+import DB.Types
 import qualified Data.Bimap as BM
 import Data.Binary
 import qualified Data.ByteString.Lazy as B
@@ -38,24 +39,6 @@ import System.IO (IOMode (..), hFlush, openFile)
 import System.Random (mkStdGen)
 import UI.Types
     ( EventList, GameEvent(GameEvent), TickNumber(TickNumber) )
-
-data ServerState = ServerState {clientCount :: !Int, clients :: !ClientMap, currentIx :: !CIndex}
-  deriving (Show)
-
-type ClientMap = IMap.IntMap TCPConn
-
-type CIndex = Int
-
-type ClientConnection = TCPConn
-
-data ServerStateError
-  = ConnectFailure
-  | MaxPlayers
-  | UnexpectedClose
-  | HelloTooSlow !ClientConnection
-  deriving stock (Show)
-
-instance Exception ServerStateError
 
 port :: PortNumber
 port = 34561

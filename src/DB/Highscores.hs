@@ -13,31 +13,7 @@ import Data.Time.Clock.POSIX (getPOSIXTime)
 import Data.Word
 import Database.SQLite.Simple
 import GameLogic (ScoreType)
-
-type Score = ScoreType
-
-type Name = Text
-
-type Time = Int
-
-data ScoreField = ScoreField
-  { getScoreFieldName :: !Name,
-    getScoreFieldScore :: !Score,
-    getScoreFieldTime :: !Time
-  }
-
-instance FromRow ScoreField where
-  fromRow = ScoreField <$> field <*> field <*> field
-
-instance ToRow ScoreField where
-  toRow (ScoreField name score time) =
-    toRow (name, score, time)
-
-instance Eq ScoreField where
-  (ScoreField _ x _) == (ScoreField _ y _) = x == y
-
-instance Ord ScoreField where
-  (ScoreField _ s d) <= (ScoreField _ s' d') = s <= s' && d < d'
+import DB.Types
 
 maxDbSize :: Word8 -- 255
 maxDbSize = maxBound
@@ -49,7 +25,12 @@ openDatabase path = do
   pure conn
 
 initQuery :: Query
-initQuery = Query "CREATE TABLE IF NOT EXISTS scores (id INTEGER PRIMARY KEY, name TEXT NOT NULL, score NUMBER NOT NULL, time NUMBER NOT NULL);"
+initQuery = Query "CREATE TABLE IF NOT EXISTS scores\ 
+                            \(id INTEGER PRIMARY KEY, name TEXT NOT NULL,\
+                            \score NUMBER NOT NULL,\ 
+                            \time NUMBER NOT NULL\
+                            \replay BLOB\
+                            \);"
 
 scoreQuery :: Query
 scoreQuery = Query "SELECT name, score, time FROM scores ORDER BY score DESC, time DESC LIMIT (?);"
@@ -66,7 +47,7 @@ getScores conn = query conn scoreQuery (Only maxDbSize)
 debugPrintScores :: Connection -> IO ()
 debugPrintScores conn = do
   scores <- getScores conn
-  forM_ scores $ \(ScoreField n s d) ->
+  forM_ scores $ \(ScoreField n s d _) ->
     putStrLn $
       show (n :: Name)
         <> " "
@@ -104,11 +85,10 @@ testDb :: IO ()
 testDb = do
   db <- openDatabase "highscores.db"
   t <- floor <$> getPOSIXTime
-  addScore db "Richard" 34 t
-  addScore db "Thomas" 69 t
-  addScore db "Henry" 220 t
-  addScore db "Alice" 221 t
-  addScore db "XXX" 99 t
-  addScore db "Bamidele" 240 t
+  addScore db "Richard" 15 t
+  addScore db "Thomas" 40 t
+  addScore db "Henry" 65 t
+  addScore db "Alice" 80 t
+  addScore db "Bamidele" 100 t
 
 --   printScores db

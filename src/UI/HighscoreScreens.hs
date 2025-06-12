@@ -34,7 +34,7 @@ import Brick.Widgets.Table
     table,
   )
 import DB.Highscores
-  ( ScoreField (ScoreField),
+  ( 
     getScores,
     openDatabase,
   )
@@ -55,6 +55,7 @@ import Lens.Micro ((^.))
 import Lens.Micro.Extras (view)
 import Lens.Micro.Mtl (preview, use, (.=))
 import Lens.Micro.TH (makeLenses)
+import DB.Types (ScoreField (..))
 
 data HSPageName = ScoreTable | HSDialogNum Int
   deriving (Show, Eq, Ord)
@@ -97,11 +98,13 @@ scoresTable _ scores =
 
       mkIndex num s = (num + 1, [txt . Text.pack . show $ num] <> handleScoreField s)
 
-      handleScoreField (ScoreField n s d) = map (padLeftRight 3) [txt n, handleScore s, handleDate d]
+      handleScoreField (ScoreField n s d Nothing) = map (padLeftRight 3) [txt n, handleScore s, handleDate d]
+      handleScoreField (ScoreField n s d (Just _)) = map (padLeftRight 3) [txt n, handleScore s, handleDate d, replayButton]
 
       handleScore = txt . Text.pack . show
 
       handleDate = txt . formatDbIntToTime
+      replayButton = withAttr D.buttonAttr $ txt "VIEW"
    in surroundingBorder False $ table . snd $ scoreTable
 
 tableVpScroll :: ViewportScroll HSPageName
