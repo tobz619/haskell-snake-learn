@@ -25,6 +25,7 @@ library
                       DB.Client,
                       DB.Highscores, 
                       DB.Server,
+                      DB.Types,
                       UI.Keybinds, 
                       Logging.Logger,
                       Logging.Replay,
