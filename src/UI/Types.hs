@@ -50,6 +50,10 @@ mkRewindBuffer = V.fromListN 256 . nub
 mkInputList :: [GameEvent] -> InputList
 mkInputList = V.fromList
 
+mkEvs = reverse  . filter (\(GameEvent _ x) -> isMovement x)
+  where
+    isMovement x = x `elem` [MoveUp, MoveDown, MoveLeft, MoveRight]
+
 newtype Logger i e = Logger (State i e)
 
 -- | Marks passing of time.

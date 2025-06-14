@@ -146,6 +146,7 @@ handleEventMain (T.VtyEvent (V.EvKey V.KUp [])) = M.vScrollBy tableVpScroll (-2)
 handleEventMain (T.VtyEvent (V.EvKey V.KLeft [])) = M.vScrollBy tableVpScroll . negate =<< use height
 handleEventMain (T.VtyEvent (V.EvKey V.KRight [])) = M.vScrollBy tableVpScroll =<< use height
 handleEventMain (T.VtyEvent (V.EvKey V.KEsc [])) = M.halt
+handleEventMain (T.VtyEvent (V.EvKey (V.KChar 'q') [])) = M.halt
 handleEventMain (T.VtyEvent (V.EvKey (V.KChar 'h') [])) = do
   mode .= ShowingDialog
   selectScore .= defMenuState

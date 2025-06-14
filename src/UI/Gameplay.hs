@@ -31,7 +31,7 @@ import Control.Concurrent (forkIO, threadDelay)
 import Control.Monad (forever, void)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Control.Monad.State.Class (MonadState)
-import DB.Highscores as DBHS (addScore, openDatabase, promptAddHighScore)
+import DB.Highscores as DBHS (addScore, openDatabase, promptAddHighScore, addScoreWithReplay)
 import Data.Maybe (fromMaybe)
 import qualified Data.Text as Text
 import Data.Time.Clock.POSIX (getPOSIXTime)
@@ -49,6 +49,8 @@ import System.IO
 import System.Random
 import UI.Keybinds (gameplayDispatcher)
 import UI.Types
+import DB.Client (runClientAppSTM)
+import DB.Types (Name)
 
 altConfig :: [a]
 altConfig = []
@@ -159,7 +161,7 @@ eventHandler ev = do
     Playing w -> do
       zoom gameState $ handleGameplayEvent' ev
       tickNo %= (+ 1) -- advance the ticknumber by one
-      mapM_ logEat (foodEaten w) -- Log if food is eaten
+      -- mapM_ logEat (foodEaten w) -- Log if food is eaten
       logMove ev -- Log if a direction has been pressed
     Starting w -> do
       dia <- use gameStateDialog
@@ -179,11 +181,13 @@ eventHandler ev = do
         then do
           gameStateDialog .= Nothing
           highScoreDialogs .= HighScoreFormState (Just $ highScoreAskDialog w) Nothing
-          gameState .= NewHighScorePrompt w conn
+          gameState .= NewHighScorePrompt w
         else gameState .= GameOver w
-    NewHighScorePrompt w conn -> do
-      time <- liftIO (round <$> getPOSIXTime)
-      zoom highScoreDialogs $ handleHighScorePromptEvent ev conn w time
+    NewHighScorePrompt w -> do
+      seed <- use gameSeed
+      evList <- use gameLog
+      zoom highScoreDialogs $ handleHighScorePromptEvent ev seed (score w) evList
+
       hsd <- use highScoreDialogs
       case hsd of
         HighScoreFormState Nothing Nothing -> gameState .= GameOver w
@@ -192,20 +196,20 @@ eventHandler ev = do
       dia <- use gameStateDialog
       maybe (gameStateDialog .= dialogShower p) (const $ handleMenuEvent ev) dia
 
-handleHighScorePromptEvent :: BrickEvent MenuOptions Tick -> Connection -> World -> Int -> EventM MenuOptions HighScoreFormState ()
-handleHighScorePromptEvent (VtyEvent (V.EvKey V.KEnter [])) conn w time = do
+handleHighScorePromptEvent :: BrickEvent MenuOptions Tick -> SeedType -> ScoreType -> EventList -> EventM MenuOptions HighScoreFormState ()
+handleHighScorePromptEvent (VtyEvent (V.EvKey V.KEnter [])) seed score evList = do
   st <- get
   case st of
     HighScoreFormState (Just dia) Nothing ->
       let result = maybe st snd (D.dialogSelection dia)
        in put result
-    HighScoreFormState Nothing (Just form) ->
-      do
-        let HighScoreForm (Just c1) (Just c2) (Just c3) = F.formState form
-        -- liftIO $ DBHS.addScore conn (Text.pack [c1, c2, c3]) (score w) time
-        -- runClientAppSTM seed scire bane evList
-        put (HighScoreFormState Nothing Nothing)
-    _ -> return ()
+    HighScoreFormState Nothing (Just form) -> do
+      let HighScoreForm mC1 mC2 mC3 = F.formState form
+          name = maybe Text.empty Text.pack (sequence [mC1, mC2, mC3])
+      liftIO $ runClientAppSTM seed score name evList
+      put (HighScoreFormState Nothing Nothing)
+    
+    _ -> pure ()
 handleHighScorePromptEvent (VtyEvent ev) _ _ _ = do
   st <- get
   case st of

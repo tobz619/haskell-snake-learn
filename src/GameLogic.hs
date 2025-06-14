@@ -26,7 +26,13 @@ data GameState
   | Starting {getWorld :: World}
   | Restarting
   | NewHighScore {getWorld :: World}
-  | NewHighScorePrompt {getWorld :: World, getConn :: Connection}
+  | NewHighScorePrompt {getWorld :: World}
+
+instance Show GameState where
+  show (Playing w) = show w
+  show (NewHighScore w) = show w 
+  show (GameOver w) = show w
+  show _ = ""
 
 instance Eq GameState where
   Playing w0 == Playing w1 = w0 == w1
@@ -37,7 +43,7 @@ instance Eq GameState where
   Starting w0 == Starting w1 = w0 == w1
   Restarting == Restarting = True
   NewHighScore w0 == NewHighScore w1 = w0 == w1
-  NewHighScorePrompt w0 _ == NewHighScorePrompt w1 _ = w0 == w1
+  NewHighScorePrompt w0 == NewHighScorePrompt w1 = w0 == w1
   _ == _ = False
 
 type Coord = V2 Int

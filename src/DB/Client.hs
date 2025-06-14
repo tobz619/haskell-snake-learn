@@ -32,7 +32,7 @@ import UI.Types
       EventList,
       GameEvent(..),
       TickNumber(TickNumber),
-      KeyEvent(MoveLeft, GameEnded, MoveUp, MoveRight, MoveDown) ) 
+      KeyEvent(MoveLeft, GameEnded, MoveUp, MoveRight, MoveDown, GameStarted) ) 
 import GameLogic (ScoreType)
 
 
@@ -52,7 +52,9 @@ keyEvBytesMap =
   foldr
     (uncurry BM.insert)
     BM.empty
-    [ (MoveUp, B.singleton 251),
+    [ (GameStarted, B.singleton 250),
+      -- (handleFoodEaten, B.pack [249]),
+      (MoveUp, B.singleton 251),
       (MoveDown, B.singleton 252),
       (MoveLeft, B.singleton 253),
       (MoveRight, B.singleton 254),
