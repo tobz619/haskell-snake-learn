@@ -1,6 +1,8 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Move brackets to avoid $" #-}
 
 module UI.HighscoreScreens where
 
@@ -25,25 +27,19 @@ import qualified Brick.Widgets.Center as C
 import Brick.Widgets.Dialog (Dialog)
 import qualified Brick.Widgets.Dialog as D
 import Brick.Widgets.Table
-  ( ColumnAlignment (AlignCenter),
-    Table,
-    columnBorders,
-    renderTable,
-    setDefaultColAlignment,
-    surroundingBorder,
-    table,
-  )
+import Brick.Widgets.Table (alignRight)
 import DB.Highscores
-  ( 
-    getScores,
+  ( getScores,
     openDatabase,
   )
+import DB.Types (ScoreField (..))
 import Data.List (mapAccumL)
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Time
   ( Day (ModifiedJulianDay),
+    TimeLocale (knownTimeZones),
     UTCTime (UTCTime),
     addUTCTime,
     defaultTimeLocale,
@@ -55,16 +51,14 @@ import Lens.Micro ((^.))
 import Lens.Micro.Extras (view)
 import Lens.Micro.Mtl (preview, use, (.=))
 import Lens.Micro.TH (makeLenses)
-import DB.Types (ScoreField (..))
 
 data HSPageName = ScoreTable | HSDialogNum Int
   deriving (Show, Eq, Ord)
 
 data Mode = Page | ShowingDialog
 
-data MenuState = MenuState
-  { _menuDialog :: Dialog Int HSPageName,
-    _menuChoice :: Int
+newtype MenuState = MenuState
+  { _menuDialog :: Dialog Int HSPageName
   }
 
 data HighScoreState = HighScoreState
@@ -81,16 +75,16 @@ defHeight = 20
 
 ui :: HighScoreState -> [Widget HSPageName]
 ui hss = case hss ^. mode of
-  Page -> [C.center $ allTable hei ScoreTable (scoresTable ScoreTable scos)]
+  Page -> [allTable hei ScoreTable (scoresTable ScoreTable scos)]
   ShowingDialog ->
-    diaWidget (view selectScore hss)
-      <> [C.center $ allTable hei ScoreTable (scoresTable ScoreTable scos)]
+    [diaWidget (view selectScore hss),
+      allTable hei ScoreTable (scoresTable ScoreTable scos)]
   where
     hei = view height hss
     scos = view highscores hss
 
-diaWidget :: MenuState -> [Widget HSPageName]
-diaWidget ((MenuState dia _)) = [D.renderDialog dia emptyWidget]
+diaWidget :: MenuState -> Widget HSPageName
+diaWidget (MenuState dia) = D.renderDialog dia emptyWidget
 
 scoresTable :: n -> [ScoreField] -> Table n
 scoresTable _ scores =
@@ -98,40 +92,36 @@ scoresTable _ scores =
 
       mkIndex num s = (num + 1, [txt . Text.pack . show $ num] <> handleScoreField s)
 
-      handleScoreField (ScoreField n s d Nothing) = map (padLeftRight 3) [txt n, handleScore s, handleDate d]
-      handleScoreField (ScoreField n s d (Just _)) = map (padLeftRight 3) [txt n, handleScore s, handleDate d, replayButton]
+      handleScoreField (ScoreField n s d Nothing) = padding <$> [txt n, handleScore s, handleDate d, emptyWidget]
+      handleScoreField (ScoreField n s d (Just _)) = padding <$> [txt n, handleScore s, handleDate d, replayButton]
 
       handleScore = txt . Text.pack . show
 
       handleDate = txt . formatDbIntToTime
+
+      padding = padLeftRight 2
+
       replayButton = withAttr D.buttonAttr $ txt "VIEW"
-   in surroundingBorder False $ table . snd $ scoreTable
+
+   in surroundingBorder True . setDefaultColAlignment AlignCenter . table . snd $ scoreTable
 
 tableVpScroll :: ViewportScroll HSPageName
 tableVpScroll = M.viewportScroll ScoreTable
 
 allTable :: (Show n, Ord n) => Int -> n -> Table n -> Widget n
-allTable h name scoreTab =
-  renderTable $
-    setDefaultColAlignment AlignCenter $
-      table
-        [ [ withAttr headerAttr $
-              hLimit 40 $
-                txtWrap "               HIGH SCORES"
-          ],
-          [ setAvailableSize (40, h) $
-              viewport name Vertical $
-                renderTable $
-                  columnBorders
-                    False
-                    scoreTab
-          ]
-        ]
+allTable h name scoreTab = C.center . vBox . (hLimit 44 <$>)  $ 
+  [C.hCenterWith Nothing $ withAttr headerAttr $ txt "HIGH SCORES",
+  (vLimit h . viewport name Vertical .
+          renderTable .
+            columnBorders
+              False $
+                scoreTab)
+  ]
 
 formatDbIntToTime :: Int -> Text
 formatDbIntToTime posixTime =
   let !utcTime = secondsToNominalDiffTime (fromIntegral posixTime) `addUTCTime` UTCTime (ModifiedJulianDay 0) 0 -- Convert to UTC Time
-   in Text.pack $ formatTime defaultTimeLocale "%T %u %b" utcTime
+   in Text.pack $ formatTime (defaultTimeLocale {knownTimeZones = [read "GMT"]}) "%T %u %b" utcTime
 
 inputHandler :: BrickEvent HSPageName e -> EventM HSPageName HighScoreState ()
 inputHandler ev = do
@@ -171,7 +161,7 @@ theMap =
       (bgAttr, bg V.red),
       (D.dialogAttr, fg V.white),
       (D.buttonAttr, V.red `on` V.white),
-      (D.buttonSelectedAttr, bg V.red)
+      (D.buttonSelectedAttr, V.white `on` V.red)
     ]
 
 headerAttr, cellAttr, bgAttr :: AttrName
@@ -194,12 +184,12 @@ defDialog =
   D.dialog
     (Just $ txt "How many scores to show per page?")
     (Just (HSDialogNum 10, options))
-    125
+    60
   where
     options = (\n -> (show n, HSDialogNum (n * 2), n * 2)) <$> [5, 10, 25]
 
 defMenuState :: MenuState
-defMenuState = MenuState defDialog defHeight
+defMenuState = MenuState defDialog
 
 highScores :: IO ()
 highScores = do

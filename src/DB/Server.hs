@@ -120,7 +120,7 @@ application sock = do
         concurrently_ (handleAppConnection state dbConn threadPool (TCPConn s) messageChan) (awaitConnection state threadPool dbConn messageChan)
 
 handleAppConnection :: TMVar ServerState -> DB.Connection -> TQueue () -> ClientConnection -> TChan Text -> IO ()
-handleAppConnection state dbConn threadPool cliConn messageChan = do
+handleAppConnection state dbConn threadPool cliConn messageChan = E.handle recvHandler $ do
   _ <- atomically $ readTQueue threadPool
   initHandshake <- race (threadDelay 2_000_000) (recvTCPData cliConn id)
   either
@@ -131,6 +131,9 @@ handleAppConnection state dbConn threadPool cliConn messageChan = do
     connHandling
     initHandshake
   where
+    recvHandler UnexpectedClose = do
+        textWriteTChan messageChan $ "Unexpected closure - lost connection with: " <> show (getSocket cliConn)
+    recvHandler e = E.throwIO e
     connHandling b
       | b /= Auth.helloMessage =
           textWriteTChan messageChan "Incorrect hello, closing"
@@ -153,6 +156,7 @@ handleAppConnection state dbConn threadPool cliConn messageChan = do
       where
         disconnectMsg conn = do
           textWriteTChan messageChan $ "Disconnecting " <> show conn
+
 
 serverApp :: CIndex -> Int -> DB.Connection -> ClientConnection -> TChan Text -> IO ()
 serverApp cix cliCount dbConn tcpConn messageChan = E.handle recvHandler $ do
@@ -186,7 +190,7 @@ serverApp cix cliCount dbConn tcpConn messageChan = E.handle recvHandler $ do
   where
     recvHandler UnexpectedClose = do
       textWriteTChan messageChan $ "Lost connection with: " <> show (getSocket tcpConn)
-    recvHandler _ = pure ()
+    recvHandler e = E.throwIO e
 
 textWriteTChan :: TChan Text -> String -> IO ()
 textWriteTChan c = atomically . writeTChan c . Text.pack
@@ -196,9 +200,8 @@ textWriteTChan c = atomically . writeTChan c . Text.pack
 recvTCPData :: TCPConn -> (BSMessage b -> b) -> IO b
 recvTCPData tcpConn handler = do
   lenPrefixBytes <- recvAll tcpConn (fromIntegral lenBytes)
-  let lenInt = decode @Int lenPrefixBytes
-  when (lenInt > fromIntegral (maxBound :: MsgLenRep)) (E.throwIO $ OversizedMessage lenInt)
   let msglen = (fromIntegral . decode @MsgLenRep) lenPrefixBytes
+  when (msglen > (maxBound :: MsgLenRep)) (E.throwIO $ OversizedMessage (fromIntegral msglen))
   handler <$> recvAll tcpConn msglen
 
 recvAll :: TCPConn -> MsgLenRep -> IO BL.ByteString
@@ -207,7 +210,7 @@ recvAll tcpConn size
   | otherwise = do
       bs <- recv (getSocket tcpConn) (fromIntegral size)
       when (BL.null bs) $ E.throwIO UnexpectedClose
-      let len = BL.length bs 
+      let len = BL.length bs
       if len < fromIntegral size
         then do
           let missing = size - fromIntegral len
@@ -253,13 +256,13 @@ handleEventList = go decoder
           t <- getWord16be
           return (GameEvent (TickNumber t) (keyEvBytesMap BM.!> BL.singleton ev))
         decoder = runGetIncremental getGE
-        go (Done rest _con ev) inp0 = 
+        go (Done rest _con ev) inp0 =
           ev : go decoder (BL.Chunk rest inp0)
 
         go (Partial k) inp = case inp of
           BL.Chunk h t -> go (k $ Just h) t
-          BL.Empty -> [] 
-        
+          BL.Empty -> []
+
         go (Fail _ _ msg) _ =
           error msg
 

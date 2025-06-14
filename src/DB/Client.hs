@@ -114,7 +114,7 @@ sendHello c = sendBSMessage c Auth.helloMessage
 runClientAppSTM :: SeedType -> ScoreType -> Text.Text -> [GameEvent] -> IO ()
 runClientAppSTM seed score name evList = withSocketsDo $ do
   q <- newTQueueIO
-  runTCPClient serverName clientPort (app q)
+  runTCPClient serverName' clientPort' (app q)
   where
     app tq c = do
       actions <- atomically $ do
@@ -145,9 +145,7 @@ runTCPClient hostName port action = flip withAsync wait $ do
         print $ addrAddress addr
         setSocketOption sock NoDelay 1
         setSocketOption sock Linger 5
-
         connect sock $ addrAddress addr
-
         pure $ TCPConn sock
 
 testClient :: IO ()
