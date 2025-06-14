@@ -12,17 +12,16 @@ module DB.Server where
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.Async
 import Control.Concurrent.STM
-import Control.Exception (Exception, finally)
+import Control.Exception (finally)
 import qualified Control.Exception as E
 import Control.Monad (forever, replicateM_, when)
 import qualified DB.Authenticate as Auth
 import DB.Client
-import DB.Highscores (openDatabase)
+import DB.Highscores (openDatabase, addScoreWithReplay)
 import DB.Types
 import qualified Data.Bimap as BM
 import Data.Binary
 import qualified Data.ByteString.Lazy as B
-import qualified Data.Map as Map
 import qualified Data.IntMap.Strict as IMap
 import qualified Data.List.NonEmpty as NE
 import Data.Text (Text)
@@ -31,14 +30,16 @@ import qualified Data.Text.IO as Text
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Encoding as TL
 import qualified Database.SQLite.Simple as DB
-import GameLogic (GameState (Playing, getWorld), World (..), defaultHeight, defaultWidth, initWorld)
-import Logging.Replay (ReplayState (ReplayState), Seed, runReplayG, initState)
+import GameLogic (GameState (getWorld), World (..))
+import Logging.Replay (Seed, runReplayG, initState)
 import Network.Socket
 import Network.Socket.ByteString.Lazy
 import System.IO (IOMode (..), hFlush, openFile)
 import System.Random (mkStdGen)
 import UI.Types
     ( EventList, GameEvent(GameEvent), TickNumber(TickNumber) )
+import Data.Time.Clock.POSIX (getPOSIXTime)
+import Control.Monad.IO.Class (MonadIO(..))
 
 port :: PortNumber
 port = 34561
@@ -131,12 +132,12 @@ handleAppConnection state dbConn threadPool cliConn messageChan = do
           st <- atomically $ takeTMVar state
           -- textWriteTChan messageChan "Taking app state"
 
-          ~(!cix, !cc) <- case addClient st cliConn of -- Return the index that the player was inserted at
+          (!cix, !cc) <- case addClient st cliConn of -- Return the index that the player was inserted at
             Left MaxPlayers -> atomically (putTMVar state st) >> pure (-1, -1) -- figure out what to do if the queue of scores being uploaded is full; ideally create a queue and process asynchronously while not full
             Right (newSt, ix) -> do
               atomically $ putTMVar state newSt
               textWriteTChan messageChan (show newSt <> " Size: " <> show (numClients newSt))
-              pure (ix, clientCount newSt)
+              ix `seq` clientCount newSt `seq` pure (ix, clientCount newSt)
             Left _ -> error "Impossible"
 
           if cix < 0
@@ -157,7 +158,8 @@ serverApp cix cliCount dbConn tcpConn messageChan = E.handle recvHandler $ do
   textWriteTChan messageChan $ "Name of " <> show (Text.toUpper name) <> " received"
   seed <- recvTCPData tcpConn messageToSeed
   textWriteTChan messageChan $ "Seed: " <> show seed
-  evList <- recvTCPData tcpConn handleEventList
+  evListBytes <- recvTCPData tcpConn id
+  let evList = handleEventList evListBytes
   textWriteTChan messageChan $ "All events: " <> show evList
 
   -- Run the game replay
@@ -165,13 +167,13 @@ serverApp cix cliCount dbConn tcpConn messageChan = E.handle recvHandler $ do
       s' = (score . getWorld) game
   if s /= s'
     then do
-      putStrLn "Mismatched score!"
-      putStrLn $ "Expected score: " <> show s
-      putStrLn $ "Actual score: " <> show s'
+      textWriteTChan messageChan "Mismatched score!"
+      textWriteTChan messageChan $ "Expected score: " <> show s
+      textWriteTChan messageChan $ "Actual score: " <> show s'
     else do
       textWriteTChan messageChan "Valid score" -- placeholder
-      -- time <- liftIO (round <$> getPOSIXTime)
-      -- addScore dbConn name s time
+      time <- liftIO (round <$> getPOSIXTime)
+      addScoreWithReplay dbConn name s time evListBytes 
       textWriteTChan messageChan $ "Score of " <> show s <> " by user " <> show cliCount <> " added"
   textWriteTChan messageChan $ replicate 90 '='
   where

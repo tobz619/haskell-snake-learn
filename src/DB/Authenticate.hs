@@ -2,9 +2,8 @@
 module DB.Authenticate where
 
 
-import Data.ByteString.Lazy (ByteString)
+import DB.Types (BSMessage)
 
-type BSMessage a = ByteString
 {-
 0) TCP packets can't be parsed
 That the OS job. Don't bother. Perhaps you've meant websocket frames. Then it is the websocket library author's job - don't bother either.

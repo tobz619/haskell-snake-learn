@@ -6,7 +6,7 @@ module Logging.Replay where
 import Control.Monad.State (MonadState)
 import qualified Data.Map.Strict as Map
 import GameLogic (Direction (..), GameState (..), chDir, stepGameState, initWorld, defaultHeight, defaultWidth)
-import System.Random (StdGen)
+import System.Random (StdGen, mkStdGen)
 import UI.Types
 import qualified Data.Vector.Strict as V
 import Brick
@@ -31,14 +31,14 @@ type Checkpoints = V.Vector ReplayState
 
 -- | Runs a silent replay that will return the final GameState of the Game.
 runReplayG :: EventList -> ReplayState -> GameState
-runReplayG es = rGameState . V.last .  generateAllStates es
+runReplayG es = rGameState .  runReplay (mkInputList es)
    -- ^ Keep stepping the state forward until the game hits the end state.
 
-generateCheckPoints :: EventList -> ReplayState -> V.Vector ReplayState
-generateCheckPoints es = takeEvery 20 . generateAllStates es
+-- generateCheckPoints :: EventList -> ReplayState -> V.Vector ReplayState
+-- generateCheckPoints es = takeEvery 20 . generateAllStates es
 
-generateAllStates :: EventList -> ReplayState -> V.Vector ReplayState
-generateAllStates es = V.unfoldr (runReplay (mkInputList es))
+-- generateAllStates :: EventList -> ReplayState -> V.Vector ReplayState
+-- generateAllStates es = V.unfoldr (runReplay (mkInputList es))
 
 
 takeEvery :: Int -> V.Vector a -> V.Vector a
@@ -55,14 +55,13 @@ isGameOver (NewHighScore _) = True
 isGameOver (Paused _) = True
 isGameOver _ = False
 
--- runReplay :: Seed -> EventList -> ReplayState
--- runReplay ::  InputList -> ReplayState -> Maybe (a, ReplayState)
-runReplay :: InputList -> ReplayState -> Maybe (ReplayState, ReplayState)
+
+runReplay :: InputList -> ReplayState -> ReplayState
 runReplay evs rps = let nextState = stepReplayState rps
                         ret = fromMaybe nextState (runMove evs nextState)
-                     in if isGameOver (rGameState rps)
-                          then Nothing
-                          else Just (ret, ret)
+                     in if isGameOver (rGameState ret)
+                          then ret
+                          else runReplay evs ret
 
 canExecute :: InputList -> ReplayState -> Maybe GameEvent
 canExecute evList (ReplayState _ t1 _ _ (EvNumber ix) _) =
@@ -201,3 +200,8 @@ initState seed =
   where
     start = Playing $ initWorld defaultHeight defaultWidth seed
     newRwType = RewindType (TickNumber 0) (EvNumber 0)
+
+testReplayG = 
+  let evs = mkEvs [GameEvent {gEvTick = 56, gEvEvent = GameEnded},GameEvent {gEvTick = 51, gEvEvent = MoveRight},GameEvent {gEvTick = 47, gEvEvent = MoveDown},GameEvent {gEvTick = 44, gEvEvent = MoveLeft},GameEvent {gEvTick = 39, gEvEvent = MoveUp},GameEvent {gEvTick = 35, gEvEvent = MoveRight},GameEvent {gEvTick = 26, gEvEvent = MoveDown},GameEvent {gEvTick = 14, gEvEvent = MoveRight},GameEvent {gEvTick = 8, gEvEvent = MoveUp},GameEvent {gEvTick = 0, gEvEvent = MoveLeft},GameEvent {gEvTick = 0, gEvEvent = GameStarted}]
+      seed = -8957748602158299037
+   in runReplayG evs (initState (mkStdGen seed))

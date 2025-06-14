@@ -157,10 +157,6 @@ speedDown x
   | otherwise = x / 2
 normalSpeed = const 1
 
-mkEvs = reverse  . filter (\(GameEvent _ x) -> isMovement x)
-  where
-    isMovement x = x `elem` [MoveUp, MoveDown, MoveLeft, MoveRight]
-
 evs2 :: [GameEvent]
 evs2 =
   mkEvs

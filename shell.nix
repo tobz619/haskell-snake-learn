@@ -22,6 +22,7 @@ pkgs.mkShell{
     go
     nss
     openssl 
+    sqlitebrowser
     caddy
     xcaddy
   ]);
