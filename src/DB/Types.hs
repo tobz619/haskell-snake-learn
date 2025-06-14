@@ -5,7 +5,7 @@ import Control.Exception(Exception)
 import Data.Text(Text)
 import qualified Data.Text as Text
 import Data.ByteString.Lazy(ByteString)
-import Data.Word(Word8)
+import Data.Word(Word8, Word16)
 import GameLogic (ScoreType)
 import Network.Socket(Socket)
 import qualified Data.IntMap as IMap
@@ -40,7 +40,7 @@ instance Eq ScoreField where
 instance Ord ScoreField where
   (ScoreField _ s d _) <= (ScoreField _ s' d' _) = s <= s' && d < d'
 
-type MsgLenRep = Word8
+type MsgLenRep = Word16
 
 newtype TCPConn = TCPConn {getSocket :: Socket}
   deriving newtype (Show)
@@ -59,6 +59,7 @@ data ServerStateError
   | MaxPlayers
   | UnexpectedClose
   | HelloTooSlow !ClientConnection
+  | OversizedMessage !Int
   deriving stock (Show)
 
 instance Exception ServerStateError

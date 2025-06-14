@@ -31,14 +31,14 @@ type Checkpoints = V.Vector ReplayState
 
 -- | Runs a silent replay that will return the final GameState of the Game.
 runReplayG :: EventList -> ReplayState -> GameState
-runReplayG es = rGameState .  runReplay (mkInputList es)
+runReplayG es = rGameState . V.last .  generateAllStates es
    -- ^ Keep stepping the state forward until the game hits the end state.
 
--- generateCheckPoints :: EventList -> ReplayState -> V.Vector ReplayState
--- generateCheckPoints es = takeEvery 20 . generateAllStates es
+generateCheckPoints :: EventList -> ReplayState -> V.Vector ReplayState
+generateCheckPoints es = takeEvery 20 . generateAllStates es
 
--- generateAllStates :: EventList -> ReplayState -> V.Vector ReplayState
--- generateAllStates es = V.unfoldr (runReplay (mkInputList es))
+generateAllStates :: EventList -> ReplayState -> V.Vector ReplayState
+generateAllStates es = V.unfoldr (runReplay (mkInputList es))
 
 
 takeEvery :: Int -> V.Vector a -> V.Vector a
@@ -56,12 +56,12 @@ isGameOver (Paused _) = True
 isGameOver _ = False
 
 
-runReplay :: InputList -> ReplayState -> ReplayState
-runReplay evs rps = let nextState = stepReplayState rps
-                        ret = fromMaybe nextState (runMove evs nextState)
+runReplay :: InputList -> ReplayState -> Maybe (ReplayState, ReplayState)
+runReplay evs rps = let nextState = fromMaybe rps (runMove evs rps)
+                        ret = stepReplayState nextState
                      in if isGameOver (rGameState ret)
-                          then ret
-                          else runReplay evs ret
+                          then Nothing
+                          else Just (ret, ret)
 
 canExecute :: InputList -> ReplayState -> Maybe GameEvent
 canExecute evList (ReplayState _ t1 _ _ (EvNumber ix) _) =

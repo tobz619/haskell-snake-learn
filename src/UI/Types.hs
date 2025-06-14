@@ -32,6 +32,9 @@ data KeyEvent = MoveUp | MoveDown | MoveLeft | MoveRight | FoodEaten !(V2 Int) |
 data GameEvent = GameEvent { gEvTick :: TickNumber, gEvEvent :: KeyEvent}
   deriving (Show, Eq, Read)
 
+-- instance Show GameEvent where
+--   show (GameEvent tn ev) = "GameEvent " <> show tn <> " " <> show ev
+
 type EventList = [GameEvent]
 
 type InputList = V.Vector GameEvent
