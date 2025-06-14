@@ -15,13 +15,16 @@ import Control.Concurrent.STM
 import Control.Exception (finally)
 import qualified Control.Exception as E
 import Control.Monad (forever, replicateM_, when)
+import Control.Monad.IO.Class (MonadIO (..))
 import qualified DB.Authenticate as Auth
 import DB.Client
-import DB.Highscores (openDatabase, addScoreWithReplay)
+import DB.Highscores (addScoreWithReplay, openDatabase)
 import DB.Types
 import qualified Data.Bimap as BM
 import Data.Binary
-import qualified Data.ByteString.Lazy as B
+import Data.Binary.Get
+import qualified Data.ByteString.Lazy as BL
+import qualified Data.ByteString.Lazy.Internal as BL
 import qualified Data.IntMap.Strict as IMap
 import qualified Data.List.NonEmpty as NE
 import Data.Text (Text)
@@ -29,17 +32,20 @@ import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Encoding as TL
+import Data.Time.Clock.POSIX (getPOSIXTime)
 import qualified Database.SQLite.Simple as DB
 import GameLogic (GameState (getWorld), World (..))
-import Logging.Replay (Seed, runReplayG, initState)
+import Logging.Replay (Seed, initState, runReplayG)
 import Network.Socket
 import Network.Socket.ByteString.Lazy
 import System.IO (IOMode (..), hFlush, openFile)
 import System.Random (mkStdGen)
 import UI.Types
-    ( EventList, GameEvent(GameEvent), TickNumber(TickNumber) )
-import Data.Time.Clock.POSIX (getPOSIXTime)
-import Control.Monad.IO.Class (MonadIO(..))
+  ( EventList,
+    GameEvent (GameEvent),
+    TickNumber (TickNumber),
+    mkEvs,
+  )
 
 port :: PortNumber
 port = 34561
@@ -159,21 +165,22 @@ serverApp cix cliCount dbConn tcpConn messageChan = E.handle recvHandler $ do
   seed <- recvTCPData tcpConn messageToSeed
   textWriteTChan messageChan $ "Seed: " <> show seed
   evListBytes <- recvTCPData tcpConn id
-  let evList = handleEventList evListBytes
-  textWriteTChan messageChan $ "All events: " <> show evList
+  let evList = mkEvs $ handleEventList evListBytes
+  textWriteTChan messageChan $ "evList Length: " <> show (length evList)
+  -- textWriteTChan messageChan $ "All events: " <> show evList
 
   -- Run the game replay
   let !game = runReplayG evList (initState seed)
       s' = (score . getWorld) game
   if s /= s'
     then do
-      textWriteTChan messageChan "Mismatched score!"
+      textWriteTChan messageChan $ "Mismatched score from clientIndex" <> show cix <>"!"
       textWriteTChan messageChan $ "Expected score: " <> show s
       textWriteTChan messageChan $ "Actual score: " <> show s'
     else do
       textWriteTChan messageChan "Valid score" -- placeholder
       time <- liftIO (round <$> getPOSIXTime)
-      addScoreWithReplay dbConn name s time evListBytes 
+      addScoreWithReplay dbConn name s time evListBytes
       textWriteTChan messageChan $ "Score of " <> show s <> " by user " <> show cliCount <> " added"
   textWriteTChan messageChan $ replicate 90 '='
   where
@@ -189,18 +196,18 @@ textWriteTChan c = atomically . writeTChan c . Text.pack
 recvTCPData :: TCPConn -> (BSMessage b -> b) -> IO b
 recvTCPData tcpConn handler = do
   lenPrefixBytes <- recvAll tcpConn (fromIntegral lenBytes)
+  let lenInt = decode @Int lenPrefixBytes
+  when (lenInt > fromIntegral (maxBound :: MsgLenRep)) (E.throwIO $ OversizedMessage lenInt)
   let msglen = (fromIntegral . decode @MsgLenRep) lenPrefixBytes
   handler <$> recvAll tcpConn msglen
 
-recvAll :: TCPConn -> MsgLenRep -> IO B.ByteString
+recvAll :: TCPConn -> MsgLenRep -> IO BL.ByteString
 recvAll tcpConn size
-  | size <= 0 = pure B.empty
+  | size <= 0 = pure BL.empty
   | otherwise = do
       bs <- recv (getSocket tcpConn) (fromIntegral size)
-      -- putStrLn $ "Message size in bytes: " <> show size
-      -- print bs
-      when (B.null bs) $ E.throwIO UnexpectedClose
-      let len = B.length bs
+      when (BL.null bs) $ E.throwIO UnexpectedClose
+      let len = BL.length bs 
       if len < fromIntegral size
         then do
           let missing = size - fromIntegral len
@@ -240,18 +247,22 @@ disconnect cix state = atomically $ do
   putTMVar state $ st {clients = removeClient cix (clients st)}
 
 handleEventList :: EventListMessage -> EventList
-handleEventList bs =
-  let chunks = splitEvery 3 bs
-      splitEvery n inp
-        | B.null inp = []
-        | otherwise = B.take n inp : splitEvery n (B.drop 3 inp)
-   in map messageToGameEvent chunks
-  where
-    messageToGameEvent bss =
-      let (ev, tick) = B.splitAt 1 bss
-          convertedEv = (BM.!>) keyEvBytesMap ev
-          t = fromIntegral $ B.index tick 0 * 255 + B.index tick 1
-       in GameEvent (TickNumber t) convertedEv
+handleEventList = go decoder
+  where getGE = do
+          ev <- getWord8
+          t <- getWord16be
+          return (GameEvent (TickNumber t) (keyEvBytesMap BM.!> BL.singleton ev))
+        decoder = runGetIncremental getGE
+        go (Done rest _con ev) inp0 = 
+          ev : go decoder (BL.Chunk rest inp0)
+
+        go (Partial k) inp = case inp of
+          BL.Chunk h t -> go (k $ Just h) t
+          BL.Empty -> [] 
+        
+        go (Fail _ _ msg) _ =
+          error msg
+
 
 messageToSeed :: SeedMessage -> Seed
 messageToSeed = mkStdGen . decode
