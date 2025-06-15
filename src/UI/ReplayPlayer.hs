@@ -32,6 +32,8 @@ import UI.Types
 import Data.List (uncons)
 import Text.Read (readMaybe)
 import Data.Maybe (fromMaybe)
+import DB.Server (handleEventList)
+import DB.Types (EventListMessage, ReplayData (ReplayData))
 
 
 runReplayApp :: StdGen -> InputList -> MVar Float -> IO ()
@@ -130,6 +132,12 @@ replayExample = do
   let evs = mkInputList evs3
   speed <- newMVar 1
   runReplayApp (mkStdGen seed3) evs speed
+
+replayPlayerApp :: ReplayData -> IO ()
+replayPlayerApp (ReplayData seed evBytes) = do
+  let evList = mkInputList . mkEvs . handleEventList $ evBytes
+  speed <- newMVar 1
+  runReplayApp (mkStdGen (fromIntegral seed)) evList speed
 
 -- where
 --   moves = [1, 3, 8, 10, 1, 11, 14, 1, 1]

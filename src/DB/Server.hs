@@ -166,7 +166,9 @@ serverApp cix cliCount dbConn tcpConn messageChan = E.handle recvHandler $ do
   textWriteTChan messageChan $ "Score of " <> show s <> " received"
   name <- recvTCPData tcpConn messageToName
   textWriteTChan messageChan $ "Name of " <> show (Text.toUpper name) <> " received"
-  seed <- recvTCPData tcpConn messageToSeed
+  seedBytes <- recvTCPData tcpConn id
+  let seedValue = decode seedBytes
+  let seed = messageToSeed seedBytes
   textWriteTChan messageChan $ "Seed: " <> show seed
   evListBytes <- recvTCPData tcpConn id
   let evList = mkEvs $ handleEventList evListBytes
@@ -184,7 +186,7 @@ serverApp cix cliCount dbConn tcpConn messageChan = E.handle recvHandler $ do
     else do
       textWriteTChan messageChan "Valid score" -- placeholder
       time <- liftIO (round <$> getPOSIXTime)
-      addScoreWithReplay dbConn name s time evListBytes
+      addScoreWithReplay dbConn name s time seedValue evListBytes
       textWriteTChan messageChan $ "Score of " <> show s <> " by user " <> show cliCount <> " added"
   textWriteTChan messageChan $ replicate 90 '='
   where

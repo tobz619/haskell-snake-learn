@@ -3,34 +3,23 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Move brackets to avoid $" #-}
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE NamedFieldPuns #-}
 
 module UI.HighscoreScreens where
 
 import Brick
 import qualified Brick.AttrMap as A
 import Brick.Main as M
-  ( App
-      ( App,
-        appAttrMap,
-        appChooseCursor,
-        appDraw,
-        appHandleEvent,
-        appStartEvent
-      ),
-    ViewportScroll (vScrollBy),
-    halt,
-    neverShowCursor,
-    viewportScroll,
-  )
 import qualified Brick.Types as T
 import qualified Brick.Widgets.Center as C
 import Brick.Widgets.Dialog (Dialog)
 import qualified Brick.Widgets.Dialog as D
 import Brick.Widgets.Table
-import Brick.Widgets.Table (alignRight)
 import DB.Highscores
   ( getScores,
-    openDatabase,
+    openDatabase, maxDbSize, getReplayData,
   )
 import DB.Types (ScoreField (..))
 import Data.List (mapAccumL)
@@ -51,40 +40,58 @@ import Lens.Micro ((^.))
 import Lens.Micro.Extras (view)
 import Lens.Micro.Mtl (preview, use, (.=))
 import Lens.Micro.TH (makeLenses)
+import Brick.Forms
+import Data.Word
+import Data.Char (chr, isNumber)
+import Control.Monad (when)
+import Database.SQLite.Simple (Connection)
+import UI.ReplayPlayer (replayPlayerApp)
+import Control.Monad.IO.Class (MonadIO(liftIO))
 
-data HSPageName = ScoreTable | HSDialogNum Int
+data HSPageName = ScoreTable | HSDialogNum Int | ReplayIndex
   deriving (Show, Eq, Ord)
 
-data Mode = Page | ShowingDialog
+data Mode = Page | ShowingAmountStateDialog | ShowingViewReplayDialog | InvalidIndex
 
-newtype MenuState = MenuState
+newtype ShowAmountStateDialog = ShowAmountStateDialog
   { _menuDialog :: Dialog Int HSPageName
   }
 
+newtype ViewReplayForm = ViewReplayForm {
+    _replayIndex :: Word8
+  } deriving newtype Num
+
 data HighScoreState = HighScoreState
-  { _highscores :: ![ScoreField],
+  { _conn :: Connection,
+    _highscores :: ![ScoreField],
     _height :: !Int,
-    _selectScore :: MenuState,
+    _selectScore :: ShowAmountStateDialog,
+    _selectReplay :: ViewReplayForm,
     _mode :: Mode
   }
 
-concat <$> mapM makeLenses [''HighScoreState, ''MenuState]
+concat <$> mapM makeLenses [''HighScoreState, ''ShowAmountStateDialog, ''ViewReplayForm]
 
 defHeight :: Int
 defHeight = 20
 
 ui :: HighScoreState -> [Widget HSPageName]
 ui hss = case hss ^. mode of
-  Page -> [allTable hei ScoreTable (scoresTable ScoreTable scos)]
-  ShowingDialog ->
+
+  Page -> [scores]
+
+  ShowingViewReplayDialog -> [renderForm (selectReplayForm (view selectReplay hss)), scores]
+
+  ShowingAmountStateDialog ->
     [diaWidget (view selectScore hss),
-      allTable hei ScoreTable (scoresTable ScoreTable scos)]
+      scores]
   where
     hei = view height hss
     scos = view highscores hss
+    scores = allTable hei ScoreTable (scoresTable ScoreTable scos)
 
-diaWidget :: MenuState -> Widget HSPageName
-diaWidget (MenuState dia) = D.renderDialog dia emptyWidget
+diaWidget :: ShowAmountStateDialog -> Widget HSPageName
+diaWidget (ShowAmountStateDialog dia) = D.renderDialog dia emptyWidget
 
 scoresTable :: n -> [ScoreField] -> Table n
 scoresTable _ scores =
@@ -92,8 +99,8 @@ scoresTable _ scores =
 
       mkIndex num s = (num + 1, [txt . Text.pack . show $ num] <> handleScoreField s)
 
-      handleScoreField (ScoreField n s d Nothing) = padding <$> [txt n, handleScore s, handleDate d, emptyWidget]
-      handleScoreField (ScoreField n s d (Just _)) = padding <$> [txt n, handleScore s, handleDate d, replayButton]
+      handleScoreField (ScoreField _ n s d _ Nothing) = padding <$> [txt n, handleScore s, handleDate d, emptyWidget]
+      handleScoreField (ScoreField _ n s d _ (Just _)) = padding <$> [txt n, handleScore s, handleDate d, replayButton]
 
       handleScore = txt . Text.pack . show
 
@@ -109,7 +116,7 @@ tableVpScroll :: ViewportScroll HSPageName
 tableVpScroll = M.viewportScroll ScoreTable
 
 allTable :: (Show n, Ord n) => Int -> n -> Table n -> Widget n
-allTable h name scoreTab = C.center . vBox . (hLimit 44 <$>)  $ 
+allTable h name scoreTab = C.center . vBox . (hLimit 44 <$>)  $
   [C.hCenterWith Nothing $ withAttr headerAttr $ txt "HIGH SCORES",
   (vLimit h . viewport name Vertical .
           renderTable .
@@ -127,30 +134,56 @@ inputHandler :: BrickEvent HSPageName e -> EventM HSPageName HighScoreState ()
 inputHandler ev = do
   !m <- use mode
   case m of
-    ShowingDialog -> handleEventDialog ev
+    InvalidIndex -> undefined -- todo
+    ShowingViewReplayDialog -> handleViewReplayForm ev
+    ShowingAmountStateDialog -> handleEventDialog ev
     Page -> handleEventMain ev
 
 handleEventMain :: BrickEvent HSPageName e -> EventM HSPageName HighScoreState ()
-handleEventMain (T.VtyEvent (V.EvKey V.KDown [])) = M.vScrollBy tableVpScroll 2
-handleEventMain (T.VtyEvent (V.EvKey V.KUp [])) = M.vScrollBy tableVpScroll (-2)
-handleEventMain (T.VtyEvent (V.EvKey V.KLeft [])) = M.vScrollBy tableVpScroll . negate =<< use height
-handleEventMain (T.VtyEvent (V.EvKey V.KRight [])) = M.vScrollBy tableVpScroll =<< use height
-handleEventMain (T.VtyEvent (V.EvKey V.KEsc [])) = M.halt
-handleEventMain (T.VtyEvent (V.EvKey (V.KChar 'q') [])) = M.halt
-handleEventMain (T.VtyEvent (V.EvKey (V.KChar 'h') [])) = do
-  mode .= ShowingDialog
-  selectScore .= defMenuState
+handleEventMain (VtyEvent (V.EvKey V.KDown [])) = M.vScrollBy tableVpScroll 2
+handleEventMain (VtyEvent (V.EvKey V.KUp [])) = M.vScrollBy tableVpScroll (-2)
+handleEventMain (VtyEvent (V.EvKey V.KLeft [])) = M.vScrollBy tableVpScroll . negate =<< use height
+handleEventMain (VtyEvent (V.EvKey V.KRight [])) = M.vScrollBy tableVpScroll =<< use height
+handleEventMain (VtyEvent (V.EvKey V.KEsc [])) = M.halt
+handleEventMain (VtyEvent (V.EvKey (V.KChar 'q') [])) = M.halt
+handleEventMain (VtyEvent (V.EvKey (V.KChar 'h') [])) = do
+  mode .= ShowingAmountStateDialog
+  selectScore .= defShowAmountStateDialog
 handleEventMain _ = return ()
 
 handleEventDialog :: BrickEvent HSPageName e -> EventM HSPageName HighScoreState ()
-handleEventDialog (T.VtyEvent (V.EvKey V.KEnter [])) = do
+handleEventDialog (VtyEvent (V.EvKey V.KEnter [])) = do
   d <- fromMaybe defDialog . preview (selectScore . menuDialog) <$> get
   height .= (maybe defHeight snd . D.dialogSelection $ d)
   mode .= Page
-handleEventDialog (T.VtyEvent (V.EvKey V.KEsc [])) = do
+handleEventDialog (VtyEvent (V.EvKey V.KEsc [])) = do
   mode .= Page
-handleEventDialog (T.VtyEvent ev) = zoom (selectScore . menuDialog) $ D.handleDialogEvent ev
+handleEventDialog (VtyEvent ev) = zoom (selectScore . menuDialog) $ D.handleDialogEvent ev
 handleEventDialog _ = return ()
+
+handleViewReplayForm :: BrickEvent n e -> EventM HSPageName HighScoreState ()
+handleViewReplayForm (VtyEvent (V.EvKey V.KEnter [])) = do
+  f <- use selectReplay
+  let form = selectReplayForm f
+      inv = invalidFields form
+  
+  if null inv 
+    then replayRunner form
+    else do let f' = mapM (setFieldValid False) inv  form 
+            pure ()
+
+
+
+handleViewReplayForm _ = pure ()
+
+replayRunner :: Form ViewReplayForm e n -> EventM HSPageName HighScoreState ()
+replayRunner f = do
+  c <- use conn
+  scores <- use highscores
+  let ViewReplayForm index = formState f
+      (ScoreField{getScoreFieldID}) = scores !! (fromIntegral index - 1)
+  mbReplay <- liftIO $ getReplayData c getScoreFieldID
+  maybe (mode .= InvalidIndex) (liftIO . replayPlayerApp) mbReplay
 
 theMap :: AttrMap
 theMap =
@@ -179,6 +212,15 @@ highScoresApp =
       M.appAttrMap = const theMap
     }
 
+
+
+selectReplayForm :: ViewReplayForm -> Form ViewReplayForm e HSPageName
+selectReplayForm =
+  newForm fields
+  where fields = [heading @@= editShowableFieldWithValidate replayIndex ReplayIndex validations]
+        validations x = all ($ x) [isNumber . chr . fromIntegral, (>= 1) . fromIntegral, (<= maxDbSize + 1) . fromIntegral]
+        heading = (<=>) (padBottom (Pad 3) $ withAttr headerAttr $ txt "Select the number of the replay to watch: ")
+
 defDialog :: Dialog Int HSPageName
 defDialog =
   D.dialog
@@ -188,12 +230,12 @@ defDialog =
   where
     options = (\n -> (show n, HSDialogNum (n * 2), n * 2)) <$> [5, 10, 25]
 
-defMenuState :: MenuState
-defMenuState = MenuState defDialog
+defShowAmountStateDialog :: ShowAmountStateDialog
+defShowAmountStateDialog = ShowAmountStateDialog defDialog
 
 highScores :: IO ()
 highScores = do
   db <- openDatabase "highscores.db"
   scores <- getScores db
-  _ <- defaultMain highScoresApp (HighScoreState scores defHeight defMenuState Page)
+  _ <- defaultMain highScoresApp (HighScoreState db scores defHeight defShowAmountStateDialog  (ViewReplayForm 0) Page)
   return ()
