@@ -47,11 +47,12 @@ import Control.Monad (when)
 import Database.SQLite.Simple (Connection)
 import UI.ReplayPlayer (replayPlayerApp)
 import Control.Monad.IO.Class (MonadIO(liftIO))
+import Data.Void (Void)
 
-data HSPageName = ScoreTable | HSDialogNum Int | ReplayIndex
+data HSPageName = ScoreTable | HSDialogNum Int | ReplayIndex | InvalidIndex
   deriving (Show, Eq, Ord)
 
-data Mode = Page | ShowingAmountStateDialog | ShowingViewReplayDialog | InvalidIndex
+data Mode = Page | ShowingAmountStateDialog | ShowingViewReplayDialog
 
 newtype ShowAmountStateDialog = ShowAmountStateDialog
   { _menuDialog :: Dialog Int HSPageName
@@ -59,7 +60,7 @@ newtype ShowAmountStateDialog = ShowAmountStateDialog
 
 newtype ViewReplayForm = ViewReplayForm {
     _replayIndex :: Word8
-  } deriving newtype Num
+  }
 
 data HighScoreState = HighScoreState
   { _conn :: Connection,
@@ -80,7 +81,8 @@ ui hss = case hss ^. mode of
 
   Page -> [scores]
 
-  ShowingViewReplayDialog -> [renderForm (selectReplayForm (view selectReplay hss)), scores]
+  ShowingViewReplayDialog -> [formWidget, scores]
+    where formWidget = renderForm . selectReplayForm $ view (selectReplay . replayIndex) hss
 
   ShowingAmountStateDialog ->
     [diaWidget (view selectScore hss),
@@ -89,9 +91,9 @@ ui hss = case hss ^. mode of
     hei = view height hss
     scos = view highscores hss
     scores = allTable hei ScoreTable (scoresTable ScoreTable scos)
+    diaWidget :: ShowAmountStateDialog -> Widget HSPageName
+    diaWidget (ShowAmountStateDialog dia) = D.renderDialog dia emptyWidget
 
-diaWidget :: ShowAmountStateDialog -> Widget HSPageName
-diaWidget (ShowAmountStateDialog dia) = D.renderDialog dia emptyWidget
 
 scoresTable :: n -> [ScoreField] -> Table n
 scoresTable _ scores =
@@ -134,7 +136,7 @@ inputHandler :: BrickEvent HSPageName e -> EventM HSPageName HighScoreState ()
 inputHandler ev = do
   !m <- use mode
   case m of
-    InvalidIndex -> undefined -- todo
+    -- InvalidIndex -> undefined -- todo
     ShowingViewReplayDialog -> handleViewReplayForm ev
     ShowingAmountStateDialog -> handleEventDialog ev
     Page -> handleEventMain ev
@@ -146,6 +148,9 @@ handleEventMain (VtyEvent (V.EvKey V.KLeft [])) = M.vScrollBy tableVpScroll . ne
 handleEventMain (VtyEvent (V.EvKey V.KRight [])) = M.vScrollBy tableVpScroll =<< use height
 handleEventMain (VtyEvent (V.EvKey V.KEsc [])) = M.halt
 handleEventMain (VtyEvent (V.EvKey (V.KChar 'q') [])) = M.halt
+handleEventMain (VtyEvent (V.EvKey (V.KChar '/') [])) = do
+  mode .= ShowingViewReplayDialog
+  selectReplay .= ViewReplayForm 1
 handleEventMain (VtyEvent (V.EvKey (V.KChar 'h') [])) = do
   mode .= ShowingAmountStateDialog
   selectScore .= defShowAmountStateDialog
@@ -161,16 +166,15 @@ handleEventDialog (VtyEvent (V.EvKey V.KEsc [])) = do
 handleEventDialog (VtyEvent ev) = zoom (selectScore . menuDialog) $ D.handleDialogEvent ev
 handleEventDialog _ = return ()
 
-handleViewReplayForm :: BrickEvent n e -> EventM HSPageName HighScoreState ()
-handleViewReplayForm (VtyEvent (V.EvKey V.KEnter [])) = do
-  f <- use selectReplay
-  let form = selectReplayForm f
-      inv = invalidFields form
-  
-  if null inv 
-    then replayRunner form
-    else do let f' = mapM (setFieldValid False) inv  form 
-            pure ()
+-- handleViewReplayForm :: BrickEvent n e -> EventM HSPageName HighScoreState ()
+-- handleViewReplayForm (VtyEvent (V.EvKey V.KEnter [])) = do
+--   f <- use selectReplay
+--   let inv = invalidFields f
+
+--   if null inv 
+--     then replayRunner form
+--     else do let f' = mapM (setFieldValid False) inv  form 
+--             pure ()
 
 
 
@@ -181,9 +185,9 @@ replayRunner f = do
   c <- use conn
   scores <- use highscores
   let ViewReplayForm index = formState f
-      (ScoreField{getScoreFieldID}) = scores !! (fromIntegral index - 1)
+      (ScoreField {getScoreFieldID}) = scores !! (fromIntegral index - 1)
   mbReplay <- liftIO $ getReplayData c getScoreFieldID
-  maybe (mode .= InvalidIndex) (liftIO . replayPlayerApp) mbReplay
+  mapM_ (liftIO . replayPlayerApp) mbReplay
 
 theMap :: AttrMap
 theMap =
@@ -214,9 +218,9 @@ highScoresApp =
 
 
 
-selectReplayForm :: ViewReplayForm -> Form ViewReplayForm e HSPageName
+selectReplayForm :: Word8 -> Form ViewReplayForm e HSPageName
 selectReplayForm =
-  newForm fields
+  newForm fields . ViewReplayForm
   where fields = [heading @@= editShowableFieldWithValidate replayIndex ReplayIndex validations]
         validations x = all ($ x) [isNumber . chr . fromIntegral, (>= 1) . fromIntegral, (<= maxDbSize + 1) . fromIntegral]
         heading = (<=>) (padBottom (Pad 3) $ withAttr headerAttr $ txt "Select the number of the replay to watch: ")

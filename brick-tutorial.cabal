@@ -41,6 +41,8 @@ library
                       brick,
                       bytestring,
                       containers,
+                      io-streams,
+                      io-streams-haproxy,
                       linear,
                       microlens,
                       microlens-mtl,
