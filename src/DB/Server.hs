@@ -39,6 +39,7 @@ import Logging.Replay (Seed, initState, runReplayG)
 import Network.Socket
 import Network.Socket.ByteString.Lazy
 import System.IO (IOMode (..), hFlush, openFile)
+import qualified System.IO.Streams as S
 import System.IO.Streams.Network.HAProxy
 import System.Random (mkStdGen)
 import UI.Types
@@ -112,12 +113,10 @@ application sock = do
     awaitConnection state threadPool dbConn messageChan =
       do
         (s, a) <- accept sock
-        a' <- behindHAProxy s a (\info _ _ -> pure (getSourceAddr info))
-        -- let be = getBackend s
-        -- pars = defaultParamsServer
-        -- ctx <- contextNew be pars
+        -- inp <- S.nullInput
+        -- a' <- flip decodeHAProxyHeaders inp =<< socketToProxyInfo s a
         -- handshake ctx
-        textWriteTChan messageChan $ "Accepted connection from " ++ show a'
+        textWriteTChan messageChan $ "Accepted connection from " ++ show a
         -- sendAll s "Connected\n"
         concurrently_ (handleAppConnection state dbConn threadPool (TCPConn s) messageChan) (awaitConnection state threadPool dbConn messageChan)
 

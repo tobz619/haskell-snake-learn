@@ -34,6 +34,7 @@ import Text.Read (readMaybe)
 import Data.Maybe (fromMaybe)
 import DB.Server (handleEventList)
 import DB.Types (EventListMessage, ReplayData (ReplayData))
+import System.IO
 
 
 runReplayApp :: StdGen -> InputList -> MVar Float -> IO ()
@@ -65,6 +66,7 @@ replayEventHandler (VtyEvent (V.EvKey (V.KChar 'p') [])) _ _ = do
   --   Playing w -> stepGameState gs
 
 replayEventHandler (VtyEvent (V.EvKey (V.KChar 'c') [V.MCtrl])) _ _ = halt
+replayEventHandler (VtyEvent (V.EvKey (V.KChar 'q') [])) _ _ = halt
 replayEventHandler (VtyEvent (V.EvKey k [V.MCtrl])) _ _ = do
   case k of
     V.KLeft -> modify prevCheckPoint
