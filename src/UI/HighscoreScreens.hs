@@ -41,7 +41,7 @@ import Control.Monad.IO.Class (MonadIO(liftIO))
 import Data.List (foldl')
 import Control.Monad (when)
 import Control.Concurrent.Async
-import DB.Client (runGetReplayData)
+import DB.Client (recvReplayData)
 
 data HSPageName = ScoreTable | HSDialogNum Int | ReplayIndex | InvalidIndex
   deriving (Show, Eq, Ord)
@@ -166,8 +166,9 @@ handleViewReplayForm (VtyEvent (V.EvKey V.KEnter [])) = do
       mbScoreField = scores !? (fromIntegral index - 1)
   if isJust (getReplay =<< mbScoreField)
     then do
+      let scoreID = getScoreFieldID $ fromJust mbScoreField
       selectReplay .= setFieldValid True ReplayIndex f
-      mbReplay <- liftIO runGetReplayData
+      mbReplay <- liftIO (recvReplayData scoreID)
       suspendAndResume' $ mapM_ (liftIO . replayFromReplayData) mbReplay
       mode .= Page
     else do
