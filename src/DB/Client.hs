@@ -6,35 +6,33 @@
 
 module DB.Client where
 
-import Control.Concurrent.Async ( wait, withAsync )
+import Control.Concurrent.Async (wait, withAsync, race)
 -- import Data.Int (Int64)
 
-import Control.Concurrent.STM (STM, TQueue, atomically, flushTQueue, newTQueueIO, writeTQueue)
+import Control.Concurrent.STM (atomically, flushTQueue, newTQueueIO, writeTQueue)
 import qualified Control.Exception as E
-import DB.Types
 import qualified DB.Authenticate as Auth
-import Data.Bimap (Bimap)
+import DB.Receive
+import DB.Send
+import DB.Types
 import qualified Data.Bimap as BM
-import Data.Binary (encode)
-import Data.Bits (FiniteBits (finiteBitSize))
-import Data.ByteString.Lazy (ByteString)
+import Data.Binary (encode, decode)
 import qualified Data.ByteString.Lazy as B
 import Data.List (scanl')
 import qualified Data.List.NonEmpty as NE
 import Data.Maybe (fromMaybe)
 import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
+import GameLogic (ScoreType)
 import Network.Socket
-import Network.Socket.ByteString.Lazy (sendAll)
 import System.Random (mkStdGen)
 import UI.Types
-    ( SeedType,
-      EventList,
-      GameEvent(..),
-      TickNumber(TickNumber),
-      KeyEvent(MoveLeft, GameEnded, MoveUp, MoveRight, MoveDown, GameStarted) ) 
-import GameLogic (ScoreType)
-
+  ( EventList,
+    GameEvent (..),
+    KeyEvent (MoveDown, MoveLeft, MoveRight, MoveUp),
+    SeedType,
+    TickNumber (TickNumber),
+  )
+import Control.Concurrent (threadDelay)
 
 serverName, serverName' :: HostName
 serverName = "127.0.0.1"
@@ -44,81 +42,20 @@ clientPort, clientPort' :: PortNumber
 clientPort = 34561
 clientPort' = 5000
 
-lenBytes :: Int
-lenBytes = fromIntegral $ finiteBitSize @MsgLenRep 0 `div` 8
+serv :: HostName
+serv = serverName'
 
-keyEvBytesMap :: Bimap KeyEvent ByteString
-keyEvBytesMap =
-  foldr
-    (uncurry BM.insert)
-    BM.empty
-    [ (GameStarted, B.singleton 250),
-      -- (handleFoodEaten, B.pack [249]),
-      (MoveUp, B.singleton 251),
-      (MoveDown, B.singleton 252),
-      (MoveLeft, B.singleton 253),
-      (MoveRight, B.singleton 254),
-      (GameEnded, B.singleton 255)
-    ]
+cli :: PortNumber
+cli = clientPort'
 
-gameEvToMessage :: GameEvent -> BSMessage GameEvent
-gameEvToMessage (GameEvent tn ev) = looked <> tickNoToBytes tn
-  where
-    looked = fromMaybe B.empty (BM.lookup ev keyEvBytesMap)
-    tickNoToBytes (TickNumber tno) = encode tno
-
-sendSeedMessage :: TCPConn -> SeedType -> IO ()
-sendSeedMessage c = sendBSMessage c . seedToMessage
-  where
-    seedToMessage :: SeedType -> SeedMessage
-    seedToMessage = encode
-
-
-sendScoreMessage :: TCPConn -> ScoreType -> IO ()
-sendScoreMessage c = sendBSMessage c . scoreToMessage
-  where
-    scoreToMessage :: ScoreType -> ScoreMessage
-    scoreToMessage = encode
-
-
-sendEventList :: TCPConn -> EventList -> IO ()
-sendEventList c = sendBSMessage c . B.concat . map gameEvToMessage
-
-sendBSMessage :: TCPConn -> BSMessage a -> IO ()
-sendBSMessage tcpConn msg =
-  sendAll (getSocket tcpConn) $
-    encode @MsgLenRep (fromIntegral $ B.length msg) <> msg
-
-queueBSMessage :: a -> (a -> BSMessage a) -> TQueue ByteString -> STM ()
-queueBSMessage v fv = flip writeTQueue (fv v)
-
-sendTextMessage :: TCPConn -> Text.Text -> IO ()
-sendTextMessage tcpConn msg =
-  let txtMessage = B.fromStrict $ Text.encodeUtf8 msg
-   in sendAll (getSocket tcpConn) $
-        encode @MsgLenRep (fromIntegral $ Text.length msg) <> txtMessage
-
-closeConn :: TCPConn -> IO ()
-closeConn conn = gracefulClose (getSocket conn) 500
-
-type NameMessage = BSMessage Name
-
-sendName :: TCPConn -> Name -> IO ()
-sendName c = sendTextMessage c . nameToMessage
-  where
-    nameToMessage = id
-
-sendHello :: TCPConn -> IO ()
-sendHello c = sendBSMessage c Auth.helloMessage
-
-runClientAppSTM :: SeedType -> ScoreType -> Text.Text -> [GameEvent] -> IO ()
+runClientAppSTM :: SeedType -> ScoreType -> Text.Text -> EventList -> IO ()
 runClientAppSTM seed score name evList = withSocketsDo $ do
   q <- newTQueueIO
-  runTCPClient serverName' clientPort' (app q)
+  runTCPClient serv cli (app q)
   where
     app tq c = do
       actions <- atomically $ do
-        writeTQueue tq $ putStrLn $ "Sending hello message"
+        writeTQueue tq $ putStrLn "Sending hello message"
         writeTQueue tq $ sendHello c
         writeTQueue tq $ putStrLn $ "Sending seed: " ++ show (mkStdGen 4)
         writeTQueue tq $ sendScoreMessage c score
@@ -128,6 +65,30 @@ runClientAppSTM seed score name evList = withSocketsDo $ do
         writeTQueue tq $ putStrLn "Closing conn"
         flushTQueue tq
       sequence_ actions
+
+runGetReplayData :: IO (Maybe ReplayData)
+runGetReplayData = withSocketsDo $ do
+  runTCPClient serv cli app
+  where
+    app c = do
+      handleConnection c
+
+    handleConnection conn = E.handle recvHandler $ do
+      initHandshake <- race (threadDelay 2_000_000) (recvTCPData conn id)
+      either 
+        (\_ -> close (getSocket conn) >> E.throwIO (HelloTooSlow conn) >> pure Nothing) 
+        (connHandling conn) 
+        initHandshake
+
+    connHandling conn b
+      | b /= Auth.helloMessage = E.throwIO WrongHello
+      | otherwise = Just <$> (ReplayData <$>
+          recvTCPData conn (decode @Int) <*>
+          recvTCPData conn id)
+
+    recvHandler (HelloTooSlow _) = pure Nothing -- Replace with Error Dialog
+    recvHandler WrongHello = pure Nothing -- Replace with Error Dialog
+    recvHandler e = E.throwIO e
 
 runTCPClient :: HostName -> PortNumber -> (TCPConn -> IO b) -> IO b
 runTCPClient hostName port action = flip withAsync wait $ do
@@ -165,3 +126,4 @@ manyTestClients n = mapM_ (\(v, act) -> act >> print v) $ zip ([1 ..] :: [Int]) 
 -- repTest = do
 --  evs <- newMVar events
 --  runReplayApp (mkStdGen 4) evs
+

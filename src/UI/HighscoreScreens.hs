@@ -36,11 +36,12 @@ import Brick.Forms
 import Data.Word ( Word8 )
 import Data.Char (chr, isNumber)
 import Database.SQLite.Simple (Connection)
-import UI.ReplayPlayer (replayPlayerApp)
+import UI.ReplayPlayer
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import Data.List (foldl')
 import Control.Monad (when)
 import Control.Concurrent.Async
+import DB.Client (runGetReplayData)
 
 data HSPageName = ScoreTable | HSDialogNum Int | ReplayIndex | InvalidIndex
   deriving (Show, Eq, Ord)
@@ -166,8 +167,8 @@ handleViewReplayForm (VtyEvent (V.EvKey V.KEnter [])) = do
   if isJust (getReplay =<< mbScoreField)
     then do
       selectReplay .= setFieldValid True ReplayIndex f
-      mbReplay <- liftIO $ getReplayData c (getScoreFieldID (fromJust mbScoreField))
-      suspendAndResume' . flip withAsync wait $ mapM_ (liftIO . replayPlayerApp) mbReplay
+      mbReplay <- liftIO runGetReplayData
+      suspendAndResume' $ mapM_ (liftIO . replayFromReplayData) mbReplay
       mode .= Page
     else do
       selectReplay .= setFieldValid False ReplayIndex f
