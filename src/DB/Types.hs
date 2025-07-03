@@ -1,5 +1,6 @@
 {-#LANGUAGE GeneralizedNewtypeDeriving, DerivingStrategies #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveAnyClass #-}
 module DB.Types where
 
 import Control.Exception(Exception)
@@ -13,6 +14,11 @@ import qualified Data.IntMap as IMap
 import UI.Types
 import Database.SQLite.Simple
 import GHC.Generics (Generic)
+import Data.Bimap (Bimap)
+import qualified Data.Bimap as BM
+import qualified Data.ByteString.Lazy as B
+import Data.Maybe (fromMaybe)
+import Data.Binary (encode)
 
 type Score = ScoreType
 
@@ -28,8 +34,7 @@ data ScoreField = ScoreField
     getSeed :: Maybe SeedType,
     getReplay :: Maybe EventListMessage
   } deriving Generic
-
-instance FromRow ScoreField where
+    deriving FromRow
 
 instance ToRow ScoreField where
   toRow (ScoreField scoreID name score time Nothing Nothing) =
@@ -64,11 +69,18 @@ data ServerStateError
   = ConnectFailure
   | MaxPlayers
   | UnexpectedClose
+  | WrongHello
   | HelloTooSlow !ClientConnection
   | OversizedMessage !Int
   deriving stock (Show)
+  deriving Exception
 
-instance Exception ServerStateError
+data ClientError 
+  = NoReplayData
+  | DataTimeout
+  deriving stock (Show, Eq)
+  deriving Exception
+
 
 -- | A way to mark which kind of bytestring message can be produced.
 type BSMessage a = ByteString
@@ -81,7 +93,21 @@ type ScoreMessage = BSMessage ScoreType
 
 type EventListMessage = BSMessage EventList
 
+type NameMessage = BSMessage Name
+
 data ReplayData = ReplayData SeedType EventListMessage 
   deriving Generic
 
 instance FromRow ReplayData where
+
+keyEvBytesMap :: Bimap KeyEvent ByteString
+keyEvBytesMap =
+  BM.fromList
+    [ (GameStarted, B.singleton 250),
+      (MoveUp, B.singleton 251),
+      (MoveDown, B.singleton 252),
+      (MoveLeft, B.singleton 253),
+      (MoveRight, B.singleton 254),
+      (GameEnded, B.singleton 255)
+    ]
+

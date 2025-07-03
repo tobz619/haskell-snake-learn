@@ -2,7 +2,6 @@
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeApplications #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
 {-# HLINT ignore "Use section" #-}
@@ -17,46 +16,63 @@ import qualified Control.Exception as E
 import Control.Monad (forever, replicateM_, when)
 import Control.Monad.IO.Class (MonadIO (..))
 import qualified DB.Authenticate as Auth
-import DB.Client
 import DB.Highscores (addScoreWithReplay, openDatabase)
+import DB.Receive
 import DB.Types
-import qualified Data.Bimap as BM
 import Data.Binary
-import Data.Binary.Get
-import qualified Data.ByteString.Lazy as BL
-import qualified Data.ByteString.Lazy.Internal as BL
 import qualified Data.IntMap.Strict as IMap
 import qualified Data.List.NonEmpty as NE
 import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
-import qualified Data.Text.Lazy as TL
-import qualified Data.Text.Lazy.Encoding as TL
 import Data.Time.Clock.POSIX (getPOSIXTime)
 import qualified Database.SQLite.Simple as DB
 import GameLogic (GameState (getWorld), World (..))
-import Logging.Replay (Seed, initState, runReplayG)
+import Logging.Replay (initState, runReplayG)
 import Network.Socket
-import Network.Socket.ByteString.Lazy
 import System.IO (IOMode (..), hFlush, openFile)
-import qualified System.IO.Streams as S
-import System.IO.Streams.Network.HAProxy
-import System.Random (mkStdGen)
 import UI.Types
-  ( EventList,
-    GameEvent (GameEvent),
-    TickNumber (TickNumber),
-    mkEvs,
+  ( mkEvs,
   )
+import DB.Send (sendBSMessage, sendSeedMessage)
 
-port :: PortNumber
-port = 34561
+type ThreadPool = TQueue ()
+
+appPort, viewPort :: PortNumber
+appPort = 34561
+viewPort = 34565
 
 main :: IO ()
 main = do
-  putStrLn $ "Running server on localhost:" <> show port <> " ..."
-  runTCPServer "0.0.0.0" port application
+  appChan <- newTChanIO -- Channel for messages to come back to
+  replayChan <- newTChanIO
+  threadPool <- newTQueueIO -- The threadpool of available slots to use
+  appLog <- openFile "BSLog" WriteMode
+  replayLog <- openFile "Replay-Request-Log" WriteMode
+  putStrLn $ "Running AppServer on localhost:" <> show appPort <> " ..."
+  putStrLn $ "Running DBserver on localhost:" <> show viewPort <> " ..."
+  mapConcurrently_ id
+        [ runTCPServer "0.0.0.0" appPort (leaderboardApp appChan threadPool)
+        , runTCPServer "0.0.0.0" viewPort (replayApp replayChan threadPool)
+        , receive appChan appLog
+        , receive replayChan replayLog
+        ]
 
+   where
+      whileM iob act = do
+       b <- iob
+       when b $ act >> whileM iob act
+
+      receive msgs logFile =
+        forever $
+         whileM
+          (not <$> atomically (isEmptyTChan msgs))
+          ( atomically (readTChan msgs) >>= \msg ->
+              Text.putStrLn msg
+                >> Text.hPutStrLn logFile msg
+                >> hFlush logFile
+                -- >> threadDelay 1_000
+          )
 ---------------------------------------------------
 -- Server stuff
 
@@ -82,45 +98,44 @@ runTCPServer host p app = withSocketsDo $ forever $ do
       listen sock 1024
       pure sock
 
-application :: Socket -> IO ()
-application sock = do
-  messageChan <- newTChanIO -- Channel for messages to come back to
-  threadPool <- newTQueueIO -- The threadpool of available slots to use
+replayApp :: TChan Text -> ThreadPool -> Socket -> IO ()
+replayApp msgChan threadPool sock = do
+  (s,a) <- accept sock
+  textWriteTChan msgChan $ "Accepted query connection from " <> show a
+  
+
+validateHello threadPool messageChan cliConn action = do
+  _ <- atomically $ readTQueue threadPool
+  initHandshake <- race (threadDelay 2_000_000) (recvTCPData cliConn id)   
+  either
+    ( const $
+        textWriteTChan messageChan "Nothing received, closing"
+          >> close (getSocket cliConn)
+    )
+    action
+    initHandshake
+
+
+leaderboardApp :: TChan Text -> ThreadPool -> Socket -> IO ()
+leaderboardApp messageChan threadPool  sock = do
   state <- newTMVarIO newServerState -- The server state being created
   dbConn <- openDatabase "highscores.db" -- The connection to the highscores DB
   atomically <$> replicateM_ maxPlayers $ writeTQueue threadPool () -- Making MAXPLAYERS spaces in the threadPool
-  lf <- openFile "BSLog" WriteMode
 
-  concurrently_ (receive messageChan lf) (awaitConnection state threadPool dbConn messageChan)
+  awaitConnection state dbConn 
   where
-    -- hClose lf
 
-    whileM iob act = do
-      b <- iob
-      when b $ act >> whileM iob act
-
-    receive msgs logFile =
-      forever $
-        whileM
-          (not <$> atomically (isEmptyTChan msgs))
-          ( atomically (readTChan msgs) >>= \msg ->
-              Text.putStrLn msg
-                >> Text.hPutStrLn logFile msg
-                >> hFlush logFile
-                -- >> threadDelay 1_000
-          )
-
-    awaitConnection state threadPool dbConn messageChan =
+    awaitConnection state dbConn =
       do
         (s, a) <- accept sock
         -- inp <- S.nullInput
         -- a' <- flip decodeHAProxyHeaders inp =<< socketToProxyInfo s a
         -- handshake ctx
-        textWriteTChan messageChan $ "Accepted connection from " ++ show a
+        textWriteTChan messageChan $ "Accepted leaderboard connection from " <> show a
         -- sendAll s "Connected\n"
-        concurrently_ (handleAppConnection state dbConn threadPool (TCPConn s) messageChan) (awaitConnection state threadPool dbConn messageChan)
+        concurrently_ (handleAppConnection state dbConn threadPool (TCPConn s) messageChan) (awaitConnection state dbConn)
 
-handleAppConnection :: TMVar ServerState -> DB.Connection -> TQueue () -> ClientConnection -> TChan Text -> IO ()
+handleAppConnection :: TMVar ServerState -> DB.Connection -> ThreadPool -> ClientConnection -> TChan Text -> IO ()
 handleAppConnection state dbConn threadPool cliConn messageChan = E.handle recvHandler $ do
   _ <- atomically $ readTQueue threadPool
   initHandshake <- race (threadDelay 2_000_000) (recvTCPData cliConn id)
@@ -133,12 +148,14 @@ handleAppConnection state dbConn threadPool cliConn messageChan = E.handle recvH
     initHandshake
   where
     recvHandler UnexpectedClose = do
-        textWriteTChan messageChan $ "Unexpected closure - lost connection with: " <> show (getSocket cliConn)
+      textWriteTChan messageChan $ "Unexpected closure - lost connection with: " <> show (getSocket cliConn)
     recvHandler e = E.throwIO e
     connHandling b
       | b /= Auth.helloMessage =
           textWriteTChan messageChan "Incorrect hello, closing"
-      | otherwise = do
+      | otherwise = addClientApp 
+      
+    addClientApp = do
           st <- atomically $ takeTMVar state
           -- textWriteTChan messageChan "Taking app state"
 
@@ -157,7 +174,6 @@ handleAppConnection state dbConn threadPool cliConn messageChan = E.handle recvH
       where
         disconnectMsg conn = do
           textWriteTChan messageChan $ "Disconnecting " <> show conn
-
 
 serverApp :: CIndex -> Int -> DB.Connection -> ClientConnection -> TChan Text -> IO ()
 serverApp cix cliCount dbConn tcpConn messageChan = E.handle recvHandler $ do
@@ -181,7 +197,7 @@ serverApp cix cliCount dbConn tcpConn messageChan = E.handle recvHandler $ do
       s' = (score . getWorld) game
   if s /= s'
     then do
-      textWriteTChan messageChan $ "Mismatched score from clientIndex" <> show cix <>"!"
+      textWriteTChan messageChan $ "Mismatched score from clientIndex" <> show cix <> "!"
       textWriteTChan messageChan $ "Expected score: " <> show s
       textWriteTChan messageChan $ "Actual score: " <> show s'
     else do
@@ -198,30 +214,7 @@ serverApp cix cliCount dbConn tcpConn messageChan = E.handle recvHandler $ do
 textWriteTChan :: TChan Text -> String -> IO ()
 textWriteTChan c = atomically . writeTChan c . Text.pack
 
---- Receiving Functions
 
-recvTCPData :: TCPConn -> (BSMessage b -> b) -> IO b
-recvTCPData tcpConn handler = do
-  lenPrefixBytes <- recvAll tcpConn (fromIntegral lenBytes)
-  let msglen = (fromIntegral . decode @MsgLenRep) lenPrefixBytes
-  when (msglen > (maxBound :: MsgLenRep)) (E.throwIO $ OversizedMessage (fromIntegral msglen))
-  handler <$> recvAll tcpConn msglen
-
-recvAll :: TCPConn -> MsgLenRep -> IO BL.ByteString
-recvAll tcpConn size
-  | size <= 0 = pure BL.empty
-  | otherwise = do
-      bs <- recv (getSocket tcpConn) (fromIntegral size)
-      when (BL.null bs) $ E.throwIO UnexpectedClose
-      let len = BL.length bs
-      if len < fromIntegral size
-        then do
-          let missing = size - fromIntegral len
-          rest <- recvAll tcpConn missing
-          pure $ bs <> rest
-        else pure bs
-
--------
 -- Constants and ServerState functions
 
 maxPlayers :: Int
@@ -251,30 +244,3 @@ disconnect :: CIndex -> TMVar ServerState -> IO ()
 disconnect cix state = atomically $ do
   st <- takeTMVar state
   putTMVar state $ st {clients = removeClient cix (clients st)}
-
-handleEventList :: EventListMessage -> EventList
-handleEventList = go decoder
-  where getGE = do
-          ev <- getWord8
-          t <- getWord16be
-          return (GameEvent (TickNumber t) (keyEvBytesMap BM.!> BL.singleton ev))
-        decoder = runGetIncremental getGE
-        go (Done rest _con ev) inp0 =
-          ev : go decoder (BL.Chunk rest inp0)
-
-        go (Partial k) inp = case inp of
-          BL.Chunk h t -> go (k $ Just h) t
-          BL.Empty -> []
-
-        go (Fail _ _ msg) _ =
-          error msg
-
-
-messageToSeed :: SeedMessage -> Seed
-messageToSeed = mkStdGen . decode
-
-messageToScore :: ScoreMessage -> Score
-messageToScore = decode
-
-messageToName :: NameMessage -> Name
-messageToName = TL.toStrict . TL.decodeUtf8
