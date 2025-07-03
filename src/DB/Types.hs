@@ -1,23 +1,25 @@
-{-#LANGUAGE GeneralizedNewtypeDeriving, DerivingStrategies #-}
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 module DB.Types where
 
-import Control.Exception(Exception)
-import Data.Text(Text)
-import qualified Data.Text as Text
-import Data.ByteString.Lazy(ByteString)
-import Data.Word(Word8, Word16)
-import GameLogic (ScoreType)
-import Network.Socket(Socket)
-import qualified Data.IntMap as IMap
-import UI.Types
-import Database.SQLite.Simple
-import GHC.Generics (Generic)
+import Control.Concurrent.STM.TQueue (TQueue)
+import Control.Exception (Exception)
 import Data.Bimap (Bimap)
 import qualified Data.Bimap as BM
+import Data.ByteString.Lazy (ByteString)
 import qualified Data.ByteString.Lazy as B
-import Control.Concurrent.STM.TQueue (TQueue)
+import qualified Data.IntMap as IMap
+import Data.Text (Text)
+import qualified Data.Text as Text
+import Data.Word (Word16, Word8)
+import Database.SQLite.Simple
+import GHC.Generics (Generic)
+import GameLogic (ScoreType)
+import Network.Socket (Socket)
+import UI.Types
 
 type Score = ScoreType
 
@@ -32,8 +34,9 @@ data ScoreField = ScoreField
     getScoreFieldTime :: !Time,
     getSeed :: Maybe SeedType,
     getReplay :: Maybe EventListMessage
-  } deriving Generic
-    deriving FromRow
+  }
+  deriving (Generic)
+  deriving (FromRow)
 
 instance ToRow ScoreField where
   toRow (ScoreField scoreID name score time Nothing Nothing) =
@@ -72,14 +75,13 @@ data ServerStateError
   | HelloTooSlow !ClientConnection
   | OversizedMessage !Int
   deriving stock (Show)
-  deriving Exception
+  deriving (Exception)
 
-data ClientError 
+data ClientError
   = NoReplayData
   | DataTimeout
   deriving stock (Show, Eq)
-  deriving Exception
-
+  deriving (Exception)
 
 -- | A way to mark which kind of bytestring message can be produced.
 type BSMessage a = ByteString
@@ -94,10 +96,10 @@ type EventListMessage = BSMessage EventList
 
 type NameMessage = BSMessage Name
 
-data ReplayData = ReplayData SeedType EventListMessage 
-  deriving Generic
+data ReplayData = ReplayData SeedType EventListMessage
+  deriving (Generic)
 
-instance FromRow ReplayData where
+instance FromRow ReplayData
 
 keyEvBytesMap :: Bimap KeyEvent ByteString
 keyEvBytesMap =
@@ -111,5 +113,3 @@ keyEvBytesMap =
     ]
 
 type ThreadPool = TQueue ()
-
-
