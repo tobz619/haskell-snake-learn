@@ -45,8 +45,8 @@ main = do
   threadPool <- newTQueueIO -- The threadpool of available slots to use
   appLog <- openFile "BSLog" WriteMode
   replayLog <- openFile "Replay-Request-Log" WriteMode
-  putStrLn $ "Running AppServer on localhost:" <> show appPort <> " ..."
-  putStrLn $ "Running DBserver on localhost:" <> show viewPort <> " ..."
+  putStrLn $ "Running App Server on localhost:" <> show appPort <> " ..."
+  putStrLn $ "Running DB Server on localhost:" <> show viewPort <> " ..."
   mapConcurrently_
     id
     [ runTCPServer "0.0.0.0" appPort (leaderboardApp appChan threadPool),
@@ -134,14 +134,8 @@ leaderboardApp messageChan threadPool sock = do
 
 handleAppConnection :: TMVar ServerState -> DB.Connection -> ThreadPool -> ClientConnection -> TChan Text -> IO ()
 handleAppConnection state dbConn threadPool cliConn messageChan =
-  flip E.finally (atomically $ writeTQueue threadPool ()) $
-    E.handle recvHandler $
       validateHello threadPool messageChan cliConn addClientApp
   where
-    recvHandler UnexpectedClose = do
-      textWriteTChan messageChan $ "Unexpected closure - lost connection with: " <> show (getSocket cliConn)
-    recvHandler e = E.throwIO e
-
     addClientApp _ = do
       st <- atomically $ takeTMVar state
       -- textWriteTChan messageChan "Taking app state"

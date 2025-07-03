@@ -1,10 +1,16 @@
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE NumericUnderscores #-}
+{-# LANGUAGE TypeApplications #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Use section" #-}
 
 module DB.Receive where
 
+import Control.Concurrent (threadDelay)
+import Control.Concurrent.Async
+import Control.Concurrent.STM
 import qualified Control.Exception as E
 import Control.Monad (when)
+import qualified DB.Authenticate as Auth
 import DB.Types
 import qualified Data.Bimap as BM
 import Data.Binary (decode)
@@ -12,20 +18,15 @@ import Data.Binary.Get
 import Data.Bits (finiteBitSize)
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString.Lazy.Internal as BL
+import Data.Text (Text)
+import qualified Data.Text as Text
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Encoding as TL
 import Logging.Replay (Seed)
+import Network.Socket (close)
 import Network.Socket.ByteString.Lazy (recv)
 import System.Random.Stateful (mkStdGen)
 import UI.Types
-import Control.Concurrent.STM.TChan (TChan)
-import Data.Text (Text)
-import Control.Concurrent.STM
-import Control.Concurrent.Async
-import Control.Concurrent (threadDelay)
-import qualified Data.Text as Text
-import Network.Socket (close)
-import qualified DB.Authenticate as Auth
 
 lenBytes :: Int
 lenBytes = fromIntegral $ finiteBitSize @MsgLenRep 0 `div` 8
@@ -84,22 +85,29 @@ textWriteTChan :: TChan Text -> String -> IO ()
 textWriteTChan c = atomically . writeTChan c . Text.pack
 
 messageToScoreID :: BSMessage Int -> Int
-messageToScoreID = decode @Int 
+messageToScoreID = decode @Int
 
-validateHello :: TQueue a -> TChan Text -> TCPConn -> (TCPConn -> IO ()) -> IO ()
-validateHello threadPool messageChan cliConn action = do
-  _ <- atomically $ readTQueue threadPool
-  initHandshake <- race (threadDelay 2_000_000) (recvTCPData cliConn id)
-  either
-    ( const $
-        textWriteTChan messageChan "Nothing received, closing"
-          >> close (getSocket cliConn)
-    )
-    (flip validateHelloBytes action)
-    initHandshake
+validateHello :: ThreadPool -> TChan Text -> TCPConn -> (TCPConn -> IO ()) -> IO ()
+validateHello threadPool messageChan cliConn action = E.handle recvHandler $ 
+  flip E.finally (atomically $ writeTQueue threadPool ()) $ do
+    _ <- atomically $ readTQueue threadPool
+    initHandshake <- race (threadDelay 2_000_000) (recvTCPData cliConn id)
+    either
+      ( const $
+          textWriteTChan messageChan "Nothing received, closing"
+            >> close (getSocket cliConn)
+      )
+      (flip validateHelloBytes action)
+      initHandshake
   where
     validateHelloBytes bytes act
       | bytes /= Auth.helloMessage = do
           textWriteTChan messageChan $ "Wrong hello received from: " <> show (getSocket cliConn)
           E.throwIO WrongHello
       | otherwise = act cliConn
+    
+    recvHandler UnexpectedClose = do
+      textWriteTChan messageChan $ "Unexpected closure - lost connection with: " <> show (getSocket cliConn)
+    recvHandler WrongHello = do
+      textWriteTChan messageChan $ "Wrong Hello received from: " <> show (getSocket cliConn) 
+    recvHandler e = E.throwIO e

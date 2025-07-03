@@ -38,10 +38,12 @@ serverName, serverName' :: HostName
 serverName = "127.0.0.1"
 serverName' = "haskell-server.tobioloke.com"
 
-clientPort, replayPort, clientPort' :: PortNumber
+clientPort, replayPort, clientPort', replayPort' :: PortNumber
 clientPort = 34561
-replayPort = 34565
 clientPort' = 5000
+
+replayPort = 34565
+replayPort' = 5050
 
 serv :: HostName
 serv = serverName'
@@ -69,7 +71,7 @@ runClientAppSTM seed score name evList = withSocketsDo $ do
 
 recvReplayData :: Int -> IO (Maybe ReplayData)
 recvReplayData scoreID = withSocketsDo $ do
-  runTCPClient "127.0.0.1" replayPort app
+  runTCPClient serv replayPort' app
   where
     app c = do
       sendHello c
