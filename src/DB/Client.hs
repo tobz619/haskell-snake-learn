@@ -38,8 +38,9 @@ serverName, serverName' :: HostName
 serverName = "127.0.0.1"
 serverName' = "haskell-server.tobioloke.com"
 
-clientPort, clientPort' :: PortNumber
+clientPort, replayPort, clientPort' :: PortNumber
 clientPort = 34561
+replayPort = 34565
 clientPort' = 5000
 
 serv :: HostName
@@ -66,29 +67,31 @@ runClientAppSTM seed score name evList = withSocketsDo $ do
         flushTQueue tq
       sequence_ actions
 
-runGetReplayData :: IO (Maybe ReplayData)
-runGetReplayData = withSocketsDo $ do
-  runTCPClient serv cli app
+recvReplayData :: Int -> IO (Maybe ReplayData)
+recvReplayData scoreID = withSocketsDo $ do
+  runTCPClient "127.0.0.1" replayPort app
   where
     app c = do
+      sendHello c
+      sendScoreFieldID c scoreID
       handleConnection c
-
-    handleConnection conn = E.handle recvHandler $ do
-      initHandshake <- race (threadDelay 2_000_000) (recvTCPData conn id)
-      either 
-        (\_ -> close (getSocket conn) >> E.throwIO (HelloTooSlow conn) >> pure Nothing) 
-        (connHandling conn) 
-        initHandshake
-
-    connHandling conn b
-      | b /= Auth.helloMessage = E.throwIO WrongHello
-      | otherwise = Just <$> (ReplayData <$>
+    
+    getData conn = Just <$> (ReplayData <$>
           recvTCPData conn (decode @Int) <*>
           recvTCPData conn id)
 
     recvHandler (HelloTooSlow _) = pure Nothing -- Replace with Error Dialog
     recvHandler WrongHello = pure Nothing -- Replace with Error Dialog
     recvHandler e = E.throwIO e
+
+    handleConnection conn = E.handle recvHandler $ do
+      errorOrReplay <- race (threadDelay 5_000_000) (getData conn)
+      either 
+        (\_ -> close (getSocket conn) >> E.throwIO (HelloTooSlow conn) >> pure Nothing) 
+        pure
+        errorOrReplay
+
+
 
 runTCPClient :: HostName -> PortNumber -> (TCPConn -> IO b) -> IO b
 runTCPClient hostName port action = flip withAsync wait $ do

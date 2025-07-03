@@ -8,16 +8,15 @@
 
 module DB.Server where
 
-import Control.Concurrent (threadDelay)
 import Control.Concurrent.Async
 import Control.Concurrent.STM
 import Control.Exception (finally)
 import qualified Control.Exception as E
 import Control.Monad (forever, replicateM_, when)
 import Control.Monad.IO.Class (MonadIO (..))
-import qualified DB.Authenticate as Auth
-import DB.Highscores (addScoreWithReplay, openDatabase)
+import DB.Highscores (addScoreWithReplay, getReplayData, openDatabase)
 import DB.Receive
+import DB.Send (sendReplayData)
 import DB.Types
 import Data.Binary
 import qualified Data.IntMap.Strict as IMap
@@ -34,9 +33,6 @@ import System.IO (IOMode (..), hFlush, openFile)
 import UI.Types
   ( mkEvs,
   )
-import DB.Send (sendBSMessage, sendSeedMessage)
-
-type ThreadPool = TQueue ()
 
 appPort, viewPort :: PortNumber
 appPort = 34561
@@ -51,21 +47,21 @@ main = do
   replayLog <- openFile "Replay-Request-Log" WriteMode
   putStrLn $ "Running AppServer on localhost:" <> show appPort <> " ..."
   putStrLn $ "Running DBserver on localhost:" <> show viewPort <> " ..."
-  mapConcurrently_ id
-        [ runTCPServer "0.0.0.0" appPort (leaderboardApp appChan threadPool)
-        , runTCPServer "0.0.0.0" viewPort (replayApp replayChan threadPool)
-        , receive appChan appLog
-        , receive replayChan replayLog
-        ]
+  mapConcurrently_
+    id
+    [ runTCPServer "0.0.0.0" appPort (leaderboardApp appChan threadPool),
+      runTCPServer "0.0.0.0" viewPort (replayApp replayChan threadPool),
+      receive appChan appLog,
+      receive replayChan replayLog
+    ]
+  where
+    whileM iob act = do
+      b <- iob
+      when b $ act >> whileM iob act
 
-   where
-      whileM iob act = do
-       b <- iob
-       when b $ act >> whileM iob act
-
-      receive msgs logFile =
-        forever $
-         whileM
+    receive msgs logFile =
+      forever $
+        whileM
           (not <$> atomically (isEmptyTChan msgs))
           ( atomically (readTChan msgs) >>= \msg ->
               Text.putStrLn msg
@@ -73,6 +69,7 @@ main = do
                 >> hFlush logFile
                 -- >> threadDelay 1_000
           )
+
 ---------------------------------------------------
 -- Server stuff
 
@@ -100,31 +97,29 @@ runTCPServer host p app = withSocketsDo $ forever $ do
 
 replayApp :: TChan Text -> ThreadPool -> Socket -> IO ()
 replayApp msgChan threadPool sock = do
-  (s,a) <- accept sock
-  textWriteTChan msgChan $ "Accepted query connection from " <> show a
+  dbConn <- openDatabase "highscores.db" -- The connection to the highscores DB
+  awaitConnection dbConn
   
-
-validateHello threadPool messageChan cliConn action = do
-  _ <- atomically $ readTQueue threadPool
-  initHandshake <- race (threadDelay 2_000_000) (recvTCPData cliConn id)   
-  either
-    ( const $
-        textWriteTChan messageChan "Nothing received, closing"
-          >> close (getSocket cliConn)
-    )
-    action
-    initHandshake
-
+  where
+    awaitConnection db = do 
+      (s, a) <- accept sock  
+      textWriteTChan msgChan $ "Accepted query connection from " <> show a
+      concurrently_
+        (validateHello threadPool msgChan (TCPConn s) (sendReplayApp db))
+        (awaitConnection db)
+    
+    sendReplayApp db conn = do
+      scoreID <- recvTCPData conn messageToScoreID
+      replayData <- getReplayData db scoreID
+      maybe (pure ()) (sendReplayData conn) replayData
 
 leaderboardApp :: TChan Text -> ThreadPool -> Socket -> IO ()
-leaderboardApp messageChan threadPool  sock = do
+leaderboardApp messageChan threadPool sock = do
   state <- newTMVarIO newServerState -- The server state being created
   dbConn <- openDatabase "highscores.db" -- The connection to the highscores DB
   atomically <$> replicateM_ maxPlayers $ writeTQueue threadPool () -- Making MAXPLAYERS spaces in the threadPool
-
-  awaitConnection state dbConn 
+  awaitConnection state dbConn
   where
-
     awaitConnection state dbConn =
       do
         (s, a) <- accept sock
@@ -133,44 +128,36 @@ leaderboardApp messageChan threadPool  sock = do
         -- handshake ctx
         textWriteTChan messageChan $ "Accepted leaderboard connection from " <> show a
         -- sendAll s "Connected\n"
-        concurrently_ (handleAppConnection state dbConn threadPool (TCPConn s) messageChan) (awaitConnection state dbConn)
+        concurrently_ 
+          (handleAppConnection state dbConn threadPool (TCPConn s) messageChan) 
+          (awaitConnection state dbConn)
 
 handleAppConnection :: TMVar ServerState -> DB.Connection -> ThreadPool -> ClientConnection -> TChan Text -> IO ()
-handleAppConnection state dbConn threadPool cliConn messageChan = E.handle recvHandler $ do
-  _ <- atomically $ readTQueue threadPool
-  initHandshake <- race (threadDelay 2_000_000) (recvTCPData cliConn id)
-  either
-    ( const $
-        textWriteTChan messageChan "Nothing received, closing"
-          >> close (getSocket cliConn)
-    )
-    connHandling
-    initHandshake
+handleAppConnection state dbConn threadPool cliConn messageChan =
+  flip E.finally (atomically $ writeTQueue threadPool ()) $
+    E.handle recvHandler $
+      validateHello threadPool messageChan cliConn addClientApp
   where
     recvHandler UnexpectedClose = do
       textWriteTChan messageChan $ "Unexpected closure - lost connection with: " <> show (getSocket cliConn)
     recvHandler e = E.throwIO e
-    connHandling b
-      | b /= Auth.helloMessage =
-          textWriteTChan messageChan "Incorrect hello, closing"
-      | otherwise = addClientApp 
-      
-    addClientApp = do
-          st <- atomically $ takeTMVar state
-          -- textWriteTChan messageChan "Taking app state"
 
-          (!cix, !cc) <- case addClient st cliConn of -- Return the index that the player was inserted at
-            Left MaxPlayers -> atomically (putTMVar state st) >> pure (-1, -1) -- figure out what to do if the queue of scores being uploaded is full; ideally create a queue and process asynchronously while not full
-            Right (newSt, ix) -> do
-              atomically $ putTMVar state newSt
-              textWriteTChan messageChan (show newSt <> " Size: " <> show (numClients newSt))
-              ix `seq` clientCount newSt `seq` pure (ix, clientCount newSt)
-            Left _ -> error "Impossible"
+    addClientApp _ = do
+      st <- atomically $ takeTMVar state
+      -- textWriteTChan messageChan "Taking app state"
 
-          if cix < 0
-            then handleAppConnection state dbConn threadPool cliConn messageChan
-            else flip finally (disconnectMsg cliConn >> disconnect cix state >> atomically (writeTQueue threadPool ())) $ do
-              serverApp cix cc dbConn cliConn messageChan
+      (!cix, !cc) <- case addClient st cliConn of -- Return the index that the player was inserted at
+        Left MaxPlayers -> atomically (putTMVar state st) >> pure (-1, -1) -- figure out what to do if the queue of scores being uploaded is full; ideally create a queue and process asynchronously while not full
+        Right (newSt, ix) -> do
+          atomically $ putTMVar state newSt
+          textWriteTChan messageChan (show newSt <> " Size: " <> show (numClients newSt))
+          ix `seq` clientCount newSt `seq` pure (ix, clientCount newSt)
+        Left _ -> error "Impossible"
+
+      if cix < 0
+        then handleAppConnection state dbConn threadPool cliConn messageChan
+        else flip finally (disconnectMsg cliConn >> disconnect cix state) $ do
+          serverApp cix cc dbConn cliConn messageChan
       where
         disconnectMsg conn = do
           textWriteTChan messageChan $ "Disconnecting " <> show conn
@@ -210,10 +197,6 @@ serverApp cix cliCount dbConn tcpConn messageChan = E.handle recvHandler $ do
     recvHandler UnexpectedClose = do
       textWriteTChan messageChan $ "Lost connection with: " <> show (getSocket tcpConn)
     recvHandler e = E.throwIO e
-
-textWriteTChan :: TChan Text -> String -> IO ()
-textWriteTChan c = atomically . writeTChan c . Text.pack
-
 
 -- Constants and ServerState functions
 

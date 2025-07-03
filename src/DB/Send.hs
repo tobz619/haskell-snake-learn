@@ -69,3 +69,7 @@ sendTextMessage tcpConn msg =
 closeConn :: TCPConn -> IO ()
 closeConn conn = gracefulClose (getSocket conn) 500
 
+sendScoreFieldID :: TCPConn -> Int -> IO ()
+sendScoreFieldID c = 
+  sendBSMessage c . encode
+

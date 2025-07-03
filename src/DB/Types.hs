@@ -17,8 +17,7 @@ import GHC.Generics (Generic)
 import Data.Bimap (Bimap)
 import qualified Data.Bimap as BM
 import qualified Data.ByteString.Lazy as B
-import Data.Maybe (fromMaybe)
-import Data.Binary (encode)
+import Control.Concurrent.STM.TQueue (TQueue)
 
 type Score = ScoreType
 
@@ -110,4 +109,7 @@ keyEvBytesMap =
       (MoveRight, B.singleton 254),
       (GameEnded, B.singleton 255)
     ]
+
+type ThreadPool = TQueue ()
+
 
