@@ -5,6 +5,7 @@
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
 {-# HLINT ignore "Use section" #-}
+{-# LANGUAGE TypeApplications #-}
 
 module DB.Server where
 
@@ -14,6 +15,7 @@ import Control.Exception (finally)
 import qualified Control.Exception as E
 import Control.Monad (forever, replicateM_, when)
 import Control.Monad.IO.Class (MonadIO (..))
+import Data.Default.Class
 import DB.Highscores (addScoreWithReplay, getReplayData, openDatabase)
 import DB.Receive
 import DB.Send (sendReplayData)
@@ -33,10 +35,20 @@ import System.IO (IOMode (..), hFlush, openFile)
 import UI.Types
   ( mkEvs,
   )
+import Network.TLS
+import Data.Coerce (coerce)
+import qualified DB.Authenticate as Auth
 
 appPort, viewPort :: PortNumber
 appPort = 34561
 viewPort = 34565
+
+serverContext :: TCPConn -> IO TLSConn
+serverContext (TCPConn c) = do 
+  serverPars <- Auth.serverAuth
+  TLSConn <$>
+    contextNew c serverPars
+
 
 main :: IO ()
 main = do
@@ -102,14 +114,16 @@ replayApp msgChan threadPool sock = do
   
   where
     awaitConnection db = do 
-      (s, a) <- accept sock  
+      (s, a) <- accept sock
+      tlsConn <- serverContext (coerce s)
+      handshake (coerce tlsConn)
       textWriteTChan msgChan $ "Accepted query connection from " <> show a
       concurrently_
-        (validateHello threadPool msgChan (TCPConn s) (sendReplayApp db))
+        (validateHello threadPool msgChan tlsConn (TCPConn s) (sendReplayApp db))
         (awaitConnection db)
     
     sendReplayApp db conn = do
-      scoreID <- recvTCPData conn messageToScoreID
+      scoreID <- recvInfo conn messageToScoreID
       replayData <- getReplayData db scoreID
       maybe (pure ()) (sendReplayData conn) replayData
 
@@ -125,16 +139,17 @@ leaderboardApp messageChan threadPool sock = do
         (s, a) <- accept sock
         -- inp <- S.nullInput
         -- a' <- flip decodeHAProxyHeaders inp =<< socketToProxyInfo s a
-        -- handshake ctx
+        tlsConn <- serverContext (coerce s)
+        handshake (coerce tlsConn)
         textWriteTChan messageChan $ "Accepted leaderboard connection from " <> show a
         -- sendAll s "Connected\n"
         concurrently_ 
-          (handleAppConnection state dbConn threadPool (TCPConn s) messageChan) 
+          (handleAppConnection state dbConn threadPool tlsConn (TCPConn s) messageChan) 
           (awaitConnection state dbConn)
 
-handleAppConnection :: TMVar ServerState -> DB.Connection -> ThreadPool -> ClientConnection -> TChan Text -> IO ()
-handleAppConnection state dbConn threadPool cliConn messageChan =
-      validateHello threadPool messageChan cliConn addClientApp
+handleAppConnection :: TMVar ServerState -> DB.Connection -> ThreadPool -> TLSConn -> ClientConnection -> TChan Text -> IO ()
+handleAppConnection state dbConn threadPool tlsConn cliConn messageChan =
+      validateHello threadPool messageChan tlsConn cliConn addClientApp
   where
     addClientApp _ = do
       st <- atomically $ takeTMVar state
@@ -149,26 +164,26 @@ handleAppConnection state dbConn threadPool cliConn messageChan =
         Left _ -> error "Impossible"
 
       if cix < 0
-        then handleAppConnection state dbConn threadPool cliConn messageChan
+        then handleAppConnection state dbConn threadPool tlsConn cliConn messageChan
         else flip finally (disconnectMsg cliConn >> disconnect cix state) $ do
-          serverApp cix cc dbConn cliConn messageChan
+          serverApp cix cc dbConn tlsConn cliConn messageChan
       where
         disconnectMsg conn = do
           textWriteTChan messageChan $ "Disconnecting " <> show conn
 
-serverApp :: CIndex -> Int -> DB.Connection -> ClientConnection -> TChan Text -> IO ()
-serverApp cix cliCount dbConn tcpConn messageChan = E.handle recvHandler $ do
+serverApp :: CIndex -> Int -> DB.Connection -> TLSConn -> ClientConnection -> TChan Text -> IO ()
+serverApp cix cliCount dbConn tlsConn tcpConn messageChan = E.handle recvHandler $ do
   textWriteTChan messageChan $ replicate 90 '='
   textWriteTChan messageChan $ "Client at index: " <> show cix
-  s <- recvTCPData tcpConn messageToScore
+  s <- recvInfo tlsConn messageToScore
   textWriteTChan messageChan $ "Score of " <> show s <> " received"
-  name <- recvTCPData tcpConn messageToName
+  name <- recvInfo tlsConn messageToName
   textWriteTChan messageChan $ "Name of " <> show (Text.toUpper name) <> " received"
-  seedBytes <- recvTCPData tcpConn id
+  seedBytes <- recvInfo tlsConn id
   let seedValue = decode seedBytes
   let seed = messageToSeed seedBytes
   textWriteTChan messageChan $ "Seed: " <> show seed
-  evListBytes <- recvTCPData tcpConn id
+  evListBytes <- recvInfo tlsConn id
   let evList = mkEvs $ handleEventList evListBytes
   textWriteTChan messageChan $ "evList Length: " <> show (length evList)
   -- textWriteTChan messageChan $ "All events: " <> show evList

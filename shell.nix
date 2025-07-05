@@ -31,6 +31,11 @@ pkgs.mkShell{
     echo "... updating ${pname}.nix ..."
     cabal2nix ${shell-dir} > ${pname}.nix  
   '';
+
+  certificateFiles = [ 
+    "./.certs/snake_server_auth.crt" 
+    "./.certs/snake_server_auth.key"
+  ];
   
   distribution_nixpkgs_datadir = toString ./distribution-nixpkgs;
 }

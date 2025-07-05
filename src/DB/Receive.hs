@@ -16,6 +16,7 @@ import qualified Data.Bimap as BM
 import Data.Binary (decode)
 import Data.Binary.Get
 import Data.Bits (finiteBitSize)
+import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString.Lazy.Internal as BL
 import Data.Text (Text)
@@ -27,11 +28,24 @@ import Network.Socket (close)
 import Network.Socket.ByteString.Lazy (recv)
 import System.Random.Stateful (mkStdGen)
 import UI.Types
+import Network.TLS (recvData, Context, bye)
 
 lenBytes :: Int
 lenBytes = fromIntegral $ finiteBitSize @MsgLenRep 0 `div` 8
 
+class RecvData a where
+  recvInfo :: a -> (BSMessage b -> b) -> IO b
+
+instance RecvData TLSConn where
+  recvInfo = recvTLS
+
+instance RecvData TCPConn where
+  recvInfo = recvTCPData
+
 --- Receiving Functions
+
+recvTLS ::  TLSConn -> (BSMessage a -> a) -> IO a
+recvTLS (TLSConn c) hdlr = hdlr . BS.fromStrict <$> recvData c
 
 recvTCPData :: TCPConn -> (BSMessage b -> b) -> IO b
 recvTCPData tcpConn handler = do
@@ -87,15 +101,15 @@ textWriteTChan c = atomically . writeTChan c . Text.pack
 messageToScoreID :: BSMessage Int -> Int
 messageToScoreID = decode @Int
 
-validateHello :: ThreadPool -> TChan Text -> TCPConn -> (TCPConn -> IO ()) -> IO ()
-validateHello threadPool messageChan cliConn action = E.handle recvHandler $ 
+validateHello :: ThreadPool -> TChan Text -> TLSConn -> TCPConn -> (TLSConn -> IO ()) -> IO ()
+validateHello threadPool messageChan tlsConn cliConn action = E.handle recvHandler $ 
   flip E.finally (atomically $ writeTQueue threadPool ()) $ do
     _ <- atomically $ readTQueue threadPool
-    initHandshake <- race (threadDelay 2_000_000) (recvTCPData cliConn id)
+    initHandshake <- race (threadDelay 2_000_000) (recvTLS tlsConn id)
     either
       ( const $
           textWriteTChan messageChan "Nothing received, closing"
-            >> close (getSocket cliConn)
+            >> bye (getCtx tlsConn)
       )
       (flip validateHelloBytes action)
       initHandshake
@@ -104,7 +118,7 @@ validateHello threadPool messageChan cliConn action = E.handle recvHandler $
       | bytes /= Auth.helloMessage = do
           textWriteTChan messageChan $ "Wrong hello received from: " <> show (getSocket cliConn)
           E.throwIO WrongHello
-      | otherwise = act cliConn
+      | otherwise = act tlsConn
     
     recvHandler UnexpectedClose = do
       textWriteTChan messageChan $ "Unexpected closure - lost connection with: " <> show (getSocket cliConn)
