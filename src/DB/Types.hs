@@ -20,6 +20,7 @@ import GHC.Generics (Generic)
 import GameLogic (ScoreType)
 import Network.Socket (Socket)
 import UI.Types
+import Network.TLS (Context)
 
 type Score = ScoreType
 
@@ -56,6 +57,8 @@ type MsgLenRep = Word16
 newtype TCPConn = TCPConn {getSocket :: Socket}
   deriving newtype (Show)
 
+newtype TLSConn = TLSConn {getCtx :: Context}
+
 data ServerState = ServerState {clientCount :: !Int, clients :: !ClientMap, currentIx :: !CIndex}
   deriving (Show)
 
@@ -72,7 +75,7 @@ data ServerStateError
   | MaxPlayers
   | UnexpectedClose
   | WrongHello
-  | HelloTooSlow !ClientConnection
+  | HelloTooSlow
   | OversizedMessage !Int
   deriving stock (Show)
   deriving (Exception)

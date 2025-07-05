@@ -11,16 +11,13 @@ import Control.Concurrent.Async (wait, withAsync, race)
 
 import Control.Concurrent.STM (atomically, flushTQueue, newTQueueIO, writeTQueue)
 import qualified Control.Exception as E
-import qualified DB.Authenticate as Auth
 import DB.Receive
 import DB.Send
 import DB.Types
-import qualified Data.Bimap as BM
-import Data.Binary (encode, decode)
-import qualified Data.ByteString.Lazy as B
+import Data.Binary (decode)
+import qualified Data.ByteString as BS
 import Data.List (scanl')
 import qualified Data.List.NonEmpty as NE
-import Data.Maybe (fromMaybe)
 import qualified Data.Text as Text
 import GameLogic (ScoreType)
 import Network.Socket
@@ -33,6 +30,12 @@ import UI.Types
     TickNumber (TickNumber),
   )
 import Control.Concurrent (threadDelay)
+import Network.TLS
+import Data.Coerce (coerce)
+import Data.Default
+import qualified DB.Authenticate as Auth
+import Network.TLS.Extra.Cipher (ciphersuite_default)
+import System.X509
 
 serverName, serverName' :: HostName
 serverName = "127.0.0.1"
@@ -50,6 +53,17 @@ serv = serverName'
 
 cli :: PortNumber
 cli = clientPort'
+
+clientContext :: BS.ByteString -> TCPConn ->  IO TLSConn
+clientContext ident (TCPConn c)  = do
+  params <- Auth.clientAuth ident
+  TLSConn <$>
+    contextNew c params
+
+
+clientContextLeaderboard, clientContextQuery :: TCPConn -> IO TLSConn
+clientContextLeaderboard = clientContext "leaderboard"
+clientContextQuery       = clientContext "query"
 
 runClientAppSTM :: SeedType -> ScoreType -> Text.Text -> EventList -> IO ()
 runClientAppSTM seed score name evList = withSocketsDo $ do
@@ -71,25 +85,25 @@ runClientAppSTM seed score name evList = withSocketsDo $ do
 
 recvReplayData :: Int -> IO (Maybe ReplayData)
 recvReplayData scoreID = withSocketsDo $ do
-  runTCPClient serv replayPort' app
+  runTLSClient serv replayPort' app
   where
-    app c = do
-      sendHello c
-      sendScoreFieldID c scoreID
-      handleConnection c
+    app ctx = do
+      sendHello ctx
+      sendScoreFieldID ctx scoreID
+      handleConnection ctx
     
     getData conn = Just <$> (ReplayData <$>
-          recvTCPData conn (decode @Int) <*>
-          recvTCPData conn id)
+          recvInfo conn (decode @Int) <*>
+          recvInfo conn id)
 
-    recvHandler (HelloTooSlow _) = pure Nothing -- Replace with Error Dialog
+    recvHandler HelloTooSlow = pure Nothing -- Replace with Error Dialog
     recvHandler WrongHello = pure Nothing -- Replace with Error Dialog
     recvHandler e = E.throwIO e
 
     handleConnection conn = E.handle recvHandler $ do
       errorOrReplay <- race (threadDelay 5_000_000) (getData conn)
       either 
-        (\_ -> close (getSocket conn) >> E.throwIO (HelloTooSlow conn) >> pure Nothing) 
+        (\_ -> bye (getCtx conn) >> E.throwIO HelloTooSlow >> pure Nothing) 
         pure
         errorOrReplay
 
@@ -113,6 +127,16 @@ runTCPClient hostName port action = flip withAsync wait $ do
         setSocketOption sock Linger 5
         connect sock $ addrAddress addr
         pure $ TCPConn sock
+
+runTLSClient :: HostName -> PortNumber -> (TLSConn -> IO b) -> IO b
+runTLSClient hostName port acts = withSocketsDo $ do
+  runTCPClient hostName port app
+    where app tcpConn = do
+             ctx <- clientContextQuery tcpConn
+             handshake (coerce ctx)
+             acts ctx
+
+
 
 testClient :: IO ()
 testClient =
