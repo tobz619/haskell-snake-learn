@@ -13,16 +13,14 @@ import Control.Concurrent.STM
 import Control.Exception (finally)
 import qualified Control.Exception as E
 import Control.Monad (forever, replicateM_, when)
-import Control.Monad.Except (runExceptT)
 import Control.Monad.IO.Class (MonadIO (..))
 import qualified DB.Authenticate as Auth
 import DB.Highscores (addScoreWithReplay, getReplayData, openDatabase)
 import DB.Receive
-import DB.Send (requestClose, sendReplayData)
+import DB.Send (sendReplayData)
 import DB.Types
 import Data.Binary
 import Data.Coerce (coerce)
-import Data.Default.Class
 import qualified Data.IntMap.Strict as IMap
 import qualified Data.List.NonEmpty as NE
 import Data.Text (Text)
@@ -121,7 +119,7 @@ runTLSApp host p tp msgChan actions = do
   runTCPServer host p app
   where
     app sock = do
-      ~(s, a) <- accept sock
+      !s <- fst <$> accept sock
       concurrently_
         ( do
             -- textWriteTChan msgChan $ "Incoming connection from: " <> show a
@@ -189,9 +187,10 @@ serverApp cix cliCount dbConn tlsConn tcpConn messageChan = E.handle recvHandler
   let seed = messageToSeed seedBytes
   textWriteTChan messageChan $ "Seed: " <> show seed
   evListBytes <- recvInfo tlsConn id
+  -- textWriteTChan messageChan $ "evListBytes: " <> show evListBytes
   let evList = mkEvs $ handleEventList evListBytes
   textWriteTChan messageChan $ "evList Length: " <> show (length evList)
-  textWriteTChan messageChan $ "All events: " <> show evList
+  -- textWriteTChan messageChan $ "All events: " <> show evList
 
   -- Run the game replay
   let !game = runReplayG evList (initState seed)
@@ -215,7 +214,7 @@ serverApp cix cliCount dbConn tlsConn tcpConn messageChan = E.handle recvHandler
 -- Constants and ServerState functions
 
 maxPlayers :: Int
-maxPlayers = 16
+maxPlayers = 64
 
 newServerState :: ServerState
 newServerState = ServerState 0 mempty 0

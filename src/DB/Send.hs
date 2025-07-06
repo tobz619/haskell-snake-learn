@@ -19,6 +19,8 @@ import Network.Socket.ByteString.Lazy (sendAll)
 import Network.TLS
 import UI.Types
 import System.Random (randomIO)
+import Data.Binary.Put
+import qualified Data.ByteString as BS
 
 
 class SendData a where
@@ -64,14 +66,11 @@ sendScoreMessage c = sendBSMessage c . scoreToMessage
     scoreToMessage :: ScoreType -> ScoreMessage
     scoreToMessage = encode
 
-sendEventList :: SendData b => b -> EventList -> IO ()
-sendEventList c = sendBSMessage c . BL.concat . map gameEvToMessage
-  where
-    gameEvToMessage :: GameEvent -> BSMessage GameEvent
-    gameEvToMessage (GameEvent tn ev) = looked <> tickNoToBytes tn
-      where
-        looked = fromMaybe BL.empty (BM.lookup ev keyEvBytesMap)
-        tickNoToBytes (TickNumber tno) = encode tno
+sendEventList :: SendData a => a -> EventList -> IO ()
+sendEventList c evList = sendBSMessage c $ runPut (mapM_ gameEvPutter evList)
+  where gameEvPutter (GameEvent t ev) = do
+          maybe (putLazyByteString BL.empty) putWord8 (BM.lookup ev keyEvBytesMap)
+          putWord16be (fromIntegral t)
 
 sendName :: SendData b => b -> Name -> IO ()
 sendName c = sendTextMessage c . nameToMessage
