@@ -73,7 +73,7 @@ clientAuth ident = do
               def
                 { onCertificateRequest = \_ -> pure $ Just (CertificateChain chain, privKey)
                 },
-            clientSupported = def {supportedCiphers = ciphersuite_default},
+            clientSupported = def {supportedCiphers = ciphersuite_default, supportedVersions = [TLS13]},
             clientUseEarlyData = def
           }
   pure clientParams
@@ -90,6 +90,7 @@ serverAuth = do
           { serverWantClientCert = True,
             serverCACertificates = certs,
             serverShared = shared,
-            serverHooks = hooks
+            serverHooks = hooks,
+            serverSupported = def {supportedCiphers = ciphersuite_default, supportedVersions = [TLS13]}
           }
   pure serverParams

@@ -204,7 +204,7 @@ serverApp cix cliCount dbConn tlsConn tcpConn messageChan = E.handle recvHandler
     else do
       textWriteTChan messageChan "Valid score" -- placeholder
       time <- liftIO (round <$> getPOSIXTime)
-      -- addScoreWithReplay dbConn name s time seedValue evListBytes
+      addScoreWithReplay dbConn name s time seedValue evListBytes
       textWriteTChan messageChan $ "Score of " <> show s <> " by user " <> show cliCount <> " added"
   textWriteTChan messageChan $ replicate 90 '='
   where
