@@ -143,7 +143,7 @@ testClient =
           (scanl' (+) 1 moves)
           [MoveRight, MoveDown, MoveLeft, MoveUp, MoveRight, MoveDown, MoveRight, MoveDown, MoveLeft]
    in do
-        runClientAppSTM 4 4 ("BOB" :: Name) events
+        runClientAppSTM 4 4 ("MALCOLM" :: Name) events
 
 replicateClients :: Int -> IO ()
 replicateClients = flip replicateConcurrently_ testClient
