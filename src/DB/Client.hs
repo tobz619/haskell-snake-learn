@@ -6,21 +6,26 @@
 
 module DB.Client where
 
-import Control.Concurrent.Async (wait, withAsync, race)
 -- import Data.Int (Int64)
 
+import Control.Concurrent (threadDelay)
+import Control.Concurrent.Async (race, replicateConcurrently_, wait, withAsync)
 import Control.Concurrent.STM (atomically, flushTQueue, newTQueueIO, writeTQueue)
 import qualified Control.Exception as E
+import qualified DB.Authenticate as Auth
 import DB.Receive
 import DB.Send
 import DB.Types
 import Data.Binary (decode)
 import qualified Data.ByteString as BS
+import Data.Coerce (coerce)
+import Data.Default
 import Data.List (scanl')
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Text as Text
 import GameLogic (ScoreType)
 import Network.Socket
+import Network.TLS
 import System.Random (mkStdGen)
 import UI.Types
   ( EventList,
@@ -29,13 +34,6 @@ import UI.Types
     SeedType,
     TickNumber (TickNumber),
   )
-import Control.Concurrent (threadDelay)
-import Network.TLS
-import Data.Coerce (coerce)
-import Data.Default
-import qualified DB.Authenticate as Auth
-import Network.TLS.Extra.Cipher (ciphersuite_default)
-import System.X509
 
 serverName, serverName' :: HostName
 serverName = "127.0.0.1"
@@ -44,7 +42,6 @@ serverName' = "haskell-server.tobioloke.com"
 clientPort, replayPort, clientPort', replayPort' :: PortNumber
 clientPort = 34561
 clientPort' = 5000
-
 replayPort = 34565
 replayPort' = 5050
 
@@ -54,21 +51,20 @@ serv = serverName'
 cli :: PortNumber
 cli = clientPort'
 
-clientContext :: BS.ByteString -> TCPConn ->  IO TLSConn
-clientContext ident (TCPConn c)  = do
+clientContext :: BS.ByteString -> TCPConn -> IO TLSConn
+clientContext ident (TCPConn c) = do
   params <- Auth.clientAuth ident
-  TLSConn <$>
-    contextNew c params
-
+  TLSConn
+    <$> contextNew c params
 
 clientContextLeaderboard, clientContextQuery :: TCPConn -> IO TLSConn
 clientContextLeaderboard = clientContext "leaderboard"
-clientContextQuery       = clientContext "query"
+clientContextQuery = clientContext "query"
 
 runClientAppSTM :: SeedType -> ScoreType -> Text.Text -> EventList -> IO ()
 runClientAppSTM seed score name evList = withSocketsDo $ do
   q <- newTQueueIO
-  runTCPClient serv cli (app q)
+  runTLSClient serv cli (app q)
   where
     app tq c = do
       actions <- atomically $ do
@@ -91,10 +87,13 @@ recvReplayData scoreID = withSocketsDo $ do
       sendHello ctx
       sendScoreFieldID ctx scoreID
       handleConnection ctx
-    
-    getData conn = Just <$> (ReplayData <$>
-          recvInfo conn (decode @Int) <*>
-          recvInfo conn id)
+
+    getData conn =
+      Just
+        <$> ( ReplayData
+                <$> recvInfo conn (decode @Int)
+                <*> recvInfo conn id
+            )
 
     recvHandler HelloTooSlow = pure Nothing -- Replace with Error Dialog
     recvHandler WrongHello = pure Nothing -- Replace with Error Dialog
@@ -102,12 +101,10 @@ recvReplayData scoreID = withSocketsDo $ do
 
     handleConnection conn = E.handle recvHandler $ do
       errorOrReplay <- race (threadDelay 5_000_000) (getData conn)
-      either 
-        (\_ -> bye (getCtx conn) >> E.throwIO HelloTooSlow >> pure Nothing) 
+      either
+        (\_ -> E.throwIO HelloTooSlow >> pure Nothing)
         pure
         errorOrReplay
-
-
 
 runTCPClient :: HostName -> PortNumber -> (TCPConn -> IO b) -> IO b
 runTCPClient hostName port action = flip withAsync wait $ do
@@ -131,12 +128,11 @@ runTCPClient hostName port action = flip withAsync wait $ do
 runTLSClient :: HostName -> PortNumber -> (TLSConn -> IO b) -> IO b
 runTLSClient hostName port acts = withSocketsDo $ do
   runTCPClient hostName port app
-    where app tcpConn = do
-             ctx <- clientContextQuery tcpConn
-             handshake (coerce ctx)
-             acts ctx
-
-
+  where
+    app tcpConn = flip E.finally (requestClose tcpConn) $ do
+      ctx <- clientContextQuery tcpConn
+      handshake (coerce ctx)
+      acts ctx
 
 testClient :: IO ()
 testClient =
@@ -149,10 +145,12 @@ testClient =
    in do
         runClientAppSTM 4 4 ("BOB" :: Name) events
 
+replicateClients :: Int -> IO ()
+replicateClients = flip replicateConcurrently_ testClient
+
 manyTestClients :: Int -> IO ()
 manyTestClients n = mapM_ (\(v, act) -> act >> print v) $ zip ([1 ..] :: [Int]) (replicate n testClient)
 
 -- repTest = do
 --  evs <- newMVar events
 --  runReplayApp (mkStdGen 4) evs
-

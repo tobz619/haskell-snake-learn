@@ -38,6 +38,7 @@ generateCheckPoints :: EventList -> ReplayState -> V.Vector ReplayState
 generateCheckPoints es = takeEvery 20 . generateAllStates es
 
 generateAllStates :: EventList -> ReplayState -> V.Vector ReplayState
+generateAllStates [] = V.singleton
 generateAllStates es = V.unfoldr (runReplay (mkInputList es))
 
 

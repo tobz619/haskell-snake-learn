@@ -9,7 +9,6 @@ import qualified DB.Authenticate as Auth
 import DB.Types
 import qualified Data.Bimap as BM
 import Data.Binary (encode)
-import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BL
 import Data.Maybe (fromMaybe)
 import qualified Data.Text as Text
@@ -19,19 +18,23 @@ import Network.Socket (gracefulClose)
 import Network.Socket.ByteString.Lazy (sendAll)
 import Network.TLS
 import UI.Types
+import System.Random (randomIO)
 
 
 class SendData a where
   sendBSMessage :: a -> BSMessage a -> IO () 
   sendTextMessage :: a -> TextMessage a -> IO ()
+  requestClose :: a -> IO ()
 
 instance SendData TCPConn where
   sendBSMessage = sendBSMessageTCP
   sendTextMessage = sendTextMessageTCP
+  requestClose = closeConn
 
 instance SendData TLSConn where
   sendBSMessage = sendBSMessageTLS
   sendTextMessage = sendTextMessageTLS
+  requestClose (TLSConn ctx) = bye ctx >> contextClose ctx
 
 sendBSMessageTLS :: TLSConn -> BSMessage a -> IO ()
 sendBSMessageTLS (TLSConn c) = sendData c
@@ -93,3 +96,8 @@ closeConn conn = gracefulClose (getSocket conn) 500
 sendScoreFieldID :: SendData b => b -> Int -> IO ()
 sendScoreFieldID c =
   sendBSMessage c . encode
+
+sendNonce :: SendData a => a -> IO ()
+sendNonce c = do
+  n <- randomIO @Int
+  sendBSMessage c (encode n)
