@@ -18,7 +18,6 @@ import qualified Data.Bimap as BM
 import Data.Binary (decode)
 import Data.Binary.Get
 import Data.Bits (finiteBitSize)
-import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString.Lazy.Internal as BL
 import Data.Coerce (coerce)
@@ -28,7 +27,7 @@ import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Encoding as TL
 import Logging.Replay (Seed)
 import Network.Socket.ByteString.Lazy (recv)
-import Network.TLS (TLSException (ConnectionNotEstablished, HandshakeFailed), bye, contextClose, handshake, recvData)
+import Network.TLS (TLSException, contextClose, handshake, recvData)
 import System.Random.Stateful (mkStdGen)
 import UI.Types
 import Network.Socket
@@ -79,15 +78,16 @@ handleEventList = go decoder
     getGE = do
       ev <- getWord8
       t <- getWord16be
-      return (GameEvent (TickNumber t) (keyEvBytesMap BM.!> BL.singleton ev))
+      return (GameEvent (TickNumber t) (keyEvBytesMap BM.!> ev))
     decoder = runGetIncremental getGE
-    go (Done rest _con ev) inp0 =
+    go (Done rest _ ev) inp0 =
       ev : go decoder (BL.Chunk rest inp0)
     go (Partial k) inp = case inp of
       BL.Chunk h t -> go (k $ Just h) t
       BL.Empty -> []
     go (Fail _ _ msg) _ =
       error msg
+
 
 messageToSeed :: SeedMessage -> Seed
 messageToSeed = mkStdGen . decode

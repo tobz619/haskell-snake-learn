@@ -104,15 +104,15 @@ data ReplayData = ReplayData SeedType EventListMessage
 
 instance FromRow ReplayData
 
-keyEvBytesMap :: Bimap KeyEvent ByteString
+keyEvBytesMap :: Bimap KeyEvent Word8
 keyEvBytesMap =
   BM.fromList
-    [ (GameStarted, B.singleton 250),
-      (MoveUp, B.singleton 251),
-      (MoveDown, B.singleton 252),
-      (MoveLeft, B.singleton 253),
-      (MoveRight, B.singleton 254),
-      (GameEnded, B.singleton 255)
+    [ (GameStarted, 250),
+      (MoveUp, 251),
+      (MoveDown, 252),
+      (MoveLeft, 253),
+      (MoveRight, 254),
+      (GameEnded, 255)
     ]
 
 type ThreadPool = TQueue ()
