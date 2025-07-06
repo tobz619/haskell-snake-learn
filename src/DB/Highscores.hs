@@ -36,6 +36,11 @@ initQuery =
     \ replay BLOB\
     \);"
 
+nonceInitQuery :: Query
+nonceInitQuery = Query 
+ "CREATE TABLE IF NOT EXISTS"
+
+
 scoreQuery :: Query
 scoreQuery = Query "SELECT id, name, score, time, seed, replay FROM scores ORDER BY score DESC, time DESC LIMIT (?);"
 

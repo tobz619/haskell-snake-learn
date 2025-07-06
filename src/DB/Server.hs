@@ -2,10 +2,9 @@
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
-
 {-# HLINT ignore "Use section" #-}
 {-# LANGUAGE TypeApplications #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
 module DB.Server where
 
@@ -14,13 +13,16 @@ import Control.Concurrent.STM
 import Control.Exception (finally)
 import qualified Control.Exception as E
 import Control.Monad (forever, replicateM_, when)
+import Control.Monad.Except (runExceptT)
 import Control.Monad.IO.Class (MonadIO (..))
-import Data.Default.Class
+import qualified DB.Authenticate as Auth
 import DB.Highscores (addScoreWithReplay, getReplayData, openDatabase)
 import DB.Receive
-import DB.Send (sendReplayData)
+import DB.Send (requestClose, sendReplayData)
 import DB.Types
 import Data.Binary
+import Data.Coerce (coerce)
+import Data.Default.Class
 import qualified Data.IntMap.Strict as IMap
 import qualified Data.List.NonEmpty as NE
 import Data.Text (Text)
@@ -31,38 +33,39 @@ import qualified Database.SQLite.Simple as DB
 import GameLogic (GameState (getWorld), World (..))
 import Logging.Replay (initState, runReplayG)
 import Network.Socket
+import Network.TLS
 import System.IO (IOMode (..), hFlush, openFile)
 import UI.Types
-  ( mkEvs,
+  ( SeedType,
+    mkEvs,
   )
-import Network.TLS
-import Data.Coerce (coerce)
-import qualified DB.Authenticate as Auth
 
-appPort, viewPort :: PortNumber
+appPort, replayPort :: PortNumber
 appPort = 34561
-viewPort = 34565
+replayPort = 34565
 
 serverContext :: TCPConn -> IO TLSConn
-serverContext (TCPConn c) = do 
+serverContext (TCPConn c) = do
   serverPars <- Auth.serverAuth
-  TLSConn <$>
-    contextNew c serverPars
-
+  TLSConn
+    <$> contextNew c serverPars
 
 main :: IO ()
 main = do
   appChan <- newTChanIO -- Channel for messages to come back to
   replayChan <- newTChanIO
   threadPool <- newTQueueIO -- The threadpool of available slots to use
+  atomically <$> replicateM_ maxPlayers $ writeTQueue threadPool () -- Making MAXPLAYERS spaces in the threadPool
+  state <- newTMVarIO newServerState -- The server state being created
+  dbConn <- openDatabase "highscores.db" -- The connection to the highscores DB
   appLog <- openFile "BSLog" WriteMode
   replayLog <- openFile "Replay-Request-Log" WriteMode
   putStrLn $ "Running App Server on localhost:" <> show appPort <> " ..."
-  putStrLn $ "Running DB Server on localhost:" <> show viewPort <> " ..."
+  putStrLn $ "Running DB Server on localhost:" <> show replayPort <> " ..."
   mapConcurrently_
     id
-    [ runTCPServer "0.0.0.0" appPort (leaderboardApp appChan threadPool),
-      runTCPServer "0.0.0.0" viewPort (replayApp replayChan threadPool),
+    [ runTLSApp "0.0.0.0" appPort threadPool appChan (leaderboardApp state dbConn appChan),
+      runTLSApp "0.0.0.0" replayPort threadPool replayChan (replayApp replayChan),
       receive appChan appLog,
       receive replayChan replayLog
     ]
@@ -85,10 +88,10 @@ main = do
 ---------------------------------------------------
 -- Server stuff
 
-runTCPServer :: String -> PortNumber -> (Socket -> IO a) -> IO a
+runTCPServer :: HostName -> PortNumber -> (Socket -> IO a) -> IO a
 runTCPServer host p app = withSocketsDo $ forever $ do
   addr <- resolve
-  E.bracketOnError (open addr) close app
+  E.bracket (open addr) close app
   where
     resolve = do
       let hints =
@@ -98,78 +101,80 @@ runTCPServer host p app = withSocketsDo $ forever $ do
               }
       NE.head <$> getAddrInfo (Just hints) (Just host) (Just (show p))
 
-    open addr = do
-      sock <- openSocket addr
+    open address = do
+      sock <- openSocket address
       setSocketOption sock ReuseAddr 1
-      setSocketOption sock UserTimeout 7_000_000
+      setSocketOption sock UserTimeout 10_000_000
       withFdSocket sock setCloseOnExecIfNeeded
-      bind sock $ addrAddress addr
+      bind sock $ addrAddress address
       listen sock 1024
       pure sock
 
-replayApp :: TChan Text -> ThreadPool -> Socket -> IO ()
-replayApp msgChan threadPool sock = do
-  dbConn <- openDatabase "highscores.db" -- The connection to the highscores DB
-  awaitConnection dbConn
-  
+runTLSApp ::
+  HostName ->
+  PortNumber ->
+  ThreadPool ->
+  TChan Text ->
+  (TCPConn -> TLSConn -> IO ()) ->
+  IO ()
+runTLSApp host p tp msgChan actions = do
+  runTCPServer host p app
   where
-    awaitConnection db = do 
-      (s, a) <- accept sock
-      tlsConn <- serverContext (coerce s)
-      handshake (coerce tlsConn)
-      textWriteTChan msgChan $ "Accepted query connection from " <> show a
+    app sock = do
+      ~(s, a) <- accept sock
       concurrently_
-        (validateHello threadPool msgChan tlsConn (TCPConn s) (sendReplayApp db))
-        (awaitConnection db)
-    
-    sendReplayApp db conn = do
-      scoreID <- recvInfo conn messageToScoreID
-      replayData <- getReplayData db scoreID
-      maybe (pure ()) (sendReplayData conn) replayData
+        ( do
+            -- textWriteTChan msgChan $ "Incoming connection from: " <> show a
+            !ctx <- serverContext (coerce s)
+            let !cliConn = TCPConn s
+            validateHello tp msgChan ctx cliConn $ actions cliConn ctx
+        )
+        (app sock)
 
-leaderboardApp :: TChan Text -> ThreadPool -> Socket -> IO ()
-leaderboardApp messageChan threadPool sock = do
-  state <- newTMVarIO newServerState -- The server state being created
+replayApp :: TChan Text -> TCPConn -> TLSConn -> IO ()
+replayApp msgChan cliConn tlsConn = do
+  sockAddr <- getPeerName $ coerce cliConn
+  textWriteTChan msgChan $ "Accepted replay connection from " <> show sockAddr
   dbConn <- openDatabase "highscores.db" -- The connection to the highscores DB
-  atomically <$> replicateM_ maxPlayers $ writeTQueue threadPool () -- Making MAXPLAYERS spaces in the threadPool
-  awaitConnection state dbConn
+  sendReplayApp dbConn tlsConn
   where
-    awaitConnection state dbConn =
-      do
-        (s, a) <- accept sock
-        -- inp <- S.nullInput
-        -- a' <- flip decodeHAProxyHeaders inp =<< socketToProxyInfo s a
-        tlsConn <- serverContext (coerce s)
-        handshake (coerce tlsConn)
-        textWriteTChan messageChan $ "Accepted leaderboard connection from " <> show a
-        -- sendAll s "Connected\n"
-        concurrently_ 
-          (handleAppConnection state dbConn threadPool tlsConn (TCPConn s) messageChan) 
-          (awaitConnection state dbConn)
+    sendReplayApp db conn = do
+      scoreID <- recvInfo @TLSConn conn messageToScoreID
+      replayData <- getReplayData db scoreID
+      mapM_
+        ( \datum ->
+            textWriteTChan msgChan ("Sending replay of scoreID: " <> show scoreID)
+              >> sendReplayData conn datum
+        )
+        replayData
 
-handleAppConnection :: TMVar ServerState -> DB.Connection -> ThreadPool -> TLSConn -> ClientConnection -> TChan Text -> IO ()
-handleAppConnection state dbConn threadPool tlsConn cliConn messageChan =
-      validateHello threadPool messageChan tlsConn cliConn addClientApp
+leaderboardApp ::
+  TMVar ServerState ->
+  DB.Connection ->
+  TChan Text ->
+  ClientConnection ->
+  TLSConn ->
+  IO ()
+leaderboardApp state dbConn messageChan cliConn tlsConn = do
+  sockAddr <- getPeerName $ coerce cliConn
+  textWriteTChan messageChan $ "Accepted leaderboard connection from " <> show sockAddr
+  st <- atomically $ takeTMVar state
+
+  (!cix, !cc) <- case addClient st cliConn of -- Return the index that the player was inserted at
+    Left MaxPlayers -> atomically (putTMVar state st) >> pure (-1, -1) -- figure out what to do if the queue of scores being uploaded is full; ideally create a queue and process asynchronously while not full
+    Right (newSt, ix) -> do
+      atomically $ putTMVar state newSt
+      textWriteTChan messageChan (show newSt <> " Size: " <> show (numClients newSt))
+      ix `seq` clientCount newSt `seq` pure (ix, clientCount newSt)
+    Left _ -> error "Impossible"
+
+  if cix < 0
+    then leaderboardApp state dbConn messageChan cliConn tlsConn
+    else flip finally (disconnectMsg cliConn >> disconnect cix state) $ do
+      serverApp cix cc dbConn tlsConn cliConn messageChan
   where
-    addClientApp _ = do
-      st <- atomically $ takeTMVar state
-      -- textWriteTChan messageChan "Taking app state"
-
-      (!cix, !cc) <- case addClient st cliConn of -- Return the index that the player was inserted at
-        Left MaxPlayers -> atomically (putTMVar state st) >> pure (-1, -1) -- figure out what to do if the queue of scores being uploaded is full; ideally create a queue and process asynchronously while not full
-        Right (newSt, ix) -> do
-          atomically $ putTMVar state newSt
-          textWriteTChan messageChan (show newSt <> " Size: " <> show (numClients newSt))
-          ix `seq` clientCount newSt `seq` pure (ix, clientCount newSt)
-        Left _ -> error "Impossible"
-
-      if cix < 0
-        then handleAppConnection state dbConn threadPool tlsConn cliConn messageChan
-        else flip finally (disconnectMsg cliConn >> disconnect cix state) $ do
-          serverApp cix cc dbConn tlsConn cliConn messageChan
-      where
-        disconnectMsg conn = do
-          textWriteTChan messageChan $ "Disconnecting " <> show conn
+    disconnectMsg conn = do
+      textWriteTChan messageChan $ "Disconnecting " <> show conn
 
 serverApp :: CIndex -> Int -> DB.Connection -> TLSConn -> ClientConnection -> TChan Text -> IO ()
 serverApp cix cliCount dbConn tlsConn tcpConn messageChan = E.handle recvHandler $ do
@@ -180,26 +185,26 @@ serverApp cix cliCount dbConn tlsConn tcpConn messageChan = E.handle recvHandler
   name <- recvInfo tlsConn messageToName
   textWriteTChan messageChan $ "Name of " <> show (Text.toUpper name) <> " received"
   seedBytes <- recvInfo tlsConn id
-  let seedValue = decode seedBytes
+  let seedValue = decode @SeedType seedBytes
   let seed = messageToSeed seedBytes
   textWriteTChan messageChan $ "Seed: " <> show seed
   evListBytes <- recvInfo tlsConn id
   let evList = mkEvs $ handleEventList evListBytes
   textWriteTChan messageChan $ "evList Length: " <> show (length evList)
-  -- textWriteTChan messageChan $ "All events: " <> show evList
+  textWriteTChan messageChan $ "All events: " <> show evList
 
   -- Run the game replay
   let !game = runReplayG evList (initState seed)
       s' = (score . getWorld) game
   if s /= s'
     then do
-      textWriteTChan messageChan $ "Mismatched score from clientIndex" <> show cix <> "!"
+      textWriteTChan messageChan $ "Mismatched score from clientIndex " <> show cix <> "!"
       textWriteTChan messageChan $ "Expected score: " <> show s
       textWriteTChan messageChan $ "Actual score: " <> show s'
     else do
       textWriteTChan messageChan "Valid score" -- placeholder
       time <- liftIO (round <$> getPOSIXTime)
-      addScoreWithReplay dbConn name s time seedValue evListBytes
+      -- addScoreWithReplay dbConn name s time seedValue evListBytes
       textWriteTChan messageChan $ "Score of " <> show s <> " by user " <> show cliCount <> " added"
   textWriteTChan messageChan $ replicate 90 '='
   where

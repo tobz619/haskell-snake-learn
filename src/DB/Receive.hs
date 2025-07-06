@@ -1,6 +1,7 @@
 {-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE TypeApplications #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+
 {-# HLINT ignore "Use section" #-}
 
 module DB.Receive where
@@ -11,6 +12,7 @@ import Control.Concurrent.STM
 import qualified Control.Exception as E
 import Control.Monad (when)
 import qualified DB.Authenticate as Auth
+import DB.Send
 import DB.Types
 import qualified Data.Bimap as BM
 import Data.Binary (decode)
@@ -19,16 +21,17 @@ import Data.Bits (finiteBitSize)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString.Lazy.Internal as BL
+import Data.Coerce (coerce)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Encoding as TL
 import Logging.Replay (Seed)
-import Network.Socket (close)
 import Network.Socket.ByteString.Lazy (recv)
+import Network.TLS (TLSException (ConnectionNotEstablished, HandshakeFailed), bye, contextClose, handshake, recvData)
 import System.Random.Stateful (mkStdGen)
 import UI.Types
-import Network.TLS (recvData, Context, bye)
+import Network.Socket
 
 lenBytes :: Int
 lenBytes = fromIntegral $ finiteBitSize @MsgLenRep 0 `div` 8
@@ -44,8 +47,8 @@ instance RecvData TCPConn where
 
 --- Receiving Functions
 
-recvTLS ::  TLSConn -> (BSMessage a -> a) -> IO a
-recvTLS (TLSConn c) hdlr = hdlr . BS.fromStrict <$> recvData c
+recvTLS :: TLSConn -> (BSMessage a -> a) -> IO a
+recvTLS (TLSConn c) hdlr = hdlr . BL.fromStrict <$> recvData c
 
 recvTCPData :: TCPConn -> (BSMessage b -> b) -> IO b
 recvTCPData tcpConn handler = do
@@ -101,27 +104,41 @@ textWriteTChan c = atomically . writeTChan c . Text.pack
 messageToScoreID :: BSMessage Int -> Int
 messageToScoreID = decode @Int
 
-validateHello :: ThreadPool -> TChan Text -> TLSConn -> TCPConn -> (TLSConn -> IO ()) -> IO ()
-validateHello threadPool messageChan tlsConn cliConn action = E.handle recvHandler $ 
-  flip E.finally (atomically $ writeTQueue threadPool ()) $ do
-    _ <- atomically $ readTQueue threadPool
-    initHandshake <- race (threadDelay 2_000_000) (recvTLS tlsConn id)
+validateHello :: ThreadPool -> TChan Text -> TLSConn -> TCPConn -> IO () -> IO ()
+validateHello threadPool messageChan tlsConn cliConn action = do
+  E.handle recvHandler $ do
+    initHandshake <- race (threadDelay 5_000_000) (E.handle handshakeHandler $ handshake (coerce tlsConn))
+    -- \^ Make sure the handshake happens within two seconds of connecting.
     either
       ( const $
           textWriteTChan messageChan "Nothing received, closing"
-            >> bye (getCtx tlsConn)
+            >> E.throwIO HelloTooSlow
+            >> requestClose tlsConn
+            -- >> requestClose cliConn
       )
-      (flip validateHelloBytes action)
+      (\_ -> E.handle handshakeHandler $ (recvInfo tlsConn id >>= validateHelloBytes))
       initHandshake
   where
-    validateHelloBytes bytes act
-      | bytes /= Auth.helloMessage = do
-          textWriteTChan messageChan $ "Wrong hello received from: " <> show (getSocket cliConn)
-          E.throwIO WrongHello
-      | otherwise = act tlsConn
-    
+    -- E.handle handshakeHandler $ handshake (coerce tlsConn)
+    -- recvInfo tlsConn id >>= validateHelloBytes
+
+    validateHelloBytes bytes
+      | bytes /= Auth.helloMessage = recvHandler WrongHello
+      | otherwise =
+          E.bracket_
+            (atomically $ readTQueue threadPool) -- Take thread out the pool
+            (atomically $ writeTQueue threadPool ()) -- Put it back when done or even if the computation fails
+            action
+
     recvHandler UnexpectedClose = do
       textWriteTChan messageChan $ "Unexpected closure - lost connection with: " <> show (getSocket cliConn)
     recvHandler WrongHello = do
-      textWriteTChan messageChan $ "Wrong Hello received from: " <> show (getSocket cliConn) 
-    recvHandler e = E.throwIO e
+      textWriteTChan messageChan $ "Wrong Hello received from: " <> show (getSocket cliConn)
+    recvHandler HelloTooSlow = do
+      sockAddr <- getPeerName $ coerce cliConn
+      textWriteTChan messageChan $ "Hello too slow from: " <> show sockAddr
+    recvHandler e = pure ()
+
+    handshakeHandler :: TLSException -> IO ()
+    -- handshakeHandler _ = E.throwIO WrongHello
+    handshakeHandler _ = flip E.finally (contextClose (getCtx tlsConn)) $ recvHandler WrongHello
