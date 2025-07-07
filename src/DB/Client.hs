@@ -119,7 +119,6 @@ runTCPClient hostName port action = flip withAsync wait $ do
       (socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr))
       close
       $ \sock -> do
-        print $ addrAddress addr
         setSocketOption sock NoDelay 1
         setSocketOption sock Linger 5
         connect sock $ addrAddress addr
@@ -132,6 +131,7 @@ runTLSClient hostName port acts = withSocketsDo $ do
     app tcpConn = flip E.finally (requestClose tcpConn) $ do
       ctx <- clientContextQuery tcpConn
       handshake (coerce ctx)
+      -- print =<< getPeerName (coerce tcpConn)
       acts ctx
 
 testClient :: IO ()

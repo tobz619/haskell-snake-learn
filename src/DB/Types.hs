@@ -5,12 +5,10 @@
 
 module DB.Types where
 
-import Control.Concurrent.STM.TQueue (TQueue)
 import Control.Exception (Exception)
 import Data.Bimap (Bimap)
 import qualified Data.Bimap as BM
 import Data.ByteString.Lazy (ByteString)
-import qualified Data.ByteString.Lazy as B
 import qualified Data.IntMap as IMap
 import Data.Text (Text)
 import qualified Data.Text as Text
@@ -21,6 +19,7 @@ import GameLogic (ScoreType)
 import Network.Socket (Socket)
 import UI.Types
 import Network.TLS (Context)
+import Control.Concurrent.STM.TSem (TSem)
 
 type Score = ScoreType
 
@@ -115,4 +114,4 @@ keyEvBytesMap =
       (GameEnded, 255)
     ]
 
-type ThreadPool = TQueue ()
+type ThreadPool = TSem
