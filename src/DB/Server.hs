@@ -37,6 +37,7 @@ import UI.Types
   ( SeedType,
     mkEvs,
   )
+import Control.Concurrent.STM.TSem (newTSem)
 
 appPort, replayPort :: PortNumber
 appPort = 34561
@@ -52,8 +53,8 @@ main :: IO ()
 main = do
   appChan <- newTChanIO -- Channel for messages to come back to
   replayChan <- newTChanIO
-  threadPool <- newTQueueIO -- The threadpool of available slots to use
-  atomically <$> replicateM_ maxPlayers $ writeTQueue threadPool () -- Making MAXPLAYERS spaces in the threadPool
+  threadPool <- atomically $ newTSem (fromIntegral maxPlayers) -- The threadpool of available slots to use
+   -- ^Making MAXPLAYERS spaces in the threadPool
   state <- newTMVarIO newServerState -- The server state being created
   dbConn <- openDatabase "highscores.db" -- The connection to the highscores DB
   appLog <- openFile "BSLog" WriteMode
@@ -214,7 +215,7 @@ serverApp cix cliCount dbConn tlsConn tcpConn messageChan = E.handle recvHandler
 -- Constants and ServerState functions
 
 maxPlayers :: Int
-maxPlayers = 64
+maxPlayers = 16
 
 newServerState :: ServerState
 newServerState = ServerState 0 mempty 0

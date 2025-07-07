@@ -31,6 +31,7 @@ import Network.TLS (TLSException, contextClose, handshake, recvData)
 import System.Random.Stateful (mkStdGen)
 import UI.Types
 import Network.Socket
+import Control.Concurrent.STM.TSem (waitTSem, signalTSem)
 
 lenBytes :: Int
 lenBytes = fromIntegral $ finiteBitSize @MsgLenRep 0 `div` 8
@@ -126,8 +127,8 @@ validateHello threadPool messageChan tlsConn cliConn action = do
       | bytes /= Auth.helloMessage = recvHandler WrongHello
       | otherwise =
           E.bracket_
-            (atomically $ readTQueue threadPool) -- Take thread out the pool
-            (atomically $ writeTQueue threadPool ()) -- Put it back when done or even if the computation fails
+            (atomically $ waitTSem threadPool) -- Take thread out the pool
+            (atomically $ signalTSem threadPool) -- Put it back when done or even if the computation fails
             action
 
     recvHandler UnexpectedClose = do
