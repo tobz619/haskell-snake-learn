@@ -1,14 +1,17 @@
-{ pkgs ? import <unstable> {}
-, shell-dir ? ./. 
+{ 
+ shell-dir ? ./. 
 }:
 
 let
+  pkgs = import <unstable> {}; 
   pname = builtins.baseNameOf (builtins.toString shell-dir);
   haskell-packages = pkgs.haskellPackages;
 
 in
 
 pkgs.mkShell{
+
+  name = "snake-game";
 
   imports =  [ ./brick-tutorial.nix ];
 

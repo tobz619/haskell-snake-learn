@@ -85,7 +85,6 @@ recvReplayData scoreID = withSocketsDo $ do
   where
     app ctx = do
       sendHello ctx
-      sendScoreFieldID ctx scoreID
       handleConnection ctx
 
     getData conn =
@@ -100,7 +99,7 @@ recvReplayData scoreID = withSocketsDo $ do
     recvHandler e = E.throwIO e
 
     handleConnection conn = E.handle recvHandler $ do
-      errorOrReplay <- race (threadDelay 5_000_000) (getData conn)
+      errorOrReplay <- race (threadDelay 5_000_000) (sendScoreFieldID conn scoreID >> getData conn)
       either
         (\_ -> E.throwIO HelloTooSlow >> pure Nothing)
         pure
@@ -109,7 +108,7 @@ recvReplayData scoreID = withSocketsDo $ do
 runTCPClient :: HostName -> PortNumber -> (TCPConn -> IO b) -> IO b
 runTCPClient hostName port action = flip withAsync wait $ do
   addr <- resolve
-  E.bracketOnError (connectClientTCPSocket addr) closeConn action
+  E.bracketOnError (connectClientTCPSocket addr) requestClose action
   where
     resolve = do
       let hints = defaultHints {addrSocketType = Stream}
@@ -131,7 +130,7 @@ runTLSClient hostName port acts = withSocketsDo $ do
     app tcpConn = flip E.finally (requestClose tcpConn) $ do
       ctx <- clientContextQuery tcpConn
       handshake (coerce ctx)
-      -- print =<< getPeerName (coerce tcpConn)
+      print =<< getPeerName (coerce tcpConn)
       acts ctx
 
 testClient :: IO ()
