@@ -17,7 +17,7 @@ import Control.Monad.IO.Class (MonadIO (..))
 import qualified DB.Authenticate as Auth
 import DB.Highscores (addScoreWithReplay, getReplayData, openDatabase)
 import DB.Receive
-import DB.Send (sendReplayData)
+import DB.Send (sendReplayData, SendData (..))
 import DB.Types
 import Data.Binary
 import Data.Coerce (coerce)
@@ -90,7 +90,7 @@ main = do
 runTCPServer :: HostName -> PortNumber -> (Socket -> IO a) -> IO a
 runTCPServer host p app = withSocketsDo $ forever $ do
   addr <- resolve
-  E.bracket (open addr) close app
+  E.bracketOnError (open addr) close app
   where
     resolve = do
       let hints =
@@ -126,7 +126,7 @@ runTLSApp host p tp msgChan actions = do
             -- textWriteTChan msgChan $ "Incoming connection from: " <> show a
             !ctx <- serverContext (coerce s)
             let !cliConn = TCPConn s
-            validateHello tp msgChan ctx cliConn $ actions cliConn ctx
+            flip E.finally (requestClose ctx) $ validateHello tp msgChan ctx cliConn $ actions cliConn ctx
         )
         (app sock)
 

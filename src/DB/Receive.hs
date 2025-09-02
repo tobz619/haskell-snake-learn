@@ -114,7 +114,6 @@ validateHello threadPool messageChan tlsConn cliConn action = do
       ( const $
           textWriteTChan messageChan "Nothing received, closing"
             >> E.throwIO HelloTooSlow
-            >> requestClose tlsConn
             -- >> requestClose cliConn
       )
       (\_ -> E.handle handshakeHandler $ (recvInfo tlsConn id >>= validateHelloBytes))
@@ -124,7 +123,7 @@ validateHello threadPool messageChan tlsConn cliConn action = do
     -- recvInfo tlsConn id >>= validateHelloBytes
 
     validateHelloBytes bytes
-      | bytes /= Auth.helloMessage = recvHandler WrongHello
+      | bytes /= Auth.helloMessage = E.throwIO WrongHello
       | otherwise =
           E.bracket_
             (atomically $ waitTSem threadPool) -- Take thread out the pool
@@ -142,4 +141,4 @@ validateHello threadPool messageChan tlsConn cliConn action = do
 
     handshakeHandler :: TLSException -> IO ()
     -- handshakeHandler _ = E.throwIO WrongHello
-    handshakeHandler _ = flip E.finally (contextClose (getCtx tlsConn)) $ recvHandler WrongHello
+    handshakeHandler _ = E.throwIO WrongHello
