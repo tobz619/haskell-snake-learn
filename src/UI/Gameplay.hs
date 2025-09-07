@@ -9,11 +9,6 @@
 
 module UI.Gameplay where
 
-import Bluefin.Compound (mapHandle, useImplIn)
-import Bluefin.Eff (Eff, runPureEff, (:&), (:>))
-import Bluefin.Reader
-import Bluefin.State (evalState)
-import qualified Bluefin.State as BFS
 import Brick
 import Brick.BChan (newBChan, writeBChan)
 import Brick.Focus (focusRingCursor)
@@ -34,7 +29,6 @@ import Control.Monad.State.Class (MonadState)
 import DB.Highscores as DBHS (addScore, openDatabase, promptAddHighScore, addScoreWithReplay)
 import Data.Maybe (fromMaybe)
 import qualified Data.Text as Text
-import Data.Time.Clock.POSIX (getPOSIXTime)
 import qualified Data.Vector as Vector
 import Data.Word (Word16, Word64)
 import Database.SQLite.Simple (Connection)
@@ -176,7 +170,7 @@ eventHandler ev = do
       liftIO $ hPrint h (gps' ^. gameLog)
 
       conn <- liftIO $ openDatabase "highscores.db"
-      hs <- liftIO $ promptAddHighScore conn (score w)
+      hs <- liftIO $ promptAddHighScore (score w) conn
       if hs
         then do
           gameStateDialog .= Nothing

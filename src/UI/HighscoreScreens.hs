@@ -5,6 +5,7 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeApplications #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
 module UI.HighscoreScreens where
@@ -13,24 +14,20 @@ import Brick
 import qualified Brick.AttrMap as A
 import Brick.Forms
 import Brick.Main as M
-import qualified Brick.Types as T
+import qualified Brick.Widgets.Border as B
 import qualified Brick.Widgets.Center as C
 import Brick.Widgets.Dialog (Dialog)
 import qualified Brick.Widgets.Dialog as D
 import qualified Brick.Widgets.List as L
-import Control.Concurrent.Async
-import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import DB.Client (recvReplayData)
 import DB.Highscores
-  ( getReplayData,
+  ( getScoreSlice,
     getScores,
     maxDbSize,
     openDatabase,
   )
 import DB.Types (ScoreField (..))
-import Data.Char (chr, isNumber)
-import Data.List (foldl', mapAccumL, (!?))
 import Data.Maybe (fromJust, fromMaybe, isJust)
 import Data.Text (Text)
 import qualified Data.Text as Text
@@ -38,14 +35,13 @@ import Data.Time
 import qualified Data.Vector as V
 import Data.Word (Word8)
 import Database.SQLite.Simple (Connection)
+import GHC.Num (Natural)
 import qualified Graphics.Vty as V
 import Lens.Micro ((^.))
 import Lens.Micro.Extras (view)
 import Lens.Micro.Mtl (preview, use, (.=))
 import Lens.Micro.TH (makeLenses)
 import UI.ReplayPlayer
-import Graphics.Vty.Input.Events (Event)
-import qualified Brick.Widgets.Border as B
 
 data HSPageName = ScoreTable | HSDialogNum Int | ReplayIndex | InvalidIndex
   deriving (Show, Eq, Ord)
@@ -61,16 +57,29 @@ newtype ViewReplayForm = ViewReplayForm
   }
   deriving newtype (Show, Read, Num)
 
+data ScorePages = ScorePages
+  { _prevScorePages :: V.Vector ScoreField,
+    _currentScorePage :: L.List HSPageName ScoreField,
+    _nextScorePages :: V.Vector ScoreField
+  }
+
 data HighScoreState e = HighScoreState
   { _conn :: Connection,
-    _highscores :: L.List HSPageName ScoreField,
+    _highscores :: ScorePages,
     _height :: !Int,
-    _selectScore :: ShowAmountStateDialog,
+    _selectAmount :: ShowAmountStateDialog,
     _selectReplay :: Form ViewReplayForm e HSPageName,
     _mode :: Mode
   }
 
-concat <$> mapM makeLenses [''HighScoreState, ''ShowAmountStateDialog, ''ViewReplayForm]
+concat
+  <$> mapM
+    makeLenses
+    [ ''HighScoreState,
+      ''ShowAmountStateDialog,
+      ''ViewReplayForm,
+      ''ScorePages
+    ]
 
 defHeight :: Int
 defHeight = 20
@@ -82,11 +91,10 @@ ui hss = case hss ^. mode of
     where
       formWidget = C.centerLayer $ renderForm (hss ^. selectReplay)
   ShowingAmountStateDialog ->
-    [diaWidget (hss ^. selectScore), scores]
+    [diaWidget (hss ^. selectAmount), scores]
   where
     hei = view height hss
-    scos = view highscores hss
-    -- scores = allTable hei ScoreTable (scoresTable ScoreTable scos)
+    scos = view (highscores . currentScorePage) hss
     scores = allList hei scos
     diaWidget (ShowAmountStateDialog dia) = D.renderDialog dia emptyWidget
 
@@ -101,24 +109,25 @@ renderScoresList = L.renderListWithIndex f
       | sel = withAttr D.buttonAttr $ lister ix s
       | otherwise = lister ix s
     lister ix (ScoreField _ n s d _ rep) =
-        ( \btn ->
-            hBox $ padding <$>
-              [ str (show $ ix + 1),
-                txt n,
-                handleScore s,
-                handleDate d,
-                btn
-              ]
-        )
-          (maybe emptyWidget (const replayButton) rep)
+      ( \btn ->
+          hBox $
+            padding
+              <$> [ hLimit 3 $ strWrap (show $ ix + 1),
+                    hLimit 3 $ txtWrap n,
+                    hLimit 3 $ handleScore s,
+                    hLimit 17 $ handleDate d,
+                    hLimit 5 $ hLimit 5 btn
+                  ]
+      )
+        (maybe (txt "N/A") (const replayButton) rep)
 
-    padding = padLeftRight 2
+    padding = padRight Max
 
-    handleScore = txt . Text.pack . show
+    handleScore = txtWrap . Text.pack . show
 
-    handleDate = txt . formatDbIntToTime
+    handleDate = txtWrap . formatDbIntToTime
 
-    replayButton = withAttr headerAttr $ txt "VIEW"
+    replayButton = withAttr headerAttr $ txtWrap "VIEW"
 
 allList :: (Traversable t, L.Splittable t, Ord n, Show n) => Int -> L.GenericList n t ScoreField -> Widget n
 allList h scoreList =
@@ -147,18 +156,18 @@ handleEventMain (VtyEvent (V.EvKey (V.KChar '/') [])) = do
   mode .= ShowingViewReplayDialog
 handleEventMain (VtyEvent (V.EvKey (V.KChar 'h') [])) = do
   mode .= ShowingAmountStateDialog
-  selectScore .= defShowAmountStateDialog
-handleEventMain (VtyEvent ev) = zoom highscores $ L.handleListEvent ev
+  selectAmount .= defShowAmountStateDialog
+handleEventMain (VtyEvent ev) = zoom (highscores . currentScorePage) $ L.handleListEvent ev
 handleEventMain _ = return ()
 
 handleEventDialog :: BrickEvent HSPageName e -> EventM HSPageName (HighScoreState e) ()
 handleEventDialog (VtyEvent (V.EvKey V.KEnter [])) = do
-  d <- fromMaybe defDialog . preview (selectScore . menuDialog) <$> get
+  d <- fromMaybe defDialog . preview (selectAmount . menuDialog) <$> get
   height .= (maybe defHeight snd . D.dialogSelection $ d)
   mode .= Page
 handleEventDialog (VtyEvent (V.EvKey V.KEsc [])) = do
   mode .= Page
-handleEventDialog (VtyEvent ev) = zoom (selectScore . menuDialog) $ D.handleDialogEvent ev
+handleEventDialog (VtyEvent ev) = zoom (selectAmount . menuDialog) $ D.handleDialogEvent ev
 handleEventDialog _ = return ()
 
 handleViewReplayForm :: BrickEvent HSPageName e -> EventM HSPageName (HighScoreState e) ()
@@ -166,7 +175,7 @@ handleViewReplayForm (VtyEvent (V.EvKey (V.KChar 'q') [])) = mode .= Page
 handleViewReplayForm (VtyEvent (V.EvKey V.KEnter [])) = do
   f <- use selectReplay
   c <- use conn
-  scores <- use (highscores . L.listElementsL)
+  scores <- use (highscores . currentScorePage . L.listElementsL)
   let (ViewReplayForm index) = formState f
       mbScoreField = scores V.!? (fromIntegral index - 1)
   if isJust (getReplay =<< mbScoreField)
@@ -210,6 +219,21 @@ highScoresApp =
       M.appAttrMap = const theMap
     }
 
+refreshScoresOnPage :: Int -> Int -> EventM HSPageName (HighScoreState e) ()
+refreshScoresOnPage pageTop hei = do
+  sp <-
+    ( \ss ->
+        let (prev, rest) = splitAt (2 * hei) ss
+            (now, next) = splitAt hei rest
+         in ScorePages
+              (V.fromList prev)
+              (scoresList now)
+              (V.fromList next)
+      )
+      <$> liftIO (_someRequest pageTop hei)
+  -- TODO: some animation that plays if the current page's list is different to the next
+  highscores .= sp
+
 selectReplayForm :: ViewReplayForm -> Form ViewReplayForm e HSPageName
 selectReplayForm =
   newForm fields
@@ -231,12 +255,11 @@ defDialog =
 defShowAmountStateDialog :: ShowAmountStateDialog
 defShowAmountStateDialog = ShowAmountStateDialog defDialog
 
--- refreshScreen currentIx
-
 highScores :: IO ()
 highScores = do
   db <- openDatabase "highscores.db"
-  scores <- getScores db
+  (now, next) <- splitAt defHeight <$> getScores db
   let initialIndex = ViewReplayForm 1
-  _ <- defaultMain highScoresApp (HighScoreState db (scoresList scores) defHeight defShowAmountStateDialog (selectReplayForm initialIndex) Page)
+      scores = ScorePages V.empty (scoresList now) (V.fromList next)
+  _ <- defaultMain highScoresApp (HighScoreState db scores defHeight defShowAmountStateDialog (selectReplayForm initialIndex) Page)
   return ()
