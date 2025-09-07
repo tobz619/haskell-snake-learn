@@ -139,7 +139,7 @@ replayApp msgChan cliConn tlsConn = do
   where
     sendReplayApp db conn = do
       scoreID <- recvInfo @TLSConn conn messageToScoreID
-      replayData <- getReplayData db scoreID
+      replayData <- getReplayData scoreID db
       mapM_
         ( \datum ->
             textWriteTChan msgChan ("Sending replay of scoreID: " <> show scoreID)
@@ -204,7 +204,7 @@ serverApp cix cliCount dbConn tlsConn tcpConn messageChan = E.handle recvHandler
     else do
       textWriteTChan messageChan "Valid score" -- placeholder
       time <- liftIO (round <$> getPOSIXTime)
-      addScoreWithReplay dbConn name s time seedValue evListBytes
+      addScoreWithReplay name s time seedValue evListBytes dbConn
       textWriteTChan messageChan $ "Score of " <> show s <> " by user " <> show cliCount <> " added"
   textWriteTChan messageChan $ replicate 90 '='
   where

@@ -20,6 +20,8 @@ import Network.Socket (Socket)
 import UI.Types
 import Network.TLS (Context)
 import Control.Concurrent.STM.TSem (TSem)
+import qualified Data.Vector as V
+import qualified Brick.Widgets.List as L
 
 type Score = ScoreType
 
@@ -68,6 +70,7 @@ type ClientMap = IMap.IntMap TCPConn
 type CIndex = Int
 
 type ClientConnection = TCPConn
+
 
 data ServerStateError
   = ConnectFailure

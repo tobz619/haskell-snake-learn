@@ -14,6 +14,7 @@ import Database.SQLite.Simple
 import Data.List (uncons)
 import Data.Maybe (listToMaybe)
 import UI.Types
+import GHC.Natural (Natural)
 
 maxDbSize :: DBSize -- 255
 maxDbSize = maxBound
@@ -38,11 +39,22 @@ initQuery =
 
 nonceInitQuery :: Query
 nonceInitQuery = Query 
- "CREATE TABLE IF NOT EXISTS"
+ "CREATE TABLE IF NOT EXISTS sessions \
+ \id INTEGER PRIMARY KEY"
 
 
 scoreQuery :: Query
 scoreQuery = Query "SELECT id, name, score, time, seed, replay FROM scores ORDER BY score DESC, time DESC LIMIT (?);"
+
+sliceScoreQuery :: Query
+sliceScoreQuery =  Query 
+  "SELECT id, name, score, time, seed, replay FROM scores ORDER BY score DESC, time DESC \
+  \OFFSET (?) ROWS FETCH NEXT (?) "
+
+lowestScoreQuery :: Query
+lowestScoreQuery =  Query 
+  "SELECT id, name, score, time, seed, replay \
+  \ORDER BY score ASC, time ASC LIMIT 1"
 
 addQuery :: Query
 addQuery = Query "INSERT INTO scores (name, score, time) VALUES (?,?,?);"
@@ -51,7 +63,7 @@ addReplayQuery :: Query
 addReplayQuery = Query "INSERT INTO scores (name, score, time, seed, replay) VALUES (?,?,?,?,?);"
 
 pruneQuery :: Query
-pruneQuery = Query "DELETE from scores where id not in SELECT name, score, time FROM scores ORDER BY score DESC, time DESC LIMIT (?);"
+pruneQuery = Query "DELETE from scores WHERE id not in SELECT name, score, time FROM scores ORDER BY score DESC, time DESC LIMIT (?);"
 
 getReplayQuery :: Query
 getReplayQuery =
@@ -59,6 +71,14 @@ getReplayQuery =
 
 getScores :: Connection -> IO [ScoreField]
 getScores conn = query conn scoreQuery (Only maxDbSize)
+
+getLowestScore :: Connection -> IO (Maybe ScoreField)
+getLowestScore conn = do 
+  pruneAfterDbSize maxDbSize conn
+  listToMaybe <$> query_ conn lowestScoreQuery 
+
+getScoreSlice :: Int -> Int -> Connection -> IO [ScoreField]
+getScoreSlice lbIx hei conn = query conn sliceScoreQuery (lbIx - hei, hei) :: IO [ScoreField]
 
 debugPrintScores :: Connection -> IO ()
 debugPrintScores conn = do
@@ -71,46 +91,37 @@ debugPrintScores conn = do
         <> " "
         <> show (d :: Int)
 
-addScore :: Connection -> Name -> Score -> Time -> IO ()
-addScore conn name score time = do
+addScore ::  Name -> Score -> Time -> Connection -> IO ()
+addScore  name score time conn = do
   execute conn addQuery (T.toUpper . T.take 3 $ name, score, time)
 
-addScoreWithReplay :: Connection -> Name -> Score -> Time -> SeedType -> EventListMessage -> IO ()
-addScoreWithReplay conn name score time seed evList = 
+addScoreWithReplay :: Name -> Score -> Time -> SeedType -> EventListMessage -> Connection ->  IO ()
+addScoreWithReplay  name score time seed evList conn = 
   execute conn addReplayQuery (T.toUpper . T.take 3 $ name, score, time, seed, evList)
 
-getReplayData :: Connection -> Int -> IO (Maybe ReplayData)
-getReplayData conn scoreID =
+getReplayData :: Int -> Connection ->  IO (Maybe ReplayData)
+getReplayData scoreID conn =
   listToMaybe <$> query conn getReplayQuery (Only scoreID)
 
-lowestScoreFromScoreList :: [ScoreField] -> Maybe Score
--- ^ Gets the maxDbSize'th score from the array of scores. If there is no score, then we return Nothing.
---    Otherwise, return the score, wrapped in a Just.
-lowestScoreFromScoreList scores =
-  case uncons . NE.drop (fromIntegral maxDbSize - 1) =<< nonEmpty scores of
-    Nothing -> Nothing
-    Just (x,_) -> Just $ getScoreFieldScore x
 
-promptAddHighScore :: Connection -> Score -> IO Bool
-promptAddHighScore conn s = do
-  scores <- getScores conn
-  pure $ maybe (s > 0) (s >) (lowestScoreFromScoreList scores)
+promptAddHighScore ::  Score -> Connection -> IO Bool
+promptAddHighScore s conn = do
+  score <- fmap getScoreFieldScore <$> getLowestScore conn
+  pure $ maybe (s > 0) (s >) score
 
 
-pruneAfterDbSize :: Connection -> Int -> IO ()
-pruneAfterDbSize conn num = 
+pruneAfterDbSize :: DBSize -> Connection -> IO ()
+pruneAfterDbSize num conn = 
   execute conn pruneQuery (Only num)
 
 testDb :: IO ()
 testDb = do
   db <- openDatabase "highscores.db"
-  t <- floor <$> getPOSIXTime
-  addScore db "Timmy" 5 t
-  addScore db "Loser" 10 t
-  addScore db "Richard" 20 t
-  addScore db "Thomas" 30 t
-  addScore db "Henry" 40 t
-  addScore db "Alice" 50 t
-  addScore db "Bamidele" 60 t
-
---   printScores db
+  t <- floor <$> getPOSIXTime 
+  addScore "Timmy" 5 t db
+  addScore "Loser" 10 t db
+  addScore "Richard" 20 t db
+  addScore "Thomas" 30 t db
+  addScore "Henry" 40 t db
+  addScore "Alice" 50 t db
+  addScore "Bamidele" 60 t db

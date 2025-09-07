@@ -72,8 +72,9 @@ canExecute evList (ReplayState _ t1 _ _ (EvNumber ix) _) =
 
 addCheckPoint :: MonadState ReplayState m => InputList -> m ()
 addCheckPoint inList = do
+  let lLength = length inList
   tn <- gets rTickNo
-  when (tn `mod` 50 == 0) 
+  when (tn `mod` (fromIntegral lLength `mod` 10) == 0) -- Ten checkpoints per replay
     (modify $ \r -> r {rCheckPoint = r `V.cons` rCheckPoint r})
 
 
