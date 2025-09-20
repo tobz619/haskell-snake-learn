@@ -67,8 +67,7 @@ recvAll tcpConn size
       if len < fromIntegral size
         then do
           let missing = size - fromIntegral len
-          rest <- recvAll tcpConn missing
-          pure $ bs <> rest
+          (bs <>) <$> recvAll tcpConn missing
         else pure bs
 
 -------

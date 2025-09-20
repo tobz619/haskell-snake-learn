@@ -46,10 +46,10 @@ replayPort = 34565
 replayPort' = 5050
 
 serv :: HostName
-serv = serverName'
+serv = serverName
 
 cli :: PortNumber
-cli = clientPort'
+cli = clientPort
 
 clientContext :: BS.ByteString -> TCPConn -> IO TLSConn
 clientContext ident (TCPConn c) = do
