@@ -1,4 +1,3 @@
-{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -Wno-unused-do-bind #-}
 
@@ -6,15 +5,11 @@ module DB.Highscores where
 
 import DB.Types
 import Data.Foldable (forM_)
-import Data.List.NonEmpty (nonEmpty)
-import qualified Data.List.NonEmpty as NE
+import Data.Maybe (listToMaybe)
 import qualified Data.Text as T
 import Data.Time.Clock.POSIX (getPOSIXTime)
 import Database.SQLite.Simple
-import Data.List (uncons)
-import Data.Maybe (listToMaybe)
 import UI.Types
-import GHC.Natural (Natural)
 
 maxDbSize :: DBSize -- 255
 maxDbSize = maxBound
@@ -38,23 +33,25 @@ initQuery =
     \);"
 
 nonceInitQuery :: Query
-nonceInitQuery = Query 
- "CREATE TABLE IF NOT EXISTS sessions \
- \id INTEGER PRIMARY KEY"
-
+nonceInitQuery =
+  Query
+    "CREATE TABLE IF NOT EXISTS sessions \
+    \id INTEGER PRIMARY KEY"
 
 scoreQuery :: Query
 scoreQuery = Query "SELECT id, name, score, time, seed, replay FROM scores ORDER BY score DESC, time DESC LIMIT (?);"
 
 sliceScoreQuery :: Query
-sliceScoreQuery =  Query 
-  "SELECT id, name, score, time, seed, replay FROM scores ORDER BY score DESC, time DESC \
-  \OFFSET (?) ROWS FETCH NEXT (?) "
+sliceScoreQuery =
+  Query
+    "SELECT id, name, score, time, seed, replay FROM scores ORDER BY score DESC, time DESC \
+    \LIMIT (?) OFFSET (?)"
 
 lowestScoreQuery :: Query
-lowestScoreQuery =  Query 
-  "SELECT id, name, score, time, seed, replay \
-  \ORDER BY score ASC, time ASC LIMIT 1"
+lowestScoreQuery =
+  Query
+    "SELECT id, name, score, time, seed, replay \
+    \ORDER BY score ASC, time ASC LIMIT 1"
 
 addQuery :: Query
 addQuery = Query "INSERT INTO scores (name, score, time) VALUES (?,?,?);"
@@ -73,12 +70,13 @@ getScores :: Connection -> IO [ScoreField]
 getScores conn = query conn scoreQuery (Only maxDbSize)
 
 getLowestScore :: Connection -> IO (Maybe ScoreField)
-getLowestScore conn = do 
+getLowestScore conn = do
   pruneAfterDbSize maxDbSize conn
-  listToMaybe <$> query_ conn lowestScoreQuery 
+  listToMaybe <$> query_ conn lowestScoreQuery
 
-getScoreSlice :: Int -> Int -> Connection -> IO [ScoreField]
-getScoreSlice lbIx hei conn = query conn sliceScoreQuery (lbIx - hei, hei) :: IO [ScoreField]
+getScoreSlice :: PageNumber -> PageHeight -> Connection -> IO [ScoreField]
+getScoreSlice (PageNumber lbIx) (PageHeight hei) conn =
+  query conn sliceScoreQuery (hei, max 0 (lbIx - 2) * hei * 5)
 
 debugPrintScores :: Connection -> IO ()
 debugPrintScores conn = do
@@ -91,33 +89,31 @@ debugPrintScores conn = do
         <> " "
         <> show (d :: Int)
 
-addScore ::  Name -> Score -> Time -> Connection -> IO ()
-addScore  name score time conn = do
+addScore :: Name -> Score -> Time -> Connection -> IO ()
+addScore name score time conn = do
   execute conn addQuery (T.toUpper . T.take 3 $ name, score, time)
 
-addScoreWithReplay :: Name -> Score -> Time -> SeedType -> EventListMessage -> Connection ->  IO ()
-addScoreWithReplay  name score time seed evList conn = 
+addScoreWithReplay :: Name -> Score -> Time -> SeedType -> EventListMessage -> Connection -> IO ()
+addScoreWithReplay name score time seed evList conn =
   execute conn addReplayQuery (T.toUpper . T.take 3 $ name, score, time, seed, evList)
 
-getReplayData :: Int -> Connection ->  IO (Maybe ReplayData)
+getReplayData :: Int -> Connection -> IO (Maybe ReplayData)
 getReplayData scoreID conn =
   listToMaybe <$> query conn getReplayQuery (Only scoreID)
 
-
-promptAddHighScore ::  Score -> Connection -> IO Bool
+promptAddHighScore :: Score -> Connection -> IO Bool
 promptAddHighScore s conn = do
   score <- fmap getScoreFieldScore <$> getLowestScore conn
   pure $ maybe (s > 0) (s >) score
 
-
 pruneAfterDbSize :: DBSize -> Connection -> IO ()
-pruneAfterDbSize num conn = 
+pruneAfterDbSize num conn =
   execute conn pruneQuery (Only num)
 
 testDb :: IO ()
 testDb = do
   db <- openDatabase "highscores.db"
-  t <- floor <$> getPOSIXTime 
+  t <- floor <$> getPOSIXTime
   addScore "Timmy" 5 t db
   addScore "Loser" 10 t db
   addScore "Richard" 20 t db

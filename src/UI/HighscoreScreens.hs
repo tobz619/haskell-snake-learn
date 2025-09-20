@@ -98,8 +98,8 @@ ui hss = case hss ^. mode of
     scores = allList hei scos
     diaWidget (ShowAmountStateDialog dia) = D.renderDialog dia emptyWidget
 
-scoresList :: [ScoreField] -> L.List HSPageName ScoreField
-scoresList scores = L.list ScoreTable (V.fromList scores) 2
+scoresList :: V.Vector ScoreField -> L.List HSPageName ScoreField
+scoresList scores = L.list ScoreTable scores 2
 
 renderScoresList ::
   (Traversable t, L.Splittable t, Ord n, Show n) => Bool -> L.GenericList n t ScoreField -> Widget n
@@ -227,12 +227,19 @@ refreshScoresOnPage pageTop hei = do
             (now, next) = splitAt hei rest
          in ScorePages
               (V.fromList prev)
-              (scoresList now)
+              (scoresList (V.fromList now))
               (V.fromList next)
       )
-      <$> liftIO (_someRequest pageTop hei)
+      <$> liftIO (queryScoreSlice pageTop hei)
   -- TODO: some animation that plays if the current page's list is different to the next
   highscores .= sp
+
+
+queryScoreSlice ix pageSize = 
+  pure undefined
+
+-- firstPageSlice h = (\ss -> 
+--     (( ScorePages V.empty ) <$>)) . getScoreSlice h
 
 selectReplayForm :: ViewReplayForm -> Form ViewReplayForm e HSPageName
 selectReplayForm =
@@ -260,6 +267,6 @@ highScores = do
   db <- openDatabase "highscores.db"
   (now, next) <- splitAt defHeight <$> getScores db
   let initialIndex = ViewReplayForm 1
-      scores = ScorePages V.empty (scoresList now) (V.fromList next)
+      scores = ScorePages V.empty (scoresList (V.fromList now)) (V.fromList next)
   _ <- defaultMain highScoresApp (HighScoreState db scores defHeight defShowAmountStateDialog (selectReplayForm initialIndex) Page)
   return ()
