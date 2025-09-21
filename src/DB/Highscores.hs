@@ -4,6 +4,7 @@
 module DB.Highscores where
 
 import DB.Types
+import qualified Data.ByteString.Lazy as BS
 import Data.Foldable (forM_)
 import Data.Maybe (listToMaybe)
 import qualified Data.Text as T
@@ -67,7 +68,10 @@ getReplayQuery =
   Query "SELECT seed, replay FROM scores WHERE id=(?);"
 
 getScores :: Connection -> IO [ScoreField]
-getScores conn = query conn scoreQuery (Only maxDbSize)
+getScores conn =
+  fmap firstScore <$> query conn scoreQuery (Only maxDbSize)
+  where
+    firstScore sf@(ScoreField _ _ _ _ _ s) = sf {getReplay = BS.take 1 <$> s} -- Only fetch the first byte
 
 getLowestScore :: Connection -> IO (Maybe ScoreField)
 getLowestScore conn = do
@@ -76,7 +80,9 @@ getLowestScore conn = do
 
 getScoreSlice :: PageNumber -> PageHeight -> Connection -> IO [ScoreField]
 getScoreSlice (PageNumber lbIx) (PageHeight hei) conn =
-  query conn sliceScoreQuery (hei, max 0 (lbIx - 2) * hei * 5)
+  fmap firstScore <$> query conn sliceScoreQuery (hei, max 0 (lbIx - 2) * hei * 5)
+  where
+    firstScore sf@(ScoreField _ _ _ _ _ s) = sf {getReplay = BS.take 1 <$> s} -- Only fetch the first byte
 
 debugPrintScores :: Connection -> IO ()
 debugPrintScores conn = do
