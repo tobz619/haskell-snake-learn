@@ -24,8 +24,7 @@ import DB.Client (recvReplayData)
 import DB.Highscores
   ( getScoreSlice,
     getScores,
-    maxDbSize,
-    openDatabase,
+    maxDbSize, dbPath,
   )
 import DB.Types (ScoreField (..))
 import Data.Maybe (fromJust, fromMaybe, isJust)
@@ -34,7 +33,7 @@ import qualified Data.Text as Text
 import Data.Time
 import qualified Data.Vector as V
 import Data.Word (Word8)
-import Database.SQLite.Simple (Connection)
+import Database.SQLite.Simple (Connection, withConnection)
 import GHC.Num (Natural)
 import qualified Graphics.Vty as V
 import Lens.Micro ((^.))
@@ -64,8 +63,7 @@ data ScorePages = ScorePages
   }
 
 data HighScoreState e = HighScoreState
-  { _conn :: Connection,
-    _highscores :: ScorePages,
+  { _highscores :: ScorePages,
     _height :: !Int,
     _selectAmount :: ShowAmountStateDialog,
     _selectReplay :: Form ViewReplayForm e HSPageName,
@@ -174,7 +172,6 @@ handleViewReplayForm :: BrickEvent HSPageName e -> EventM HSPageName (HighScoreS
 handleViewReplayForm (VtyEvent (V.EvKey (V.KChar 'q') [])) = mode .= Page
 handleViewReplayForm (VtyEvent (V.EvKey V.KEnter [])) = do
   f <- use selectReplay
-  c <- use conn
   scores <- use (highscores . currentScorePage . L.listElementsL)
   let (ViewReplayForm index) = formState f
       mbScoreField = scores V.!? (fromIntegral index - 1)
@@ -264,9 +261,8 @@ defShowAmountStateDialog = ShowAmountStateDialog defDialog
 
 highScores :: IO ()
 highScores = do
-  db <- openDatabase "highscores.db"
-  (now, next) <- splitAt defHeight <$> getScores db
+  (now, next) <- splitAt defHeight <$> withConnection dbPath getScores 
   let initialIndex = ViewReplayForm 1
       scores = ScorePages V.empty (scoresList (V.fromList now)) (V.fromList next)
-  _ <- defaultMain highScoresApp (HighScoreState db scores defHeight defShowAmountStateDialog (selectReplayForm initialIndex) Page)
+  _ <- defaultMain highScoresApp (HighScoreState scores defHeight defShowAmountStateDialog (selectReplayForm initialIndex) Page)
   return ()

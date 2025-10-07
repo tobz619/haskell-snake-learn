@@ -15,7 +15,7 @@ import qualified Control.Exception as E
 import Control.Monad (forever, replicateM_, when)
 import Control.Monad.IO.Class (MonadIO (..))
 import qualified DB.Authenticate as Auth
-import DB.Highscores (addScoreWithReplay, getReplayData, openDatabase)
+import DB.Highscores
 import DB.Receive
 import DB.Send (sendReplayData, SendData (..))
 import DB.Servant
@@ -43,12 +43,14 @@ import Control.Concurrent.STM.TSem (newTSem)
 import Servant.Server
 import Network.Wai.Handler.Warp
 import DB.Scotty (dbAPIScotty)
+import Database.SQLite.Simple (withConnection)
 
 appPort, replayPort, leaderBoardPort :: PortNumber
 appPort = 34561
 replayPort = 34565
 leaderBoardPort = 34566
 leaderBoardPort2 = 34567
+
 
 serverContext :: TCPConn -> IO TLSConn
 serverContext (TCPConn c) = do
@@ -63,7 +65,7 @@ main = do
   threadPool <- atomically $ newTSem (fromIntegral maxPlayers) -- The threadpool of available slots to use
    -- ^Making MAXPLAYERS spaces in the threadPool
   state <- newTMVarIO newServerState -- The server state being created
-  dbConn <- openDatabase "highscores.db" -- The connection to the highscores DB
+  -- dbConn <- openDatabase "highscores.db" -- The connection to the highscores DB
   appLog <- openFile "BSLog" WriteMode
   replayLog <- openFile "Replay-Request-Log" WriteMode
   putStrLn $ "Running App Server on port:" <> show appPort <> " ..."
@@ -72,10 +74,10 @@ main = do
   putStrLn $ "Running DB Query Service 2 on port:" <> show leaderBoardPort2 <> " ..."
   mapConcurrently_
     id
-    [ runTLSApp "0.0.0.0" appPort threadPool appChan (leaderboardApp state dbConn appChan),
+    [ withConnection dbPath $ \dbConn -> runTLSApp "0.0.0.0" appPort threadPool appChan (leaderboardApp state dbConn appChan),
       runTLSApp "0.0.0.0" replayPort threadPool replayChan (replayApp replayChan),
-      runHTTPApp leaderBoardPort (runApi dbConn),
-      run leaderBoardPort2 =<< dbAPIScotty dbConn,
+      withConnection dbPath $ \dbConn -> runHTTPApp leaderBoardPort (runApi dbConn),
+      withConnection dbPath $ \dbConn -> run leaderBoardPort2 =<< dbAPIScotty dbConn,
       receive appChan appLog,
       receive replayChan replayLog
     ]
@@ -144,12 +146,25 @@ runTLSApp host p tp msgChan actions = do
         )
         (app sock)
 
+runTCPApp host p actions = do
+  runTCPServer host p app
+  where
+    app sock = do
+      !s <- fst <$> accept sock
+      concurrently_
+        ( do
+
+            let !cliConn = TCPConn s
+            flip E.finally (close s) $ actions cliConn
+        )
+        (app sock)
+
 replayApp :: TChan Text -> TCPConn -> TLSConn -> IO ()
 replayApp msgChan cliConn tlsConn = do
   sockAddr <- getPeerName $ coerce cliConn
   textWriteTChan msgChan $ "Accepted replay connection from " <> show sockAddr
-  dbConn <- openDatabase "highscores.db" -- The connection to the highscores DB
-  sendReplayApp dbConn tlsConn
+  withConnection "highscores.db" -- The connection to the highscores DB
+    $ \dbConn -> sendReplayApp dbConn tlsConn
   where
     sendReplayApp db conn = do
       scoreID <- recvInfo @TLSConn conn messageToScoreID

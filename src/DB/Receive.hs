@@ -108,18 +108,15 @@ validateHello :: ThreadPool -> TChan Text -> TLSConn -> TCPConn -> IO () -> IO (
 validateHello threadPool messageChan tlsConn cliConn action = do
   E.handle recvHandler $ do
     initHandshake <- race (threadDelay 5_000_000) (E.handle handshakeHandler $ handshake (coerce tlsConn))
-    -- \^ Make sure the handshake happens within two seconds of connecting.
+    -- \^ Make sure the handshake happens within seconds of connecting.
     either
       ( const $
           textWriteTChan messageChan "Nothing received, closing"
             >> E.throwIO HelloTooSlow
-            -- >> requestClose cliConn
       )
       (\_ -> E.handle handshakeHandler $ (recvInfo tlsConn id >>= validateHelloBytes))
       initHandshake
   where
-    -- E.handle handshakeHandler $ handshake (coerce tlsConn)
-    -- recvInfo tlsConn id >>= validateHelloBytes
 
     validateHelloBytes bytes
       | bytes /= Auth.helloMessage = E.throwIO WrongHello
@@ -136,7 +133,7 @@ validateHello threadPool messageChan tlsConn cliConn action = do
     recvHandler HelloTooSlow = do
       sockAddr <- getPeerName $ coerce cliConn
       textWriteTChan messageChan $ "Hello too slow from: " <> show sockAddr
-    recvHandler e = pure ()
+    recvHandler _ = pure ()
 
     handshakeHandler :: TLSException -> IO ()
     -- handshakeHandler _ = E.throwIO WrongHello
