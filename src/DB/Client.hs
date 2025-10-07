@@ -91,7 +91,7 @@ runClientAppSTM seed score name evList = withSocketsDo $ do
 
 recvReplayData :: Int -> IO (Maybe ReplayData)
 recvReplayData scoreID = withSocketsDo $ do
-  runTCPClient serv replayPort app
+  runTLSClient serv replayPort app
   where
     app ctx = do
       sendHello ctx
