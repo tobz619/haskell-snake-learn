@@ -15,6 +15,7 @@ import qualified Control.Exception as E
 import qualified DB.Authenticate as Auth
 import DB.Receive
 import DB.Send
+import DB.Server (leaderBoardPort)
 import DB.Types
 import Data.Binary (decode)
 import qualified Data.ByteString as BS
@@ -24,6 +25,7 @@ import Data.List (scanl')
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Text as Text
 import GameLogic (ScoreType)
+import qualified Network.HTTP as HTTP
 import Network.Socket
 import Network.TLS
 import System.Random (mkStdGen)
@@ -39,11 +41,19 @@ serverName, serverName' :: HostName
 serverName = "127.0.0.1"
 serverName' = "haskell-server.tobioloke.com"
 
-clientPort, replayPort, clientPort', replayPort' :: PortNumber
+clientPort,
+  replayPort,
+  clientPort',
+  replayPort',
+  leaderBoardPort,
+  leaderBoardPort' ::
+    PortNumber
 clientPort = 34561
 clientPort' = 5000
 replayPort = 34565
 replayPort' = 5050
+leaderBoardPort = 34566
+leaderBoardPort' = 5051
 
 serv :: HostName
 serv = serverName
@@ -81,7 +91,7 @@ runClientAppSTM seed score name evList = withSocketsDo $ do
 
 recvReplayData :: Int -> IO (Maybe ReplayData)
 recvReplayData scoreID = withSocketsDo $ do
-  runTLSClient serv replayPort' app
+  runTCPClient serv replayPort app
   where
     app ctx = do
       sendHello ctx
@@ -153,3 +163,21 @@ manyTestClients n = mapM_ (\(v, act) -> act >> print v) $ zip ([1 ..] :: [Int]) 
 -- repTest = do
 --  evs <- newMVar events
 --  runReplayApp (mkStdGen 4) evs
+
+leaderBoardRequestQ (PageNumber pix) (PageHeight psize) =
+  HTTP.simpleHTTP
+    ( HTTP.getRequest
+        ( "http://localhost:31466/leaderboardQuery/"
+            ++ show pix
+            ++ "/"
+            ++ show psize
+            ++ "/"
+        )
+    )
+
+leaderBoardRequest pix psize = do
+  res <- leaderBoardRequestQ pix psize
+  rcode <- HTTP.getResponseCode res
+  case rcode of
+    (2,0,0) -> read @[ScoreField] <$> HTTP.getResponseBody res
+    _ -> undefined

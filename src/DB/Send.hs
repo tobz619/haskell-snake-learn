@@ -38,6 +38,7 @@ instance SendData TLSConn where
   sendTextMessage = sendTextMessageTLS
   requestClose (TLSConn ctx) = bye ctx >> contextClose ctx
 
+
 sendBSMessageTLS :: TLSConn -> BSMessage a -> IO ()
 sendBSMessageTLS (TLSConn c) = sendData c
 

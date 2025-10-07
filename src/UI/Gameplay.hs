@@ -26,12 +26,12 @@ import Control.Concurrent (forkIO, threadDelay)
 import Control.Monad (forever, void)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Control.Monad.State.Class (MonadState)
-import DB.Highscores as DBHS (addScore, openDatabase, promptAddHighScore, addScoreWithReplay)
+import DB.Highscores as DBHS (addScore, promptAddHighScore, addScoreWithReplay, dbPath)
 import Data.Maybe (fromMaybe)
 import qualified Data.Text as Text
 import qualified Data.Vector as Vector
 import Data.Word (Word16, Word64)
-import Database.SQLite.Simple (Connection)
+import Database.SQLite.Simple (Connection, withConnection)
 import GameLogic
 import qualified Graphics.Vty as V
 import qualified Graphics.Vty.CrossPlatform as V
@@ -168,15 +168,16 @@ eventHandler ev = do
       h <- liftIO $ openFile "Seed-Events" WriteMode
       liftIO $ hPrint h (gps' ^. gameSeed)
       liftIO $ hPrint h (gps' ^. gameLog)
+      liftIO $ hClose h
 
-      conn <- liftIO $ openDatabase "highscores.db"
-      hs <- liftIO $ promptAddHighScore (score w) conn
+      hs <- liftIO $ withConnection dbPath $ \conn -> promptAddHighScore (score w) conn
       if hs
         then do
           gameStateDialog .= Nothing
           highScoreDialogs .= HighScoreFormState (Just $ highScoreAskDialog w) Nothing
           gameState .= NewHighScorePrompt w
         else gameState .= GameOver w
+
     NewHighScorePrompt w -> do
       seed <- use gameSeed
       evList <- use gameLog

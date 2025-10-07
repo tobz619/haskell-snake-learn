@@ -15,11 +15,12 @@ import UI.Types
 maxDbSize :: DBSize -- 255
 maxDbSize = maxBound
 
-openDatabase :: String -> IO Connection
-openDatabase path = do
-  conn <- open path
-  execute_ conn initQuery
-  pure conn
+dbPath = "/home/tobioloke/brick-tutorial/highscores.db"
+
+openDatabase :: IO Connection
+openDatabase  = do
+  withConnection dbPath $
+    \conn -> execute_ conn initQuery >> pure conn
 
 initQuery :: Query
 initQuery =
@@ -52,7 +53,7 @@ lowestScoreQuery :: Query
 lowestScoreQuery =
   Query
     "SELECT id, name, score, time, seed, replay \
-    \ORDER BY score ASC, time ASC LIMIT 1"
+    \FROM scores ORDER BY score ASC, time ASC LIMIT 1"
 
 addQuery :: Query
 addQuery = Query "INSERT INTO scores (name, score, time) VALUES (?,?,?);"
@@ -61,7 +62,7 @@ addReplayQuery :: Query
 addReplayQuery = Query "INSERT INTO scores (name, score, time, seed, replay) VALUES (?,?,?,?,?);"
 
 pruneQuery :: Query
-pruneQuery = Query "DELETE from scores WHERE id not in SELECT name, score, time FROM scores ORDER BY score DESC, time DESC LIMIT (?);"
+pruneQuery = Query "DELETE from scores WHERE id not in (SELECT id FROM scores ORDER BY score DESC, time DESC LIMIT (?));"
 
 getReplayQuery :: Query
 getReplayQuery =
@@ -118,12 +119,12 @@ pruneAfterDbSize num conn =
 
 testDb :: IO ()
 testDb = do
-  db <- openDatabase "highscores.db"
   t <- floor <$> getPOSIXTime
-  addScore "Timmy" 5 t db
-  addScore "Loser" 10 t db
-  addScore "Richard" 20 t db
-  addScore "Thomas" 30 t db
-  addScore "Henry" 40 t db
-  addScore "Alice" 50 t db
-  addScore "Bamidele" 60 t db
+  withConnection dbPath $ \db -> do
+    addScore "Timmy" 5 t db
+    addScore "Loser" 10 t db
+    addScore "Richard" 20 t db
+    addScore "Thomas" 30 t db
+    addScore "Henry" 40 t db
+    addScore "Alice" 50 t db
+    addScore "Bamidele" 60 t db
