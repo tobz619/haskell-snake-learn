@@ -10,7 +10,7 @@
   in
   {
 
-    devShells.x86_64-linux.default = import ./shell.nix {inherit pkgs;} ;
+    devShells.x86_64-linux.default = import ./shell.nix {inherit pkgs; shell-dir = "brick-tutorial"} ;
 
   };
 }

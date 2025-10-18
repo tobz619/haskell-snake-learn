@@ -21,7 +21,7 @@ import Data.Binary (decode)
 import qualified Data.ByteString as BS
 import Data.Coerce (coerce)
 import Data.Default
-import Data.List (scanl')
+import Data.List (scanl', intercalate)
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Text as Text
 import GameLogic (ScoreType)
@@ -37,6 +37,10 @@ import UI.Types
     TickNumber (TickNumber),
   )
 import qualified Data.ByteString.Char8 as B8
+import qualified Data.Text as T
+import Data.Binary.Put
+import qualified Data.Bimap as BM
+import qualified Data.ByteString.Lazy as BL
 
 serverName, serverName' :: HostName
 serverName = "127.0.0.1"
@@ -188,18 +192,21 @@ postScoreLeaderBoard name score seed evlist = do
   res <- req
   rcode <- HTTP.getResponseCode res
   case rcode of
-    (2,0,0) -> pure ()
-    _ -> error "Failed to upload score"
+    (2,0,_) -> pure ()
+    a -> print a >> error "Failed to upload score"
 
   where req = HTTP.simpleHTTP
               (
                 HTTP.postRequestWithBody
                 (
                   "http://localhost:34566/addScore/"
-                  ++ show name ++ "/"
-                  ++ show score ++ "/"
-                  ++ show seed
+                  ++ intercalate "/" [T.unpack name, show score, show seed]
                 )
                 "application/text"
-                ( show evlist )
+                ( show converted )
               )
+
+        converted = runPut (mapM_ gameEvPutter evlist)
+        gameEvPutter (GameEvent t ev) = do
+                    maybe (putLazyByteString BL.empty) putWord8 (BM.lookup ev keyEvBytesMap)
+                    putWord16be (fromIntegral t)

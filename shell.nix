@@ -1,10 +1,10 @@
 { 
   pkgs
-, shell-dir ? ./. 
+, shell-dir
 }:
 
 let
-  pname = builtins.baseNameOf (builtins.toString shell-dir);
+  pname = shell-dir;
   haskell-packages = pkgs.haskellPackages;
 
 in
