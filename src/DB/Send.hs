@@ -73,7 +73,7 @@ sendEventList c evList = sendBSMessage c $ runPut (mapM_ gameEvPutter evList)
           maybe (putLazyByteString BL.empty) putWord8 (BM.lookup ev keyEvBytesMap)
           putWord16be (fromIntegral t)
 
-sendName :: SendData b => b -> Name -> IO ()
+sendName :: SendData b => b -> NameType -> IO ()
 sendName c = sendTextMessage c . nameToMessage
   where
     nameToMessage = id

@@ -1,9 +1,9 @@
 { 
- shell-dir ? ./. 
+  pkgs
+, shell-dir ? ./. 
 }:
 
 let
-  pkgs = import <unstable> {}; 
   pname = builtins.baseNameOf (builtins.toString shell-dir);
   haskell-packages = pkgs.haskellPackages;
 

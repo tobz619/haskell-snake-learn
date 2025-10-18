@@ -43,8 +43,7 @@ import System.IO
 import System.Random
 import UI.Keybinds (gameplayDispatcher)
 import UI.Types
-import DB.Client (runClientAppSTM)
-import DB.Types (Name)
+import DB.Client (runClientAppSTM, postScoreLeaderBoard)
 
 altConfig :: [a]
 altConfig = []
@@ -201,7 +200,8 @@ handleHighScorePromptEvent (VtyEvent (V.EvKey V.KEnter [])) seed score evList = 
     HighScoreFormState Nothing (Just form) -> do
       let HighScoreForm mC1 mC2 mC3 = F.formState form
           name = maybe Text.empty Text.pack (sequence [mC1, mC2, mC3])
-      liftIO $ runClientAppSTM seed score name evList
+      -- liftIO $ runClientAppSTM seed score name evList
+      liftIO $ postScoreLeaderBoard name score seed evList
       put (HighScoreFormState Nothing Nothing)
     
     _ -> pure ()

@@ -15,7 +15,7 @@ import qualified Control.Exception as E
 import qualified DB.Authenticate as Auth
 import DB.Receive
 import DB.Send
-import DB.Server (leaderBoardPort)
+import DB.Server (httpPort)
 import DB.Types
 import Data.Binary (decode)
 import qualified Data.ByteString as BS
@@ -36,6 +36,7 @@ import UI.Types
     SeedType,
     TickNumber (TickNumber),
   )
+import qualified Data.ByteString.Char8 as B8
 
 serverName, serverName' :: HostName
 serverName = "127.0.0.1"
@@ -48,11 +49,11 @@ clientPort,
   leaderBoardPort,
   leaderBoardPort' ::
     PortNumber
-clientPort = 34561
+clientPort = httpPort
 clientPort' = 5000
 replayPort = 34565
 replayPort' = 5050
-leaderBoardPort = 34566
+leaderBoardPort = httpPort
 leaderBoardPort' = 5051
 
 serv :: HostName
@@ -152,7 +153,7 @@ testClient =
           (scanl' (+) 1 moves)
           [MoveRight, MoveDown, MoveLeft, MoveUp, MoveRight, MoveDown, MoveRight, MoveDown, MoveLeft]
    in do
-        runClientAppSTM 4 4 ("MALCOLM" :: Name) events
+        runClientAppSTM 4 4 ("MALCOLM" :: NameType) events
 
 replicateClients :: Int -> IO ()
 replicateClients = flip replicateConcurrently_ testClient
@@ -164,20 +165,41 @@ manyTestClients n = mapM_ (\(v, act) -> act >> print v) $ zip ([1 ..] :: [Int]) 
 --  evs <- newMVar events
 --  runReplayApp (mkStdGen 4) evs
 
-leaderBoardRequestQ (PageNumber pix) (PageHeight psize) =
-  HTTP.simpleHTTP
-    ( HTTP.getRequest
-        ( "http://localhost:31466/leaderboardQuery/"
-            ++ show pix
-            ++ "/"
-            ++ show psize
-            ++ "/"
-        )
-    )
+leaderBoardRequest :: PageNumber -> PageHeight -> IO [ScoreField]
+leaderBoardRequest (PageNumber pix) (PageHeight psize) =
+  do
+    res <- req
+    rcode <- HTTP.getResponseCode res
+    case rcode of
+      (2,0,0) -> read @[ScoreField] <$> HTTP.getResponseBody res
+      a -> print a >> error "Unable to get scores"
 
-leaderBoardRequest pix psize = do
-  res <- leaderBoardRequestQ pix psize
+  where req = HTTP.simpleHTTP
+                ( HTTP.getRequest
+                    ( "http://localhost:34566/leaderboardQuery/"
+                        ++ show pix
+                        ++ "/"
+                        ++ show psize
+                        ++ "/"
+                    )
+                )
+postScoreLeaderBoard :: NameType -> ScoreType -> SeedType -> EventList -> IO ()
+postScoreLeaderBoard name score seed evlist = do
+  res <- req
   rcode <- HTTP.getResponseCode res
   case rcode of
-    (2,0,0) -> read @[ScoreField] <$> HTTP.getResponseBody res
-    _ -> undefined
+    (2,0,0) -> pure ()
+    _ -> error "Failed to upload score"
+
+  where req = HTTP.simpleHTTP
+              (
+                HTTP.postRequestWithBody
+                (
+                  "http://localhost:34566/addScore/"
+                  ++ show name ++ "/"
+                  ++ show score ++ "/"
+                  ++ show seed
+                )
+                "application/text"
+                ( show evlist )
+              )
