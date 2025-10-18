@@ -7,6 +7,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# LANGUAGE TypeOperators #-}
 
 module UI.HighscoreScreens where
 
@@ -20,27 +21,27 @@ import Brick.Widgets.Dialog (Dialog)
 import qualified Brick.Widgets.Dialog as D
 import qualified Brick.Widgets.List as L
 import Control.Monad.IO.Class (MonadIO (liftIO))
-import DB.Client (recvReplayData)
+import DB.Client (recvReplayData, leaderBoardRequest)
 import DB.Highscores
   ( getScoreSlice,
     getScores,
     maxDbSize, dbPath,
   )
-import DB.Types (ScoreField (..))
+import DB.Types (ScoreField (..), PageNumber (..), PageHeight (..))
 import Data.Maybe (fromJust, fromMaybe, isJust)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Time
 import qualified Data.Vector as V
-import Data.Word (Word8)
+import Data.Word (Word8, Word16)
 import Database.SQLite.Simple (Connection, withConnection)
-import GHC.Num (Natural)
 import qualified Graphics.Vty as V
 import Lens.Micro ((^.))
 import Lens.Micro.Extras (view)
 import Lens.Micro.Mtl (preview, use, (.=))
 import Lens.Micro.TH (makeLenses)
 import UI.ReplayPlayer
+import Data.Int (Int32)
 
 data HSPageName = ScoreTable | HSDialogNum Int | ReplayIndex | InvalidIndex
   deriving (Show, Eq, Ord)
@@ -216,24 +217,21 @@ highScoresApp =
       M.appAttrMap = const theMap
     }
 
-refreshScoresOnPage :: Int -> Int -> EventM HSPageName (HighScoreState e) ()
+refreshScoresOnPage :: (Integral a, a ~ Int32) => a -> a -> EventM HSPageName (HighScoreState e) ()
 refreshScoresOnPage pageTop hei = do
   sp <-
     ( \ss ->
-        let (prev, rest) = splitAt (2 * hei) ss
-            (now, next) = splitAt hei rest
+        let (prev, rest) = splitAt (2 * (fromIntegral hei)) ss
+            (now, next) = splitAt (fromIntegral hei) rest
          in ScorePages
               (V.fromList prev)
               (scoresList (V.fromList now))
               (V.fromList next)
       )
-      <$> liftIO (queryScoreSlice pageTop hei)
+      <$> liftIO (leaderBoardRequest (PageNumber pageTop) (PageHeight hei))
   -- TODO: some animation that plays if the current page's list is different to the next
   highscores .= sp
 
-
-queryScoreSlice ix pageSize = 
-  pure undefined
 
 -- firstPageSlice h = (\ss -> 
 --     (( ScorePages V.empty ) <$>)) . getScoreSlice h
@@ -261,7 +259,8 @@ defShowAmountStateDialog = ShowAmountStateDialog defDialog
 
 highScores :: IO ()
 highScores = do
-  (now, next) <- splitAt defHeight <$> withConnection dbPath getScores 
+  -- (now, next) <- splitAt defHeight <$> withConnection dbPath getScores 
+  (now, next) <- splitAt defHeight <$> leaderBoardRequest (PageNumber 1) (PageHeight (fromIntegral defHeight))
   let initialIndex = ViewReplayForm 1
       scores = ScorePages V.empty (scoresList (V.fromList now)) (V.fromList next)
   _ <- defaultMain highScoresApp (HighScoreState scores defHeight defShowAmountStateDialog (selectReplayForm initialIndex) Page)

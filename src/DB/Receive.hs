@@ -95,7 +95,7 @@ messageToSeed = mkStdGen . decode
 messageToScore :: ScoreMessage -> Score
 messageToScore = decode
 
-messageToName :: NameMessage -> Name
+messageToName :: NameMessage -> NameType
 messageToName = TL.toStrict . TL.decodeUtf8
 
 textWriteTChan :: TChan Text -> String -> IO ()

@@ -27,7 +27,6 @@ library
                       DB.Receive,
                       DB.Scotty,
                       DB.Server,
-                      DB.Servant,
                       DB.Send,
                       DB.Types,
                       UI.Keybinds, 

@@ -18,7 +18,6 @@ import qualified DB.Authenticate as Auth
 import DB.Highscores
 import DB.Receive
 import DB.Send (sendReplayData, SendData (..))
-import DB.Servant
 import Web.Scotty
 import DB.Types
 import Data.Binary
@@ -45,11 +44,10 @@ import Network.Wai.Handler.Warp
 import DB.Scotty (dbAPIScotty)
 import Database.SQLite.Simple (withConnection)
 
-appPort, replayPort, leaderBoardPort :: PortNumber
+appPort, replayPort, httpPort :: PortNumber
 appPort = 34561
 replayPort = 34565
-leaderBoardPort = 34566
-leaderBoardPort2 = 34567
+httpPort = 34566
 
 
 serverContext :: TCPConn -> IO TLSConn
@@ -70,14 +68,14 @@ main = do
   replayLog <- openFile "Replay-Request-Log" WriteMode
   putStrLn $ "Running App Server on port:" <> show appPort <> " ..."
   putStrLn $ "Running DB Server on port:" <> show replayPort <> " ..."
-  putStrLn $ "Running DB Query Service on port:" <> show leaderBoardPort <> " ..."
-  putStrLn $ "Running DB Query Service 2 on port:" <> show leaderBoardPort2 <> " ..."
+  putStrLn $ "Running Scotty Service on port:" <> show httpPort <> " ..."
   mapConcurrently_
     id
-    [ withConnection dbPath $ \dbConn -> runTLSApp "0.0.0.0" appPort threadPool appChan (leaderboardApp state dbConn appChan),
+    [ 
+      withConnection dbPath $ \dbConn -> runTLSApp "0.0.0.0" appPort threadPool appChan (leaderboardApp state dbConn appChan),
       runTLSApp "0.0.0.0" replayPort threadPool replayChan (replayApp replayChan),
-      withConnection dbPath $ \dbConn -> runHTTPApp leaderBoardPort (runApi dbConn),
-      withConnection dbPath $ \dbConn -> run leaderBoardPort2 =<< dbAPIScotty dbConn,
+      -- withConnection dbPath $ \dbConn -> runHTTPApp leaderBoardPort (runApi dbConn),
+      withConnection dbPath $ \dbConn -> run (fromIntegral httpPort) =<< dbAPIScotty appChan dbConn,
       receive appChan appLog,
       receive replayChan replayLog
     ]

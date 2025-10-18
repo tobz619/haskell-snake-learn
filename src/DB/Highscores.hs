@@ -80,27 +80,33 @@ getLowestScore conn = do
   listToMaybe <$> query_ conn lowestScoreQuery
 
 getScoreSlice :: PageNumber -> PageHeight -> Connection -> IO [ScoreField]
-getScoreSlice (PageNumber lbIx) (PageHeight hei) conn =
-  fmap firstScore <$> query conn sliceScoreQuery (hei, max 0 (lbIx - 2) * hei * 5)
+getScoreSlice (PageNumber lbIx) (PageHeight hei) conn = do
+  info
+  fmap firstScore <$> query conn sliceScoreQuery (totalLimit, offset)
   where
     firstScore sf@(ScoreField _ _ _ _ _ s) = sf {getReplay = BS.take 1 <$> s} -- Only fetch the first byte
+    totalLimit = 5 * hei
+    offset = (max 0 (lbIx - 2)) * hei * 5
+    info = do
+      putStrLn $ "Hei: " <> show totalLimit
+      putStrLn $ "Ix: " <> show offset
 
 debugPrintScores :: Connection -> IO ()
 debugPrintScores conn = do
   scores <- getScores conn
   forM_ scores $ \(ScoreField _ n s d _ _) ->
     putStrLn $
-      show (n :: Name)
+      show (n :: NameType)
         <> " "
         <> show (s :: Score)
         <> " "
         <> show (d :: Int)
 
-addScore :: Name -> Score -> Time -> Connection -> IO ()
+addScore :: NameType -> Score -> Time -> Connection -> IO ()
 addScore name score time conn = do
   execute conn addQuery (T.toUpper . T.take 3 $ name, score, time)
 
-addScoreWithReplay :: Name -> Score -> Time -> SeedType -> EventListMessage -> Connection -> IO ()
+addScoreWithReplay :: NameType -> Score -> Time -> SeedType -> EventListMessage -> Connection -> IO ()
 addScoreWithReplay name score time seed evList conn =
   execute conn addReplayQuery (T.toUpper . T.take 3 $ name, score, time, seed, evList)
 
