@@ -32,7 +32,7 @@ pkgs.mkShell{
 
   shellHook = '' 
     echo "... updating ${pname}.nix ..."
-    cabal2nix ${shell-dir} > ${pname}.nix  
+    cabal2nix ./. > ${pname}.nix  
   '';
 
   certificateFiles = [ 

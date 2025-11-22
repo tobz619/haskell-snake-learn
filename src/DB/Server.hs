@@ -10,15 +10,15 @@ module DB.Server where
 
 import Control.Concurrent.Async
 import Control.Concurrent.STM
+import Control.Concurrent.STM.TSem (newTSem)
 import Control.Exception (finally)
 import qualified Control.Exception as E
-import Control.Monad (forever, replicateM_, when)
-import Control.Monad.IO.Class (MonadIO (..))
+import Control.Monad (forever, when)
 import qualified DB.Authenticate as Auth
 import DB.Highscores
 import DB.Receive
-import DB.Send (sendReplayData, SendData (..))
-import Web.Scotty
+import DB.Scotty (dbAPIScotty)
+import DB.Send (SendData (..), sendReplayData)
 import DB.Types
 import Data.Binary
 import Data.Coerce (coerce)
@@ -28,27 +28,25 @@ import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import Data.Time.Clock.POSIX (getPOSIXTime)
+import Database.SQLite.Simple (withConnection)
 import qualified Database.SQLite.Simple as DB
 import GameLogic (GameState (getWorld), World (..))
 import Logging.Replay (initState, runReplayG)
 import Network.Socket
 import Network.TLS
+import Network.Wai.Handler.Warp
+import Servant.Server
 import System.IO (IOMode (..), hFlush, openFile)
 import UI.Types
   ( SeedType,
     mkEvs,
   )
-import Control.Concurrent.STM.TSem (newTSem)
-import Servant.Server
-import Network.Wai.Handler.Warp
-import DB.Scotty (dbAPIScotty)
-import Database.SQLite.Simple (withConnection)
+import Web.Scotty
 
 appPort, replayPort, httpPort :: PortNumber
 appPort = 34561
 replayPort = 34565
 httpPort = 34566
-
 
 serverContext :: TCPConn -> IO TLSConn
 serverContext (TCPConn c) = do
@@ -57,13 +55,12 @@ serverContext (TCPConn c) = do
     <$> contextNew c serverPars
 
 main :: IO ()
-main = do
+main = withConnection dbPath $ \dbConn -> do
   appChan <- newTChanIO -- Channel for messages to come back to
   replayChan <- newTChanIO
   threadPool <- atomically $ newTSem (fromIntegral maxPlayers) -- The threadpool of available slots to use
-   -- ^Making MAXPLAYERS spaces in the threadPool
+  -- \^Making MAXPLAYERS spaces in the threadPool
   state <- newTMVarIO newServerState -- The server state being created
-  -- dbConn <- openDatabase "highscores.db" -- The connection to the highscores DB
   appLog <- openFile "BSLog" WriteMode
   replayLog <- openFile "Replay-Request-Log" WriteMode
   putStrLn $ "Running App Server on port:" <> show appPort <> " ..."
@@ -71,11 +68,10 @@ main = do
   putStrLn $ "Running Scotty Service on port:" <> show httpPort <> " ..."
   mapConcurrently_
     id
-    [ 
-      withConnection dbPath $ \dbConn -> runTLSApp "0.0.0.0" appPort threadPool appChan (leaderboardApp state dbConn appChan),
+    [ runTLSApp "0.0.0.0" appPort threadPool appChan (leaderboardApp state dbConn appChan),
       runTLSApp "0.0.0.0" replayPort threadPool replayChan (replayApp replayChan),
       -- withConnection dbPath $ \dbConn -> runHTTPApp leaderBoardPort (runApi dbConn),
-      withConnection dbPath $ \dbConn -> run (fromIntegral httpPort) =<< dbAPIScotty appChan dbConn,
+      run (fromIntegral httpPort) =<< dbAPIScotty appChan dbConn,
       receive appChan appLog,
       receive replayChan replayLog
     ]
@@ -121,7 +117,7 @@ runTCPServer host p app = withSocketsDo $ forever $ do
       pure sock
 
 runHTTPApp :: PortNumber -> Application -> IO ()
-runHTTPApp port = run (fromIntegral port) 
+runHTTPApp port = run (fromIntegral port)
 
 runTLSApp ::
   HostName ->
@@ -151,7 +147,6 @@ runTCPApp host p actions = do
       !s <- fst <$> accept sock
       concurrently_
         ( do
-
             let !cliConn = TCPConn s
             flip E.finally (close s) $ actions cliConn
         )
@@ -161,8 +156,8 @@ replayApp :: TChan Text -> TCPConn -> TLSConn -> IO ()
 replayApp msgChan cliConn tlsConn = do
   sockAddr <- getPeerName $ coerce cliConn
   textWriteTChan msgChan $ "Accepted replay connection from " <> show sockAddr
-  withConnection "highscores.db" -- The connection to the highscores DB
-    $ \dbConn -> sendReplayApp dbConn tlsConn
+  withConnection "highscores.db" $ -- The connection to the highscores DB
+    \dbConn -> sendReplayApp dbConn tlsConn
   where
     sendReplayApp db conn = do
       scoreID <- recvInfo @TLSConn conn messageToScoreID

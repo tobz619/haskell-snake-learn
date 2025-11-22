@@ -6,8 +6,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
-{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# LANGUAGE TypeOperators #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
 module UI.HighscoreScreens where
 
@@ -21,19 +21,21 @@ import Brick.Widgets.Dialog (Dialog)
 import qualified Brick.Widgets.Dialog as D
 import qualified Brick.Widgets.List as L
 import Control.Monad.IO.Class (MonadIO (liftIO))
-import DB.Client (recvReplayData, leaderBoardRequest)
+import DB.Client (leaderBoardRequest, recvReplayData)
 import DB.Highscores
-  ( getScoreSlice,
+  ( dbPath,
+    getScoreSlice,
     getScores,
-    maxDbSize, dbPath,
+    maxDbSize,
   )
-import DB.Types (ScoreField (..), PageNumber (..), PageHeight (..))
+import DB.Types (PageHeight (..), PageNumber (..), ScoreField (..))
+import Data.Int (Int32)
 import Data.Maybe (fromJust, fromMaybe, isJust)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Time
 import qualified Data.Vector as V
-import Data.Word (Word8, Word16)
+import Data.Word (Word16, Word8)
 import Database.SQLite.Simple (Connection, withConnection)
 import qualified Graphics.Vty as V
 import Lens.Micro ((^.))
@@ -41,7 +43,6 @@ import Lens.Micro.Extras (view)
 import Lens.Micro.Mtl (preview, use, (.=))
 import Lens.Micro.TH (makeLenses)
 import UI.ReplayPlayer
-import Data.Int (Int32)
 
 data HSPageName = ScoreTable | HSDialogNum Int | ReplayIndex | InvalidIndex
   deriving (Show, Eq, Ord)
@@ -176,16 +177,19 @@ handleViewReplayForm (VtyEvent (V.EvKey V.KEnter [])) = do
   scores <- use (highscores . currentScorePage . L.listElementsL)
   let (ViewReplayForm index) = formState f
       mbScoreField = scores V.!? (fromIntegral index - 1)
-  if isJust (getReplay =<< mbScoreField)
-    then do
-      let scoreID = getScoreFieldID $ fromJust mbScoreField
-      selectReplay .= setFieldValid True ReplayIndex f
-      mbReplay <- liftIO (recvReplayData scoreID)
-      suspendAndResume' $ mapM_ (liftIO . replayFromReplayData) mbReplay
-      mode .= Page
-    else do
-      selectReplay .= setFieldValid False ReplayIndex f
-      mode .= ShowingViewReplayDialog
+  maybe
+    ( do
+        let scoreID = getScoreFieldID $ fromJust mbScoreField
+        selectReplay .= setFieldValid True ReplayIndex f
+        mbReplay <- liftIO (recvReplayData scoreID)
+        suspendAndResume' $ mapM_ (liftIO . replayFromReplayData) mbReplay
+        mode .= Page
+    )
+    ( const $ do
+        selectReplay .= setFieldValid False ReplayIndex f
+        mode .= ShowingViewReplayDialog
+    )
+    (getReplay =<< mbScoreField)
 handleViewReplayForm ev = zoom selectReplay $ handleFormEvent ev
 
 theMap :: AttrMap
@@ -227,13 +231,12 @@ refreshScoresOnPage pageTop hei = do
               (V.fromList prev)
               (scoresList (V.fromList now))
               (V.fromList next)
-      )
+    )
       <$> liftIO (leaderBoardRequest (PageNumber pageTop) (PageHeight hei))
   -- TODO: some animation that plays if the current page's list is different to the next
   highscores .= sp
 
-
--- firstPageSlice h = (\ss -> 
+-- firstPageSlice h = (\ss ->
 --     (( ScorePages V.empty ) <$>)) . getScoreSlice h
 
 selectReplayForm :: ViewReplayForm -> Form ViewReplayForm e HSPageName
@@ -259,7 +262,7 @@ defShowAmountStateDialog = ShowAmountStateDialog defDialog
 
 highScores :: IO ()
 highScores = do
-  -- (now, next) <- splitAt defHeight <$> withConnection dbPath getScores 
+  -- (now, next) <- splitAt defHeight <$> withConnection dbPath getScores
   (now, next) <- splitAt defHeight <$> leaderBoardRequest (PageNumber 1) (PageHeight (fromIntegral defHeight))
   let initialIndex = ViewReplayForm 1
       scores = ScorePages V.empty (scoresList (V.fromList now)) (V.fromList next)

@@ -100,8 +100,9 @@ data ServerStateError
   | WrongHello
   | HelloTooSlow
   | OversizedMessage !Int
+  | MalformedEvents
   deriving stock (Show)
-  deriving (Exception)
+  deriving anyclass (Exception)
 
 data ClientError
   = NoReplayData
