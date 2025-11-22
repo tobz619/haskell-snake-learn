@@ -1,5 +1,6 @@
 { 
   pkgs
+, cabal-pkg
 , shell-dir
 }:
 
@@ -16,7 +17,6 @@ pkgs.mkShell{
   imports =  [ ./brick-tutorial.nix ];
 
   buildInputs = (with haskell-packages; [
-    cabal-install
     haskell-language-server
     cabal2nix
     stack
@@ -30,7 +30,8 @@ pkgs.mkShell{
     sqlitebrowser
     caddy
     xcaddy
-  ]);
+  ]) ++
+  [ cabal-pkg] ;
 
   shellHook = '' 
     echo "... updating ${pname}.nix ..."
