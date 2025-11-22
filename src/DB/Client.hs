@@ -10,7 +10,6 @@ import Control.Concurrent (threadDelay)
 import Control.Concurrent.Async (race, replicateConcurrently_, wait, withAsync)
 import Control.Concurrent.STM (atomically, flushTQueue, newTQueueIO, writeTQueue)
 import qualified Control.Exception as E
-import Lens.Micro
 import qualified DB.Authenticate as Auth
 import DB.Receive
 import DB.Send
@@ -21,6 +20,7 @@ import Data.Binary (decode)
 import Data.Binary.Put
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BL
+import qualified Data.ByteString.Lazy.Char8 as BL8
 import Data.Coerce (coerce)
 import Data.List (intercalate, scanl')
 import qualified Data.List.NonEmpty as NE
@@ -28,10 +28,10 @@ import Data.Maybe (fromMaybe)
 import qualified Data.Text as T
 import qualified Data.Text as Text
 import GameLogic (ScoreType)
-import qualified Network.HTTP as HTTP
-import qualified Network.Wreq as WREQ
+import Lens.Micro
 import Network.Socket
 import Network.TLS
+import qualified Network.Wreq as Wreq
 import System.Random (mkStdGen)
 import Text.Read (readMaybe)
 import UI.Types
@@ -168,51 +168,51 @@ manyTestClients n = mapM_ (\(v, act) -> act >> print v) $ zip ([1 ..] :: [Int]) 
 highScoreRequest :: ScoreType -> IO Bool
 highScoreRequest s = do
   res <- req
-  rcode <- race (threadDelay 5000) (HTTP.getResponseCode res)
+  let rcode = res ^. Wreq.responseStatus . Wreq.statusCode
+      body = res ^. Wreq.responseBody
   case rcode of
-    Right (2, 0, _) -> (== 1) . readRes <$> HTTP.getResponseBody res
+    200 -> pure . (== 1) . readRes $ body
     _ -> error "Failed to query highscore database"
   where
     req =
-      HTTP.simpleHTTP
-        ( HTTP.getRequest
-            (intercalate "/" ["https://"++ serverName' ++ ":" ++ show replayPort', "lowestScoreQuery", show s])
-        )
-    readRes = fromMaybe 0 . readMaybe @Int . take 3
+      Wreq.get
+        (intercalate "/" ["https://" ++ serverName' ++ ":" ++ show replayPort', "lowestScoreQuery", show s])
+
+    readRes = fromMaybe 0 . readMaybe @Int . BL8.unpack . BL.take 3 
 
 leaderBoardRequest :: PageNumber -> PageHeight -> IO [ScoreField]
 leaderBoardRequest (PageNumber pix) (PageHeight psize) =
   do
     res <- req
-    rcode <- race (threadDelay 5000) (HTTP.getResponseCode res)
+    let rcode = res ^. Wreq.responseStatus . Wreq.statusCode
+        body = res ^. Wreq.responseBody
     case rcode of
-      Right (2, 0, _) -> read @[ScoreField] <$> HTTP.getResponseBody res
+      200 -> pure . read @[ScoreField] . BL8.unpack $ body
       a -> print a >> error "Unable to get scores"
   where
+    opts = undefined
     req =
-      HTTP.simpleHTTP
-        ( HTTP.getRequest
-            ( "https://" ++ serverName' ++ ":" ++ show leaderBoardPort' ++"/leaderboardQuery/"
-                ++ show pix
-                ++ "/"
-                ++ show psize
-                ++ "/"
-            )
-        )
+      Wreq.get $ intercalate "/"
+        [ "https://" ++ serverName' ++ ":" ++ show leaderBoardPort'
+            ,"leaderboardQuery"
+            ,show pix
+            , show psize
+        ]
 
 postScoreLeaderBoard :: NameType -> ScoreType -> SeedType -> EventList -> IO ()
 postScoreLeaderBoard name score seed evlist = do
   res <- req'
-  let rcode = res ^. (WREQ.responseStatus . WREQ.statusCode)
+  let rcode = res ^. Wreq.responseStatus . Wreq.statusCode
   print res
+  print rcode
   case rcode of
-    200 -> pure ()
+    201 -> pure ()
     a -> print a >> error "Failed to upload score"
   where
-    req' = 
-      WREQ.post 
+    req' =
+      Wreq.post
         (intercalate "/" ["https://" ++ serverName' ++ ":" ++ show leaderBoardPort', "addScore", T.unpack name, show score, show seed])
-        converted
+        (converted :: BL.ByteString)
 
     converted = runPut (mapM_ gameEvPutter evlist)
     gameEvPutter (GameEvent t ev) = do

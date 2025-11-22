@@ -21,6 +21,7 @@ pkgs.mkShell{
     cabal2nix
     stack
   ]) ++ (with pkgs; [
+    bashInteractive
     zlib
     go
     nss
@@ -33,6 +34,7 @@ pkgs.mkShell{
   shellHook = '' 
     echo "... updating ${pname}.nix ..."
     cabal2nix ./. > ${pname}.nix  
+    export SHELL=/run/current-system/sw/bin/bash
   '';
 
   certificateFiles = [ 

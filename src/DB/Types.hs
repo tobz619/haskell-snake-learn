@@ -24,7 +24,6 @@ import Network.Socket (Socket)
 import UI.Types
 import Network.TLS (Context)
 import Control.Concurrent.STM.TSem (TSem)
-import Servant.API
 import qualified Data.ByteString.Lazy.Char8 as B8
 import Network.HTTP.Media (MediaType, (//), (/:))
 import Data.Data (Proxy)
@@ -64,15 +63,6 @@ instance Eq ScoreField where
 instance Ord ScoreField where
   (ScoreField _ _ s d _ _) <= (ScoreField _ _ s' d' _ _) = s <= s' && d < d'
 
-instance Accept ScoreField where
-  contentType :: Proxy ScoreField -> MediaType
-  contentType _ = "octetstream" // "scorefield" /: ("charset","utf-8")
-
-instance Show a => MimeRender ScoreField a where
-  mimeRender _ = B8.pack . show
-
-instance Read a => MimeUnrender ScoreField a where
-  mimeUnrender _ = readEither . B8.unpack
 
 type MsgLenRep = Word16
 
