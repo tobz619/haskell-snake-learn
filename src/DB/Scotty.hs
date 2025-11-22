@@ -7,9 +7,11 @@ module DB.Scotty where
 import Control.Concurrent.STM (TChan)
 import qualified Control.Exception as E
 import Control.Monad.IO.Class (liftIO)
+import Data.Binary.Get
+import qualified Data.Bimap as BM
 import DB.Highscores (addScoreWithReplay, getScoreSlice, getLowestScore, promptAddHighScore)
 import DB.Receive (handleEventList, textWriteTChan)
-import DB.Types (EventListMessage, NameType, PageHeight (PageHeight), PageNumber (PageNumber), ServerStateError (MalformedEvents), Time)
+import DB.Types (EventListMessage, NameType, PageHeight (PageHeight), PageNumber (PageNumber), ServerStateError (MalformedEvents), Time, keyEvBytesMap)
 import qualified Data.ByteString.Lazy.Char8 as B8
 import Data.List (find)
 import Data.Maybe (fromMaybe)
@@ -20,10 +22,10 @@ import qualified Database.SQLite.Simple as DB
 import GameLogic (ScoreType, getWorld, score)
 import Logging.Replay (Seed, initState, runReplayG)
 import Network.HTTP.Types.Status
-import Servant.Server (Application)
+import Servant(Application)
 import System.Random (mkStdGen)
 import Text.Read (readMaybe)
-import UI.Types (EventList, SeedType, mkEvs)
+import UI.Types (GameEvent(..), EventList, SeedType, mkEvs, TickNumber(..), KeyEvent(GameEnded))
 import Web.Scotty
 
 scottyAPI :: TChan Text -> DB.Connection -> ScottyM ()
@@ -65,13 +67,22 @@ addScoreToDB' msgChan dbConn = do
   name <- pathParam @NameType "name"
   s <- pathParam @ScoreType "score"
   seed <- pathParam @SeedType "seedValue"
-  evListStr <- B8.unpack . B8.take 8192 <$> body
-  let evList = mkEvs $ handleEventList evListBytes
-      evListBytes =
-        fromMaybe
-          (E.throw MalformedEvents)
-          $ readMaybe @EventListMessage evListStr
-      !game = runReplayG evList (initState (mkStdGen seed))
+  evList <- B8.take 8192 <$> body
+  let evEvents = mkEvs $ handleEventList evList
+      evListBytes = runGet evListGetter evList
+      evListGetter = do
+        empty <- isEmpty
+        if empty
+          then pure []
+          else do gev <- gameEvGetter
+                  gevs <- evListGetter
+                  pure (gev : gevs)
+      gameEvGetter = 
+        GameEvent <$> 
+          (TickNumber . fromIntegral <$> getWord16le) <*> 
+          (fromMaybe GameEnded . flip BM.lookupR keyEvBytesMap <$> getWord8)
+         
+      !game = runReplayG evEvents (initState (mkStdGen seed))
       s' = (score . getWorld) game
 
   if s /= s'
@@ -84,7 +95,7 @@ addScoreToDB' msgChan dbConn = do
     else do
       liftIO $ textWriteTChan msgChan $ "Valid score"
       time <- liftIO (round <$> getPOSIXTime)
-      liftIO $ addScoreWithReplay name s time seed evListBytes dbConn
+      liftIO $ addScoreWithReplay name s time seed evList dbConn
       liftIO $ textWriteTChan msgChan $ "Score of " <> show s <> " added"
       status status201
       text "OK"
