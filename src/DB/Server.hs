@@ -165,7 +165,7 @@ replayApp msgChan cliConn tlsConn = do
       mapM_
         ( \datum ->
             textWriteTChan msgChan ("Sending replay of scoreID: " <> show scoreID)
-              >> sendReplayData conn datum
+              >> sendReplayData @TLSConn conn datum
         )
         replayData
 

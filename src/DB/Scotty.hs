@@ -67,9 +67,9 @@ addScoreToDB' msgChan dbConn = do
   name <- pathParam @NameType "name"
   s <- pathParam @ScoreType "score"
   seed <- pathParam @SeedType "seedValue"
-  evList <- B8.take 8192 <$> body
+  evList <- B8.take (4096 * 1024) <$> body
   let evEvents = mkEvs $ handleEventList evList
-      evListBytes = runGet evListGetter evList
+      evListBytes =  runGet evListGetter evList
       evListGetter = do
         empty <- isEmpty
         if empty
