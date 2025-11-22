@@ -2,14 +2,16 @@
   description = "Flake for snake-game in Haskell";
 
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
+    cabal-pkgset.url = "github:nixos/nixpkgs?ref=nixos-25.05";
+    nixpkgs.url = "github:nixos/nixpkgs?rev=89c2b2330e733d6cdb5eae7b899326930c2c0648";
   };
 
-  outputs = { self, nixpkgs }: 
+  outputs = { self, nixpkgs, cabal-pkgset }: 
   let pkgs = nixpkgs.legacyPackages.x86_64-linux;
+      cabal-pkg = cabal-pkgset.legacyPackages.x86_64-linux.haskellPackages.cabal-install; 
   in
   {
-    devShells.x86_64-linux.default = import ./shell.nix {inherit pkgs; shell-dir = "brick-tutorial";};
+    devShells.x86_64-linux.default = import ./shell.nix {inherit pkgs cabal-pkg; shell-dir = "brick-tutorial";};
 
     legacyPackages.x86_64-linux.shell-Packages = pkgs;
 
