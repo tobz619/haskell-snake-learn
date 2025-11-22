@@ -4,10 +4,9 @@
 , http-client, http-media, http-types, io-streams
 , io-streams-haproxy, lib, linear, microlens, microlens-mtl
 , microlens-th, mtl, network, network-simple-tls
-, nonempty-containers, random, scotty, servant, servant-client
-, servant-server, splitmix, sqlite-simple, stm, text, time, tls
-, utf8-string, vector, vty, vty-crossplatform, warp, word-wrap
-, wreq
+, nonempty-containers, random, scotty, servant-server, splitmix
+, sqlite-simple, stm, text, time, tls, utf8-string, vector, vty
+, vty-crossplatform, warp, word-wrap, wreq
 }:
 mkDerivation {
   pname = "brick-tutorial";
@@ -21,9 +20,8 @@ mkDerivation {
     data-default-class http-client http-media http-types io-streams
     io-streams-haproxy linear microlens microlens-mtl microlens-th mtl
     network network-simple-tls nonempty-containers random scotty
-    servant servant-client servant-server splitmix sqlite-simple stm
-    text time tls utf8-string vector vty vty-crossplatform warp
-    word-wrap wreq
+    servant-server splitmix sqlite-simple stm text time tls utf8-string
+    vector vty vty-crossplatform warp word-wrap wreq
   ];
   executableHaskellDepends = [ base brick vty vty-crossplatform ];
   testHaskellDepends = [ base ];
