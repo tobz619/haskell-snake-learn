@@ -76,6 +76,7 @@ library
                       tls,
                       vector,
                       warp,
+                      wreq,
                       word-wrap
 
     hs-source-dirs:   src

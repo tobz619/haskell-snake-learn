@@ -6,29 +6,34 @@
 
 module DB.Client where
 
--- import Data.Int (Int64)
-
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.Async (race, replicateConcurrently_, wait, withAsync)
 import Control.Concurrent.STM (atomically, flushTQueue, newTQueueIO, writeTQueue)
 import qualified Control.Exception as E
+import Lens.Micro
 import qualified DB.Authenticate as Auth
 import DB.Receive
 import DB.Send
 import DB.Server (httpPort)
 import DB.Types
+import qualified Data.Bimap as BM
 import Data.Binary (decode)
+import Data.Binary.Put
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Lazy as BL
 import Data.Coerce (coerce)
-import Data.Default
-import Data.List (scanl', intercalate)
+import Data.List (intercalate, scanl')
 import qualified Data.List.NonEmpty as NE
+import Data.Maybe (fromMaybe)
+import qualified Data.Text as T
 import qualified Data.Text as Text
 import GameLogic (ScoreType)
 import qualified Network.HTTP as HTTP
+import qualified Network.Wreq as WREQ
 import Network.Socket
 import Network.TLS
 import System.Random (mkStdGen)
+import Text.Read (readMaybe)
 import UI.Types
   ( EventList,
     GameEvent (..),
@@ -36,11 +41,6 @@ import UI.Types
     SeedType,
     TickNumber (TickNumber),
   )
-import qualified Data.ByteString.Char8 as B8
-import qualified Data.Text as T
-import Data.Binary.Put
-import qualified Data.Bimap as BM
-import qualified Data.ByteString.Lazy as BL
 
 serverName, serverName' :: HostName
 serverName = "127.0.0.1"
@@ -58,13 +58,13 @@ clientPort' = 5000
 replayPort = 34565
 replayPort' = 5050
 leaderBoardPort = httpPort
-leaderBoardPort' = 5051
+leaderBoardPort' = 5050
 
 serv :: HostName
-serv = serverName
+serv = serverName'
 
 cli :: PortNumber
-cli = clientPort
+cli = clientPort'
 
 clientContext :: BS.ByteString -> TCPConn -> IO TLSConn
 clientContext ident (TCPConn c) = do
@@ -165,48 +165,56 @@ replicateClients = flip replicateConcurrently_ testClient
 manyTestClients :: Int -> IO ()
 manyTestClients n = mapM_ (\(v, act) -> act >> print v) $ zip ([1 ..] :: [Int]) (replicate n testClient)
 
--- repTest = do
---  evs <- newMVar events
---  runReplayApp (mkStdGen 4) evs
+highScoreRequest :: ScoreType -> IO Bool
+highScoreRequest s = do
+  res <- req
+  rcode <- race (threadDelay 5000) (HTTP.getResponseCode res)
+  case rcode of
+    Right (2, 0, _) -> (== 1) . readRes <$> HTTP.getResponseBody res
+    _ -> error "Failed to query highscore database"
+  where
+    req =
+      HTTP.simpleHTTP
+        ( HTTP.getRequest
+            (intercalate "/" ["https://"++ serverName' ++ ":" ++ show replayPort', "lowestScoreQuery", show s])
+        )
+    readRes = fromMaybe 0 . readMaybe @Int . take 3
 
 leaderBoardRequest :: PageNumber -> PageHeight -> IO [ScoreField]
 leaderBoardRequest (PageNumber pix) (PageHeight psize) =
   do
     res <- req
-    rcode <- HTTP.getResponseCode res
+    rcode <- race (threadDelay 5000) (HTTP.getResponseCode res)
     case rcode of
-      (2,0,0) -> read @[ScoreField] <$> HTTP.getResponseBody res
+      Right (2, 0, _) -> read @[ScoreField] <$> HTTP.getResponseBody res
       a -> print a >> error "Unable to get scores"
+  where
+    req =
+      HTTP.simpleHTTP
+        ( HTTP.getRequest
+            ( "https://" ++ serverName' ++ ":" ++ show leaderBoardPort' ++"/leaderboardQuery/"
+                ++ show pix
+                ++ "/"
+                ++ show psize
+                ++ "/"
+            )
+        )
 
-  where req = HTTP.simpleHTTP
-                ( HTTP.getRequest
-                    ( "http://localhost:34566/leaderboardQuery/"
-                        ++ show pix
-                        ++ "/"
-                        ++ show psize
-                        ++ "/"
-                    )
-                )
 postScoreLeaderBoard :: NameType -> ScoreType -> SeedType -> EventList -> IO ()
 postScoreLeaderBoard name score seed evlist = do
-  res <- req
-  rcode <- HTTP.getResponseCode res
+  res <- req'
+  let rcode = res ^. (WREQ.responseStatus . WREQ.statusCode)
+  print res
   case rcode of
-    (2,0,_) -> pure ()
+    200 -> pure ()
     a -> print a >> error "Failed to upload score"
+  where
+    req' = 
+      WREQ.post 
+        (intercalate "/" ["https://" ++ serverName' ++ ":" ++ show leaderBoardPort', "addScore", T.unpack name, show score, show seed])
+        converted
 
-  where req = HTTP.simpleHTTP
-              (
-                HTTP.postRequestWithBody
-                (
-                  "http://localhost:34566/addScore/"
-                  ++ intercalate "/" [T.unpack name, show score, show seed]
-                )
-                "application/text"
-                ( show converted )
-              )
-
-        converted = runPut (mapM_ gameEvPutter evlist)
-        gameEvPutter (GameEvent t ev) = do
-                    maybe (putLazyByteString BL.empty) putWord8 (BM.lookup ev keyEvBytesMap)
-                    putWord16be (fromIntegral t)
+    converted = runPut (mapM_ gameEvPutter evlist)
+    gameEvPutter (GameEvent t ev) = do
+      maybe (putLazyByteString BL.empty) putWord8 (BM.lookup ev keyEvBytesMap)
+      putWord16be (fromIntegral t)

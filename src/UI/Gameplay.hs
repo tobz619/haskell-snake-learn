@@ -43,7 +43,7 @@ import System.IO
 import System.Random
 import UI.Keybinds (gameplayDispatcher)
 import UI.Types
-import DB.Client (runClientAppSTM, postScoreLeaderBoard)
+import DB.Client (runClientAppSTM, postScoreLeaderBoard, highScoreRequest)
 
 altConfig :: [a]
 altConfig = []
@@ -169,7 +169,8 @@ eventHandler ev = do
       liftIO $ hPrint h (gps' ^. gameLog)
       liftIO $ hClose h
 
-      hs <- liftIO $ withConnection dbPath $ \conn -> promptAddHighScore (score w) conn
+      -- hs <- liftIO $ withConnection dbPath $ \conn -> promptAddHighScore (score w) conn
+      hs <- liftIO $ highScoreRequest (score w)
       if hs
         then do
           gameStateDialog .= Nothing
@@ -200,7 +201,6 @@ handleHighScorePromptEvent (VtyEvent (V.EvKey V.KEnter [])) seed score evList = 
     HighScoreFormState Nothing (Just form) -> do
       let HighScoreForm mC1 mC2 mC3 = F.formState form
           name = maybe Text.empty Text.pack (sequence [mC1, mC2, mC3])
-      -- liftIO $ runClientAppSTM seed score name evList
       liftIO $ postScoreLeaderBoard name score seed evList
       put (HighScoreFormState Nothing Nothing)
     
