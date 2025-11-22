@@ -82,7 +82,7 @@ sendHello :: SendData b => b -> IO ()
 sendHello c = sendBSMessage c Auth.helloMessage
 
 sendReplayData :: SendData b => b -> ReplayData -> IO ()
-sendReplayData c (ReplayData s evs) =
+sendReplayData c (ReplayData s evs) = do
   pure <$> sendSeedMessage c s <*> sendBSMessage c evs
 
 sendTextMessageTCP :: SendData b => b -> Text.Text -> IO ()

@@ -56,7 +56,7 @@ clientPort,
 clientPort = httpPort
 clientPort' = 5000
 replayPort = 34565
-replayPort' = 5050
+replayPort' = 5052
 leaderBoardPort = httpPort
 leaderBoardPort' = 5050
 
@@ -96,7 +96,7 @@ runClientAppSTM seed score name evList = withSocketsDo $ do
 
 recvReplayData :: Int -> IO (Maybe ReplayData)
 recvReplayData scoreID = withSocketsDo $ do
-  runTLSClient serv replayPort app
+  runTLSClient serv replayPort' app
   where
     app ctx = do
       sendHello ctx
@@ -116,7 +116,7 @@ recvReplayData scoreID = withSocketsDo $ do
     handleConnection conn = E.handle recvHandler $ do
       errorOrReplay <- race (threadDelay 5_000_000) (sendScoreFieldID conn scoreID >> getData conn)
       either
-        (\_ -> E.throwIO HelloTooSlow >> pure Nothing)
+        (\_ -> E.throwIO ConnectTimeout)
         pure
         errorOrReplay
 
@@ -176,7 +176,7 @@ highScoreRequest s = do
   where
     req =
       Wreq.get
-        (intercalate "/" ["https://" ++ serverName' ++ ":" ++ show replayPort', "lowestScoreQuery", show s])
+        (intercalate "/" ["https://" ++ serverName' ++ ":" ++ show leaderBoardPort', "lowestScoreQuery", show s])
 
     readRes = fromMaybe 0 . readMaybe @Int . BL8.unpack . BL.take 3 
 

@@ -177,19 +177,17 @@ handleViewReplayForm (VtyEvent (V.EvKey V.KEnter [])) = do
   scores <- use (highscores . currentScorePage . L.listElementsL)
   let (ViewReplayForm index) = formState f
       mbScoreField = scores V.!? (fromIntegral index - 1)
-  maybe
-    ( do
+  if not . isJust $ (getReplay =<< mbScoreField)
+    then do
+        selectReplay .= setFieldValid False ReplayIndex f
+        mode .= ShowingViewReplayDialog
+    else do
         let scoreID = getScoreFieldID $ fromJust mbScoreField
         selectReplay .= setFieldValid True ReplayIndex f
         mbReplay <- liftIO (recvReplayData scoreID)
         suspendAndResume' $ mapM_ (liftIO . replayFromReplayData) mbReplay
         mode .= Page
-    )
-    ( const $ do
-        selectReplay .= setFieldValid False ReplayIndex f
-        mode .= ShowingViewReplayDialog
-    )
-    (getReplay =<< mbScoreField)
+    
 handleViewReplayForm ev = zoom selectReplay $ handleFormEvent ev
 
 theMap :: AttrMap
