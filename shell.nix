@@ -20,6 +20,7 @@ pkgs.mkShell{
     haskell-language-server
     cabal2nix
     stack
+    hie-bios
   ]) ++ (with pkgs; [
     bashInteractive
     zlib
@@ -33,8 +34,10 @@ pkgs.mkShell{
 
   shellHook = '' 
     echo "... updating ${pname}.nix ..."
-    cabal2nix ./. > ${pname}.nix  
+    cabal2nix . > ${pname}.nix  
     export SHELL=/run/current-system/sw/bin/bash
+    # echo "... generating hie.yaml ..."
+    # ${pkgs.haskellPackages.implicit-hie}/bin/gen-hie > hie.yaml
   '';
 
   certificateFiles = [ 
