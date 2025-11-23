@@ -12,7 +12,6 @@ import Control.Concurrent.STM
 import qualified Control.Exception as E
 import Control.Monad (when)
 import qualified DB.Authenticate as Auth
-import DB.Send
 import DB.Types
 import qualified Data.Bimap as BM
 import Data.Binary (decode)

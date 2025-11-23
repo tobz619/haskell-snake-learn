@@ -5,7 +5,7 @@ module DB.Authenticate where
 
 import DB.Types (BSMessage)
 import Data.Default.Class
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, listToMaybe)
 import Data.X509
 import Data.X509.CertificateStore (listCertificates, readCertificateStore)
 import Data.X509.File
@@ -62,7 +62,7 @@ clientAuth :: BS.ByteString -> IO ClientParams
 clientAuth ident = do
   (shared, _) <- getCertInfo
   chain <- readSignedObject "./.certs/snake_client.crt"
-  privKey <- head <$> readKeyFile "./.certs/snake_client.key"
+  privKey <- fromMaybe (error "No PrivKey found") . listToMaybe <$> readKeyFile "./.certs/snake_client.key"
 
   let clientParams =
         (defaultParamsClient "haskell-server.tobioloke.com" ident)

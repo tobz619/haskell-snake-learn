@@ -31,7 +31,7 @@ pkgs.mkShell{
     caddy
     xcaddy
   ]) ++
-  [ cabal-pkg] ;
+  [ cabal-pkg ] ;
 
   shellHook = '' 
     echo "... updating ${pname}.nix ..."
