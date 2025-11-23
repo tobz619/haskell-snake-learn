@@ -1,5 +1,4 @@
 {-# LANGUAGE DerivingStrategies #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeApplications #-}
@@ -11,13 +10,21 @@ import Control.Concurrent.Async (race, replicateConcurrently_, wait, withAsync)
 import Control.Concurrent.STM (atomically, flushTQueue, newTQueueIO, writeTQueue)
 import qualified Control.Exception as E
 import qualified DB.Authenticate as Auth
-import DB.Receive
+import DB.Receive ( RecvData(recvInfo) )
 import DB.Send
+    ( sendEventList,
+      sendHello,
+      sendName,
+      sendScoreFieldID,
+      sendScoreMessage,
+      sendSeedMessage,
+      SendData(requestClose) )
 import DB.Server (httpPort)
 import DB.Types
 import qualified Data.Bimap as BM
 import Data.Binary (decode)
 import Data.Binary.Put
+    ( putWord8, putLazyByteString, putWord16be, runPut )
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString.Lazy.Char8 as BL8
@@ -28,9 +35,9 @@ import Data.Maybe (fromMaybe)
 import qualified Data.Text as T
 import qualified Data.Text as Text
 import GameLogic (ScoreType)
-import Lens.Micro
+import Lens.Micro ( (^.) )
 import Network.Socket
-import Network.TLS
+import Network.TLS ( contextNew, handshake )
 import qualified Network.Wreq as Wreq
 import System.Random (mkStdGen)
 import Text.Read (readMaybe)
@@ -190,7 +197,6 @@ leaderBoardRequest (PageNumber pix) (PageHeight psize) =
       200 -> pure . read @[ScoreField] . BL8.unpack $ body
       a -> print a >> error "Unable to get scores"
   where
-    opts = undefined
     req =
       Wreq.get $ intercalate "/"
         [ "https://" ++ serverName' ++ ":" ++ show leaderBoardPort'

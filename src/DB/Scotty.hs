@@ -69,19 +69,6 @@ addScoreToDB' msgChan dbConn = do
   seed <- pathParam @SeedType "seedValue"
   evList <- B8.take (4096 * 1024) <$> body
   let evEvents = mkEvs $ handleEventList evList
-      evListBytes =  runGet evListGetter evList
-      evListGetter = do
-        empty <- isEmpty
-        if empty
-          then pure []
-          else do gev <- gameEvGetter
-                  gevs <- evListGetter
-                  pure (gev : gevs)
-      gameEvGetter = 
-        GameEvent <$> 
-          (TickNumber . fromIntegral <$> getWord16le) <*> 
-          (fromMaybe GameEnded . flip BM.lookupR keyEvBytesMap <$> getWord8)
-         
       !game = runReplayG evEvents (initState (mkStdGen seed))
       s' = (score . getWorld) game
 

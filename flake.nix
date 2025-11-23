@@ -8,7 +8,7 @@
 
   outputs = { self, nixpkgs, cabal-pkgset }: 
   let pkgs = nixpkgs.legacyPackages.x86_64-linux;
-      cabal-pkg = cabal-pkgset.legacyPackages.x86_64-linux.haskellPackages.cabal-install; 
+      cabal-pkg = cabal-pkgset.legacyPackages.x86_64-linux.cabal-install; 
   in
   {
     devShells.x86_64-linux.default = import ./shell.nix {inherit pkgs cabal-pkg; shell-dir = "brick-tutorial";};

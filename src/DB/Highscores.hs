@@ -10,7 +10,7 @@ import Data.Maybe (listToMaybe)
 import qualified Data.Text as T
 import Data.Time.Clock.POSIX (getPOSIXTime)
 import Database.SQLite.Simple
-import UI.Types
+import UI.Types ( SeedType )
 
 maxDbSize :: DBSize -- 255
 maxDbSize = maxBound
