@@ -23,10 +23,7 @@ import qualified Brick.Widgets.List as L
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import DB.Client (leaderBoardRequest, recvReplayData)
 import DB.Highscores
-  ( dbPath,
-    getScoreSlice,
-    getScores,
-    maxDbSize,
+  ( maxDbSize, getScores, dbPath,
   )
 import DB.Types (PageHeight (..), PageNumber (..), ScoreField (..))
 import Data.Int (Int32)
@@ -35,14 +32,14 @@ import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Time
 import qualified Data.Vector as V
-import Data.Word (Word16, Word8)
-import Database.SQLite.Simple (Connection, withConnection)
+import Data.Word (Word8)
 import qualified Graphics.Vty as V
 import Lens.Micro ((^.))
-import Lens.Micro.Extras (view)
 import Lens.Micro.Mtl (preview, use, (.=))
 import Lens.Micro.TH (makeLenses)
 import UI.ReplayPlayer
+import Database.SQLite.Simple (withConnection)
+import Data.Coerce (coerce)
 
 data HSPageName = ScoreTable | HSDialogNum Int | ReplayIndex | InvalidIndex
   deriving (Show, Eq, Ord)
@@ -59,14 +56,15 @@ newtype ViewReplayForm = ViewReplayForm
   deriving newtype (Show, Read, Num)
 
 data ScorePages = ScorePages
-  { _prevScorePages :: V.Vector ScoreField,
-    _currentScorePage :: L.List HSPageName ScoreField,
-    _nextScorePages :: V.Vector ScoreField
+  { _prevScorePage :: V.Vector ScoreField,
+    _currentScorePage :: V.Vector ScoreField,
+    _nextScorePage :: V.Vector ScoreField
   }
 
 data HighScoreState e = HighScoreState
-  { _highscores :: ScorePages,
-    _height :: !Int,
+  { _pageNumber :: PageNumber,
+    _pageHeight :: PageHeight,
+    _page :: L.List HSPageName ScoreField,
     _selectAmount :: ShowAmountStateDialog,
     _selectReplay :: Form ViewReplayForm e HSPageName,
     _mode :: Mode
@@ -82,7 +80,7 @@ concat
     ]
 
 defHeight :: Int
-defHeight = 20
+defHeight = 10
 
 ui :: HighScoreState e -> [Widget HSPageName]
 ui hss = case hss ^. mode of
@@ -93,17 +91,22 @@ ui hss = case hss ^. mode of
   ShowingAmountStateDialog ->
     [diaWidget (hss ^. selectAmount), scores]
   where
-    hei = view height hss
-    scos = view (highscores . currentScorePage) hss
-    scores = allList hei scos
+    hei = coerce $ hss ^. pageHeight
+    scores = allList hei $ hss ^. page
     diaWidget (ShowAmountStateDialog dia) = D.renderDialog dia emptyWidget
 
 scoresList :: V.Vector ScoreField -> L.List HSPageName ScoreField
 scoresList scores = L.list ScoreTable scores 2
 
-renderScoresList ::
-  (Traversable t, L.Splittable t, Ord n, Show n) => Bool -> L.GenericList n t ScoreField -> Widget n
-renderScoresList = L.renderListWithIndex f
+allList :: (Traversable t, L.Splittable t, Ord n, Show n) => Int -> L.GenericList n t ScoreField -> Widget n
+allList h scoreList =
+  C.center . vBox . (hLimit 75 . B.border <$>) $
+    [ C.hCenter . withAttr headerAttr $ txt "HIGH SCORES",
+        renderScoresList h scoreList
+    ]
+
+renderScoresList :: (Traversable t, L.Splittable t, Ord n, Show n) => Int -> L.GenericList n t ScoreField -> Widget n
+renderScoresList h = vLimit (2*h) . L.renderListWithIndex f True
   where
     f ix sel s
       | sel = withAttr D.buttonAttr $ lister ix s
@@ -115,26 +118,19 @@ renderScoresList = L.renderListWithIndex f
               <$> [ hLimit 3 $ strWrap (show $ ix + 1),
                     hLimit 3 $ txtWrap n,
                     hLimit 3 $ handleScore s,
-                    hLimit 17 $ handleDate d,
-                    hLimit 5 $ hLimit 5 btn
+                    hLimit 14 $ handleDate d,
+                    padLeft (Pad 2) $ hLimit 5 btn
                   ]
       )
         (maybe (txt "N/A") (const replayButton) rep)
 
-    padding = padRight Max
+    padding = padBottom (Pad 1) . padRight Max
 
     handleScore = txtWrap . Text.pack . show
 
     handleDate = txtWrap . formatDbIntToTime
 
     replayButton = withAttr headerAttr $ txtWrap "VIEW"
-
-allList :: (Traversable t, L.Splittable t, Ord n, Show n) => Int -> L.GenericList n t ScoreField -> Widget n
-allList h scoreList =
-  C.center . vBox . (hLimit 50 . B.border <$>) $
-    [ C.hCenter . withAttr headerAttr $ txt "HIGH SCORES",
-      vLimit h . renderScoresList True $ scoreList
-    ]
 
 formatDbIntToTime :: Int -> Text
 formatDbIntToTime posixTime =
@@ -157,13 +153,13 @@ handleEventMain (VtyEvent (V.EvKey (V.KChar '/') [])) = do
 handleEventMain (VtyEvent (V.EvKey (V.KChar 'h') [])) = do
   mode .= ShowingAmountStateDialog
   selectAmount .= defShowAmountStateDialog
-handleEventMain (VtyEvent ev) = zoom (highscores . currentScorePage) $ L.handleListEvent ev
+handleEventMain (VtyEvent ev) = zoom page $ L.handleListEvent ev
 handleEventMain _ = return ()
 
 handleEventDialog :: BrickEvent HSPageName e -> EventM HSPageName (HighScoreState e) ()
 handleEventDialog (VtyEvent (V.EvKey V.KEnter [])) = do
   d <- fromMaybe defDialog . preview (selectAmount . menuDialog) <$> get
-  height .= (maybe defHeight snd . D.dialogSelection $ d)
+  pageHeight .= PageHeight (maybe defHeight snd . D.dialogSelection $ d)
   mode .= Page
 handleEventDialog (VtyEvent (V.EvKey V.KEsc [])) = do
   mode .= Page
@@ -174,7 +170,7 @@ handleViewReplayForm :: BrickEvent HSPageName e -> EventM HSPageName (HighScoreS
 handleViewReplayForm (VtyEvent (V.EvKey (V.KChar 'q') [])) = mode .= Page
 handleViewReplayForm (VtyEvent (V.EvKey V.KEnter [])) = do
   f <- use selectReplay
-  scores <- use (highscores . currentScorePage . L.listElementsL)
+  scores <- use (page . L.listElementsL)
   let (ViewReplayForm index) = formState f
       mbScoreField = scores V.!? (fromIntegral index - 1)
   if not . isJust $ (getReplay =<< mbScoreField)
@@ -219,20 +215,20 @@ highScoresApp =
       M.appAttrMap = const theMap
     }
 
-refreshScoresOnPage :: (Integral a, a ~ Int32) => a -> a -> EventM HSPageName (HighScoreState e) ()
-refreshScoresOnPage pageTop hei = do
-  sp <-
-    ( \ss ->
-        let (prev, rest) = splitAt (2 * (fromIntegral hei)) ss
-            (now, next) = splitAt (fromIntegral hei) rest
-         in ScorePages
-              (V.fromList prev)
-              (scoresList (V.fromList now))
-              (V.fromList next)
-    )
-      <$> liftIO (leaderBoardRequest (PageNumber pageTop) (PageHeight hei))
-  -- TODO: some animation that plays if the current page's list is different to the next
-  highscores .= sp
+-- refreshScoresOnPage :: (Integral a, a ~ Int32) => a -> a -> EventM HSPageName (HighScoreState e) ()
+-- refreshScoresOnPage pageTop hei = do
+--   sp <-
+--     ( \ss ->
+--         let (prev, rest) = splitAt (2 * (fromIntegral hei)) ss
+--             (now, next) = splitAt (fromIntegral hei) rest
+--          in ScorePages
+--               (V.fromList prev)
+--               (scoresList (V.fromList now))
+--               (V.fromList next)
+--     )
+--       <$> liftIO (leaderBoardRequest (PageNumber pageTop) (PageHeight hei))
+--   -- TODO: some animation that plays if the current page's list is different to the next
+--   highscores .= sp
 
 -- firstPageSlice h = (\ss ->
 --     (( ScorePages V.empty ) <$>)) . getScoreSlice h
@@ -260,9 +256,16 @@ defShowAmountStateDialog = ShowAmountStateDialog defDialog
 
 highScores :: IO ()
 highScores = do
-  -- (now, next) <- splitAt defHeight <$> withConnection dbPath getScores
-  (now, next) <- splitAt defHeight <$> leaderBoardRequest (PageNumber 1) (PageHeight (fromIntegral defHeight))
+  (now, next) <- splitAt defHeight <$> withConnection dbPath getScores -- Local test func
+  -- (now, next) <- splitAt defHeight <$> leaderBoardRequest (PageNumber 1) (PageHeight (fromIntegral defHeight))
   let initialIndex = ViewReplayForm 1
-      scores = ScorePages V.empty (scoresList (V.fromList now)) (V.fromList next)
-  _ <- defaultMain highScoresApp (HighScoreState scores defHeight defShowAmountStateDialog (selectReplayForm initialIndex) Page)
+      scores = ScorePages V.empty (V.fromList now) (V.fromList next)
+  _ <- defaultMain 
+        highScoresApp 
+        ( HighScoreState 
+          (PageNumber 1)
+          (PageHeight defHeight)
+          (L.list ScoreTable (scores ^. currentScorePage) 2) 
+          defShowAmountStateDialog 
+          (selectReplayForm initialIndex) Page)
   return ()

@@ -28,7 +28,6 @@ import qualified Data.ByteString.Lazy.Char8 as B8
 import Network.HTTP.Media (MediaType, (//), (/:))
 import Data.Data (Proxy)
 import Text.Read (readEither)
-import Data.Int (Int32)
 
 type Score = ScoreType
 
@@ -36,8 +35,8 @@ type NameType = Text
 
 type Time = Int
 
-newtype PageNumber = PageNumber Int32
-newtype PageHeight = PageHeight Int32
+newtype PageNumber = PageNumber Int
+newtype PageHeight = PageHeight Int
 
 data ScoreField = ScoreField
   { getScoreFieldID :: !Int,

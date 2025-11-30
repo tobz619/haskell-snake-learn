@@ -5,28 +5,34 @@
 module DB.Scotty where
 
 import Control.Concurrent.STM (TChan)
-import qualified Control.Exception as E
-import Control.Monad.IO.Class (liftIO)
-import Data.Binary.Get
-import qualified Data.Bimap as BM
-import DB.Highscores (addScoreWithReplay, getScoreSlice, getLowestScore, promptAddHighScore)
+import DB.Highscores (addScoreWithReplay, getScoreSlice, promptAddHighScore)
 import DB.Receive (handleEventList, textWriteTChan)
-import DB.Types (EventListMessage, NameType, PageHeight (PageHeight), PageNumber (PageNumber), ServerStateError (MalformedEvents), Time, keyEvBytesMap)
+import DB.Types (NameType, PageHeight (PageHeight), PageNumber (PageNumber))
 import qualified Data.ByteString.Lazy.Char8 as B8
 import Data.List (find)
-import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import qualified Data.Text.Lazy as T
 import Data.Time.Clock.POSIX (getPOSIXTime)
 import qualified Database.SQLite.Simple as DB
 import GameLogic (ScoreType, getWorld, score)
-import Logging.Replay (Seed, initState, runReplayG)
+import Logging.Replay (initState, runReplayG)
 import Network.HTTP.Types.Status
+    ( status200, status201, status400, status406 )
 import Servant(Application)
 import System.Random (mkStdGen)
-import Text.Read (readMaybe)
-import UI.Types (GameEvent(..), EventList, SeedType, mkEvs, TickNumber(..), KeyEvent(GameEnded))
+import UI.Types (SeedType, mkEvs)
 import Web.Scotty
+    ( liftIO,
+      ActionM,
+      ScottyM,
+      body,
+      get,
+      headers,
+      pathParam,
+      post,
+      scottyApp,
+      status,
+      text )
 
 scottyAPI :: TChan Text -> DB.Connection -> ScottyM ()
 scottyAPI msgChan conn = do
@@ -59,7 +65,7 @@ getScoreSlice' msgChan dbConn = do
   where
     getIPFromHeaders = do
       hds <- headers
-      let res = maybe "N/A" snd $ find ((== "HTTP_CLIENT_IP") . fst) hds
+      let res = maybe "N/A" snd $ find ((== "X-Forwarded-For") . fst) hds
       pure (T.unpack res)
 
 addScoreToDB' :: TChan Text -> DB.Connection -> ActionM ()
