@@ -33,6 +33,7 @@ import Web.Scotty
       scottyApp,
       status,
       text )
+import Data.Coerce (coerce)
 
 scottyAPI :: TChan Text -> DB.Connection -> ScottyM ()
 scottyAPI msgChan conn = do
@@ -54,7 +55,7 @@ getScoreSlice' msgChan dbConn = do
   liftIO $ textWriteTChan msgChan $ "Remote IP: " ++ ip
   pIx <- PageNumber <$> pathParam "pageIndex"
   pSize <- PageHeight <$> pathParam "pageSize"
-  ps <- liftIO $ getScoreSlice pIx pSize dbConn
+  ps <- liftIO $ getScoreSlice (5 * coerce pIx* coerce pSize) pIx pSize dbConn
   case ps of
     [] -> do
       status status400
