@@ -36,7 +36,11 @@ type NameType = Text
 type Time = Int
 
 newtype PageNumber = PageNumber Int
+  deriving newtype (Show, Eq, Num)
+
 newtype PageHeight = PageHeight Int
+  deriving newtype (Show, Eq, Num)
+
 
 data ScoreField = ScoreField
   { getScoreFieldID :: !Int,

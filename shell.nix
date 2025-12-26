@@ -10,11 +10,14 @@ let
 
 in
 
-pkgs.mkShell{
+haskell-packages.shellFor {
+  pname = "snake-game";
+  
+  version = "0.0.1";
 
-  name = "snake-game";
+  src = ./.;
 
-  imports =  [ ./brick-tutorial.nix ];
+  packages = hpkgs: [ (hpkgs.callPackage ./brick-tutorial.nix {}) ];
 
   buildInputs = (with haskell-packages; [
     haskell-language-server
@@ -35,7 +38,7 @@ pkgs.mkShell{
 
   shellHook = '' 
     echo "... updating ${pname}.nix ..."
-    cabal2nix . > ${pname}.nix  
+    ${pkgs.cabal2nix}/bin/cabal2nix . > ${pname}.nix  
     export SHELL=/run/current-system/sw/bin/bash
     # echo "... generating hie.yaml ..."
     # ${pkgs.haskellPackages.implicit-hie}/bin/gen-hie > hie.yaml
