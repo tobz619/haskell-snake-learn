@@ -82,7 +82,7 @@ getLowestScore conn = do
 -- | Get a score slice of however many long using the pn and ph as an offset.
 getScoreSlice :: Int -> PageNumber -> PageHeight -> Connection -> IO [ScoreField]
 getScoreSlice len (PageNumber lbIx) (PageHeight hei) conn = do
-  showInfo
+  -- showInfo
   fmap firstScore <$> query conn sliceScoreQuery (len, offset)
   where
     firstScore sf@(ScoreField _ _ _ _ _ s) = sf {getReplay = BS.take 1 <$> s} -- Only fetch the first byte

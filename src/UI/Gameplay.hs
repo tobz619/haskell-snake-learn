@@ -50,13 +50,12 @@ altConfig = []
 
 gameplay :: IO ()
 gameplay = do
-  chan <- newBChan 10
+  chan <- newBChan 64
   _ <- forkIO $ forever $ do
     writeBChan chan Tick
     threadDelay (1_000_000 `div` 16) -- 16 ticks per second
-  let initialVty = V.mkVty V.defaultConfig
-  buildVty <- initialVty
-  void $ customMain buildVty initialVty (Just chan) gameApp defState
+  (_,v) <- customMainWithDefaultVty (Just chan) gameApp defState
+  V.shutdown v
 
 gameApp :: M.App GameplayState Tick MenuOptions
 gameApp =
