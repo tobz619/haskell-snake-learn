@@ -48,14 +48,13 @@ import DB.Client (runClientAppSTM, postScoreLeaderBoard, highScoreRequest)
 altConfig :: [a]
 altConfig = []
 
-gameplay :: IO ()
-gameplay = do
+gameplay :: V.Vty -> IO V.Vty
+gameplay vty = do
   chan <- newBChan 64
   _ <- forkIO $ forever $ do
     writeBChan chan Tick
     threadDelay (1_000_000 `div` 16) -- 16 ticks per second
-  (_,v) <- customMainWithDefaultVty (Just chan) gameApp defState
-  V.shutdown v
+  snd <$> customMainWithVty vty (pure vty) (Just chan) gameApp defState
 
 gameApp :: M.App GameplayState Tick MenuOptions
 gameApp =
