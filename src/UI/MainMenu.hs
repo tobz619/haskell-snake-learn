@@ -23,6 +23,7 @@ import Data.Maybe (fromMaybe)
 import qualified Graphics.Vty as V
 import Lens.Micro.Mtl
 import Lens.Micro.TH (makeLenses)
+import qualified Graphics.Vty.CrossPlatform as V
 
 data Choice = Play | HighScores | Quit
     deriving (Eq, Show, Ord)
@@ -91,7 +92,8 @@ mainMenuApp =
         , M.appAttrMap = const theMap
         }
 
-runMainMenu :: IO Choice
-runMainMenu = do
-    !res <- _dialogChoice <$> M.defaultMain mainMenuApp initialState
-    pure (fromMaybe Quit res)
+runMainMenu :: V.Vty -> IO (Choice, V.Vty)
+runMainMenu vty = do
+    (appRes, vty') <- M.customMainWithVty vty (pure vty) Nothing mainMenuApp initialState
+    let res = _dialogChoice appRes
+    return (fromMaybe Quit res, vty')

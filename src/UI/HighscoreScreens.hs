@@ -13,6 +13,7 @@ module UI.HighscoreScreens where
 
 import Brick
 import qualified Brick.AttrMap as A
+import Brick.BChan
 import Brick.Forms
 import Brick.Main as M
 import qualified Brick.Widgets.Border as B
@@ -20,7 +21,8 @@ import qualified Brick.Widgets.Center as C
 import Brick.Widgets.Dialog (Dialog)
 import qualified Brick.Widgets.Dialog as D
 import qualified Brick.Widgets.List as L
-import Control.Monad (join, when, forever)
+import Control.Concurrent (forkIO, threadDelay)
+import Control.Monad (forever, join, when)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import DB.Client (leaderBoardRequest, recvReplayData)
 import DB.Highscores
@@ -32,6 +34,7 @@ import DB.Highscores
 import DB.Types (PageHeight (..), PageNumber (..), ScoreField (..))
 import Data.Coerce (coerce)
 import Data.Functor ((<&>))
+import Data.List (nub)
 import Data.Maybe (fromJust, fromMaybe, isJust)
 import Data.Text (Text)
 import qualified Data.Text as Text
@@ -41,14 +44,12 @@ import Data.Word (Word8)
 import Database.SQLite.Simple (withConnection)
 import qualified Database.SQLite.Simple as DB
 import qualified Graphics.Vty as V
+import qualified Graphics.Vty.CrossPlatform as V
 import Lens.Micro ((%~), (.~), (^.))
 import Lens.Micro.Mtl (preview, use, (%=), (.=))
 import Lens.Micro.TH (makeLenses)
 import UI.ReplayPlayer
-import Data.List (nub)
-import Control.Concurrent (threadDelay, forkIO)
-import Brick.BChan
-import UI.Types (Tick(..))
+import UI.Types (Tick (..))
 
 data HSPageName = ScoreTable | HSDialogNum Int | ReplayIndex | InvalidIndex
   deriving (Show, Eq, Ord)
@@ -107,7 +108,7 @@ ui hss = case hss ^. mode of
         ]
 
 mkScoresList :: PageNumber -> PageHeight -> V.Vector (Int, ScoreField) -> L.List HSPageName (Int, ScoreField)
-mkScoresList (PageNumber pn) (PageHeight ph) scores = L.list ScoreTable (V.take ph . V.dropWhile ((/= ph*pn) . fst) $ scores) 2
+mkScoresList (PageNumber pn) (PageHeight ph) scores = L.list ScoreTable (V.take ph . V.dropWhile ((/= ph * pn) . fst) $ scores) 2
 
 allList :: (Traversable t, L.Splittable t, Ord n, Show n) => PageHeight -> PageNumber -> L.GenericList n t (Int, ScoreField) -> Widget n
 allList pHeight pNum scoreList =
@@ -117,9 +118,10 @@ allList pHeight pNum scoreList =
     ]
 
 renderScoresList :: (Traversable t, L.Splittable t, Ord n, Show n) => PageHeight -> PageNumber -> L.GenericList n t (Int, ScoreField) -> Widget n
-renderScoresList pHeight pNum l =  vBox $ [
-    vLimit (2 * coerce pHeight) . L.renderList f True $ l, 
-    str ("Page: " ++ show (pNum + 1))
+renderScoresList pHeight pNum l =
+  vBox $
+    [ vLimit (2 * coerce pHeight) . L.renderList f True $ l,
+      str ("Page: " ++ show (pNum + 1))
     ]
   where
     f sel s
@@ -172,25 +174,20 @@ inputHandler ev = do
 handleEventMain :: BrickEvent HSPageName Tick -> EventM HSPageName (HighScoreState) ()
 handleEventMain (VtyEvent (V.EvKey (V.KChar 'q') [])) = M.halt
 handleEventMain (VtyEvent (V.EvKey V.KEsc [])) = M.halt
-handleEventMain (VtyEvent (V.EvKey (V.KChar 'r') [])) = do 
+handleEventMain (VtyEvent (V.EvKey (V.KChar 'r') [])) = do
   mode .= ReloadingScores
-
-
 handleEventMain (VtyEvent (V.EvKey (V.KChar '/') [])) = do
   mode .= ShowingViewReplayDialog
 handleEventMain (VtyEvent (V.EvKey (V.KChar 'h') [])) = do
   mode .= ShowingAmountStateDialog
   selectAmount .= defShowAmountStateDialog
-
 handleEventMain (VtyEvent (V.EvKey V.KLeft [])) = do
   pageNumber %= (\(PageNumber !n) -> PageNumber (max 0 (n - 1)))
   join $ changeScoreArr <$> use pageNumber <*> use pageHeight <*> use scoreArr
-
 handleEventMain (VtyEvent (V.EvKey V.KRight [])) = do
   (PageHeight hei) <- use pageHeight
   pageNumber %= (\(PageNumber !n) -> PageNumber (min ((fromIntegral maxDbSize) `div` hei) (n + 1)))
   join $ changeScoreArr <$> use pageNumber <*> use pageHeight <*> use scoreArr
-  
 handleEventMain (VtyEvent ev) = zoom scorePageList $ L.handleListEvent ev
 handleEventMain _ = return ()
 
@@ -203,7 +200,7 @@ handleEventDialog (VtyEvent (V.EvKey V.KEnter [])) = do
   s <- liftIO $ V.fromList <$> withConnection dbPath (getPages (PageNumber 0) ph)
   scoreArr .= s
   list <- mkScoresList <$> use pageNumber <*> use pageHeight <*> use scoreArr
-  scorePageList .= list 
+  scorePageList .= list
   mode .= Page
 handleEventDialog (VtyEvent (V.EvKey V.KEsc [])) = do
   mode .= Page
@@ -286,29 +283,33 @@ getPages :: PageNumber -> PageHeight -> DB.Connection -> IO [(Int, ScoreField)]
 getPages (PageNumber n) (PageHeight h) dbConn = do
   let indices = concatMap scoreIx pns
   zip indices <$> getScoreSlice (length indices) (PageNumber n) (PageHeight h) dbConn
-    where scoreIx pn = [pn * h .. pn * h + h - 1]
-          pns = [max 0 (n - 2) .. n + 2]
+  where
+    scoreIx pn = [pn * h .. pn * h + h - 1]
+    pns = [max 0 (n - 2) .. n + 2]
 
 changeScoreArr :: PageNumber -> PageHeight -> V.Vector (Int, ScoreField) -> EventM n (HighScoreState) ()
 changeScoreArr pn@(PageNumber pNum) ph@(PageHeight pHei) scorePages
-  | Nothing <- V.find  (== (pNum * pHei + 1)) (fst <$> scorePages) = do
+  | Nothing <- V.find (== (pNum * pHei + 1)) (fst <$> scorePages) = do
       viewList <- liftIO (V.fromList <$> withConnection dbPath (getPages pn ph))
       scoreArr .= viewList
       scorePageList .= mkScoresList pn ph viewList
-  | otherwise = do 
-      scorePageList .= mkScoresList pn ph scorePages 
+  | otherwise = do
+      scorePageList .= mkScoresList pn ph scorePages
 
-highScores :: IO ()
-highScores = do
+highScores :: V.Vty -> IO V.Vty
+highScores vty = do
   chan <- newBChan 256
   _ <- forkIO $ forever $ do
     writeBChan chan Tick
-    threadDelay (1*10^5)
+    threadDelay (1 * 10 ^ 5)
   -- scoreArray <- V.fromList <$> withConnection dbPath (getPages (PageNumber 0) (PageHeight defHeight)) -- Local test func
   scoreArray <- V.fromList <$> leaderBoardRequest (PageNumber 0) (PageHeight defHeight)
   let initialIndex = ViewReplayForm 1
-  (_, v) <- customMainWithDefaultVty
-      Nothing
+  snd
+    <$> customMainWithVty
+      vty
+      (pure vty)
+      (Just chan)
       highScoresApp
       ( HighScoreState
           (PageNumber 0)
@@ -319,4 +320,3 @@ highScores = do
           (selectReplayForm initialIndex)
           Page
       )
-  V.shutdown v
