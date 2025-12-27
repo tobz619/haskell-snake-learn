@@ -1,6 +1,7 @@
 -- {-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE BangPatterns #-}
 
 module UI.MainMenu where
 
@@ -92,5 +93,5 @@ mainMenuApp =
 
 runMainMenu :: IO Choice
 runMainMenu = do
-    res <- _dialogChoice <$> M.defaultMain mainMenuApp initialState
-    return (fromMaybe Quit res)
+    !res <- _dialogChoice <$> M.defaultMain mainMenuApp initialState
+    pure (fromMaybe Quit res)

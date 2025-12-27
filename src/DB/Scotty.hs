@@ -55,7 +55,7 @@ getScoreSlice' msgChan dbConn = do
   liftIO $ textWriteTChan msgChan $ "Remote IP: " ++ ip
   pIx <- PageNumber <$> pathParam "pageIndex"
   pSize <- PageHeight <$> pathParam "pageSize"
-  ps <- liftIO $ getScoreSlice (5 * coerce pIx* coerce pSize) pIx pSize dbConn
+  ps <- liftIO $ getScoreSlice (5 * coerce pSize) pIx pSize dbConn
   case ps of
     [] -> do
       status status400

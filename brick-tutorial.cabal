@@ -90,7 +90,9 @@ executable snake-game
         vty-crossplatform
 
     hs-source-dirs:   app/Game
-    ghc-options: -O2 -threaded -rtsopts 
+    ghc-options: 
+        -O2 
+        -threaded
     default-language: Haskell2010
 
 executable snake-server
@@ -102,10 +104,8 @@ executable snake-server
     
     hs-source-dirs: app/Server
     ghc-options: 
-        -O2 
-        -threaded 
-        -rtsopts
-        -with-rtsopts=-N
+        -threaded
+        -O2
     default-language: Haskell2010
 
 test-suite brick-tutorial-test

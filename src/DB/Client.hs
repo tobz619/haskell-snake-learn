@@ -187,14 +187,14 @@ highScoreRequest s = do
 
     readRes = fromMaybe 0 . readMaybe @Int . BL8.unpack . BL.take 3 
 
-leaderBoardRequest :: PageNumber -> PageHeight -> IO [ScoreField]
+leaderBoardRequest :: PageNumber -> PageHeight -> IO [(Int, ScoreField)]
 leaderBoardRequest (PageNumber pix) (PageHeight psize) =
   do
     res <- req
     let rcode = res ^. Wreq.responseStatus . Wreq.statusCode
         body = res ^. Wreq.responseBody
     case rcode of
-      200 -> pure . read @[ScoreField] . BL8.unpack $ body
+      200 -> pure . zip indices . read @[ScoreField] . BL8.unpack $ body
       a -> print a >> error "Unable to get scores"
   where
     req =
@@ -204,6 +204,9 @@ leaderBoardRequest (PageNumber pix) (PageHeight psize) =
             ,show pix
             , show psize
         ]
+    indices = concatMap f pns
+    pns = [max 0 (pix - 2) .. pix + 2]
+    f p = [p*psize .. p*psize + psize - 1]  
 
 postScoreLeaderBoard :: NameType -> ScoreType -> SeedType -> EventList -> IO ()
 postScoreLeaderBoard name score seed evlist = do
