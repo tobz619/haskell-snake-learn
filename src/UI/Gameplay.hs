@@ -54,7 +54,7 @@ gameplay vty = do
   _ <- forkIO $ forever $ do
     writeBChan chan Tick
     threadDelay (1_000_000 `div` 16) -- 16 ticks per second
-  snd <$> customMainWithVty vty (pure vty) (Just chan) gameApp defState
+  snd <$> customMainWithVty vty (V.mkVty V.defaultConfig) (Just chan) gameApp defState
 
 gameApp :: M.App GameplayState Tick MenuOptions
 gameApp =

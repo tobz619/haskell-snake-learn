@@ -78,7 +78,7 @@ addCheckPoint inList = do
     (modify $ \r -> r {rCheckPoint = r `V.cons` rCheckPoint r})
 
 
-handleSpeed :: MonadState ReplayState m => Float -> InputList -> m ()
+handleSpeed :: MonadState ReplayState m => Double -> InputList -> m ()
 handleSpeed s evList
   | s > 0 = do
              rws <- gets rGameStateVec
