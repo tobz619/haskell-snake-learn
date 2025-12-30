@@ -1,6 +1,7 @@
 {-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE BangPatterns #-}
 
 module UI.ReplayPlayer where
 
@@ -10,7 +11,7 @@ import Brick
       EventM,
       customMain,
       neverShowCursor,
-      modify )
+      modify, customMainWithVty, customMainWithDefaultVty )
 import Brick.BChan (newBChan, writeBChan)
 import Brick.Main (halt)
 import Brick.Types (Widget)
@@ -36,18 +37,17 @@ import DB.Types (ReplayData (ReplayData))
 import DB.Receive
 
 
-runReplayApp :: StdGen -> InputList -> MVar Float -> IO ()
+runReplayApp :: StdGen -> InputList -> MVar Double -> IO ()
 runReplayApp seed mEvList mSpeedMod = do
   chan <- newBChan 10
   _ <- forkIO $ forever $ do
     speedModifier <- readMVar mSpeedMod
     writeBChan chan Tick
     threadDelay $ ceiling (1 / abs speedModifier * (1_000_000 / 16))
-  let initialVty = V.mkVty V.defaultConfig
-  buildVty <- initialVty
-  void $ customMain buildVty initialVty (Just chan) (replayApp mEvList mSpeedMod) (initState seed)
+  (!a,!v) <- customMainWithDefaultVty (Just chan) (replayApp mEvList mSpeedMod) (initState seed)
+  V.shutdown v
 
-replayApp :: InputList -> MVar Float -> App ReplayState Tick MenuOptions
+replayApp :: InputList -> MVar Double -> App ReplayState Tick MenuOptions
 replayApp evs speedMod =
   App
     { appDraw = flip drawUI evs,
@@ -57,7 +57,7 @@ replayApp evs speedMod =
       appAttrMap = const theMap
     }
 
-replayEventHandler :: BrickEvent n Tick -> InputList -> MVar Float -> EventM n ReplayState ()
+replayEventHandler :: BrickEvent n Tick -> InputList -> MVar Double -> EventM n ReplayState ()
 replayEventHandler (VtyEvent (V.EvKey (V.KChar 'p') [])) _ _ = do
   modify (\r -> r {rGameState = pauseToggle (rGameState r)} )
   -- gs <- gets rGameState
@@ -157,7 +157,7 @@ readReplayFromFile = do
   runReplayApp (mkStdGen seed) evs speed
 
 
-speedUp, speedDown, normalSpeed :: Float -> Float
+speedUp, speedDown, normalSpeed :: Double -> Double
 speedUp x
   | x >= 16 = x
   | otherwise = x * 2

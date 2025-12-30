@@ -216,7 +216,7 @@ handleViewReplayForm (VtyEvent (V.EvKey V.KEnter [])) = do
   f <- use selectReplay
   scores <- use scoreArr
   let (ViewReplayForm index) = formState f
-      mbScoreField = snd <$> scores V.!? (fromIntegral index - 1)
+      mbScoreField = snd <$> V.find ((== index - 1) . fromIntegral . fst) scores -- TODO: fix this so that we work with 1 indexes exclusively on this side
   if not . isJust $ (getReplay =<< mbScoreField)
     then do
       selectReplay .= setFieldValid False ReplayIndex f
@@ -308,7 +308,7 @@ highScores vty = do
   snd
     <$> customMainWithVty
       vty
-      (pure vty)
+      (V.mkVty V.defaultConfig)
       (Just chan)
       highScoresApp
       ( HighScoreState

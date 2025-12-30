@@ -94,6 +94,6 @@ mainMenuApp =
 
 runMainMenu :: V.Vty -> IO (Choice, V.Vty)
 runMainMenu vty = do
-    (appRes, vty') <- M.customMainWithVty vty (pure vty) Nothing mainMenuApp initialState
+    (appRes, vty') <- M.customMainWithVty vty (V.mkVty V.defaultConfig) Nothing mainMenuApp initialState
     let res = _dialogChoice appRes
     return (fromMaybe Quit res, vty')

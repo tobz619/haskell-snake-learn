@@ -7,17 +7,17 @@ import UI.HighscoreScreens (highScores)
 import UI.MainMenu (Choice (..), runMainMenu)
 import qualified Graphics.Vty.CrossPlatform as V
 import qualified Graphics.Vty as V
+import qualified Control.Exception as E
 
 main :: IO ()
 main = do
   vty <- V.mkVty V.defaultConfig
-  loop vty
-  V.shutdown vty
+  E.onException (loop vty) (V.shutdown vty) 
 
   where loop v = do
           !(choice, v') <- runMainMenu v
           case choice of
-            Play -> gameplay v' >>= \v'' -> loop v'' 
-            HighScores -> highScores v' >>= \v'' -> loop v''
-            Quit -> pure ()
+            Play -> gameplay v' >>= loop 
+            HighScores -> highScores v' >>= loop
+            Quit -> V.shutdown v'
 
