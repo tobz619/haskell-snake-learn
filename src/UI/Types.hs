@@ -15,6 +15,7 @@ import Linear.V2 (V2)
 import qualified Brick.Keybindings as K
 import qualified Data.Vector.Strict as V
 import Data.List (nub)
+import qualified Network.Wreq.Session as WreqS
 
 type ConfigBinding = (KeyEvent, K.BindingState)
 
@@ -75,7 +76,8 @@ data GameplayState = GameplayState
     _highScoreDialogs :: HighScoreFormState,
     _tickNo :: TickType,
     _gameLog :: EventList,
-    _gameSeed :: SeedType
+    _gameSeed :: SeedType,
+    _sess :: WreqS.Session
   }
 
 data HighScoreFormState = HighScoreFormState

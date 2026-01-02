@@ -88,6 +88,7 @@ type ClientConnection = TCPConn
 
 data ServerStateError
   = ConnectTimeout
+  | ConnectFailure
   | MaxPlayers
   | UnexpectedClose
   | WrongHello

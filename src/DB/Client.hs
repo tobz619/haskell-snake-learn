@@ -35,7 +35,7 @@ import Data.Maybe (fromMaybe)
 import qualified Data.Text as T
 import qualified Data.Text as Text
 import GameLogic (ScoreType)
-import Lens.Micro ( (^.) )
+import Lens.Micro ( (^.), (&), (.~) )
 import Network.Socket
 import Network.TLS ( contextNew, handshake )
 import qualified Network.Wreq as Wreq
@@ -48,6 +48,7 @@ import UI.Types
     SeedType,
     TickNumber (TickNumber),
   )
+import qualified Network.Wreq.Session as WreqS
 
 serverName, serverName' :: HostName
 serverName = "127.0.0.1"
@@ -72,6 +73,11 @@ serv = serverName'
 
 cli :: PortNumber
 cli = clientPort'
+
+opts :: Wreq.Options
+opts = Wreq.defaults 
+       & Wreq.checkResponse .~ (Just $ \_ _-> pure ()) -- Prevent exceptions getting raised on failed connection
+
 
 clientContext :: BS.ByteString -> TCPConn -> IO TLSConn
 clientContext ident (TCPConn c) = do
@@ -172,33 +178,44 @@ replicateClients = flip replicateConcurrently_ testClient
 manyTestClients :: Int -> IO ()
 manyTestClients n = mapM_ (\(v, act) -> act >> print v) $ zip ([1 ..] :: [Int]) (replicate n testClient)
 
-highScoreRequest :: ScoreType -> IO Bool
-highScoreRequest s = do
+heartbeatRequest :: WreqS.Session -> IO Bool
+heartbeatRequest sess = do
+  res <- WreqS.getWith opts sess (intercalate "/" ["https://" ++ serverName' ++ ":" ++ show leaderBoardPort', "heartbeat"])
+  pure $ (== 200) (res ^. Wreq.responseStatus . Wreq.statusCode)
+
+-- | Wrap a request to provide a default action if an exception is raised
+wrapRequest :: a -> IO a -> IO a
+wrapRequest def = E.handle requestHandler
+  where requestHandler ConnectFailure = pure def
+        requestHandler _ = pure def
+
+highScoreRequest :: ScoreType -> WreqS.Session -> IO Bool
+highScoreRequest s sess = wrapRequest False $ do
   res <- req
   let rcode = res ^. Wreq.responseStatus . Wreq.statusCode
       body = res ^. Wreq.responseBody
   case rcode of
     200 -> pure . (== 1) . readRes $ body
-    _ -> error "Failed to query highscore database"
+    _ -> E.throwIO $ ConnectFailure
   where
     req =
-      Wreq.get
+      WreqS.getWith opts sess 
         (intercalate "/" ["https://" ++ serverName' ++ ":" ++ show leaderBoardPort', "lowestScoreQuery", show s])
 
     readRes = fromMaybe 0 . readMaybe @Int . BL8.unpack . BL.take 3 
 
-leaderBoardRequest :: PageNumber -> PageHeight -> IO [(Int, ScoreField)]
-leaderBoardRequest (PageNumber pix) (PageHeight psize) =
-  do
+leaderBoardRequest :: PageNumber -> PageHeight -> WreqS.Session -> IO [(Int, ScoreField)]
+leaderBoardRequest (PageNumber pix) (PageHeight psize) sess =
+  wrapRequest [] $ do
     res <- req
     let rcode = res ^. Wreq.responseStatus . Wreq.statusCode
         body = res ^. Wreq.responseBody
     case rcode of
       200 -> pure . zip indices . read @[ScoreField] . BL8.unpack $ body
-      a -> print a >> error "Unable to get scores"
+      _ -> E.throwIO $ ConnectFailure
   where
     req =
-      Wreq.get $ intercalate "/"
+      WreqS.getWith opts sess $ intercalate "/"
         [ "https://" ++ serverName' ++ ":" ++ show leaderBoardPort'
             ,"leaderboardQuery"
             ,show pix
@@ -208,8 +225,8 @@ leaderBoardRequest (PageNumber pix) (PageHeight psize) =
     pns = [max 0 (pix - 2) .. pix + 2]
     f p = [p*psize .. p*psize + psize - 1]  
 
-postScoreLeaderBoard :: NameType -> ScoreType -> SeedType -> EventList -> IO ()
-postScoreLeaderBoard name score seed evlist = do
+postScoreLeaderBoard :: NameType -> ScoreType -> SeedType -> EventList -> WreqS.Session -> IO ()
+postScoreLeaderBoard name score seed evlist sess = wrapRequest () $ do
   res <- req'
   let rcode = res ^. Wreq.responseStatus . Wreq.statusCode
   print res
@@ -219,7 +236,7 @@ postScoreLeaderBoard name score seed evlist = do
     a -> print a >> error "Failed to upload score"
   where
     req' =
-      Wreq.post
+      WreqS.postWith opts sess 
         (intercalate "/" ["https://" ++ serverName' ++ ":" ++ show leaderBoardPort', "addScore", T.unpack name, show score, show seed])
         (converted :: BL.ByteString)
 

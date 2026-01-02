@@ -23,7 +23,7 @@ import Brick.Widgets.Dialog (Dialog)
 import qualified Brick.Widgets.Dialog as D
 import qualified Brick.Widgets.List as L
 import Control.Concurrent (forkIO, threadDelay)
-import Control.Monad (forever, void)
+import Control.Monad (forever, void, join)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Control.Monad.State.Class (MonadState)
 import DB.Highscores as DBHS (addScore, promptAddHighScore, addScoreWithReplay, dbPath)
@@ -44,17 +44,18 @@ import System.Random
 import UI.Keybinds (gameplayDispatcher)
 import UI.Types
 import DB.Client (runClientAppSTM, postScoreLeaderBoard, highScoreRequest)
+import qualified Network.Wreq.Session as WreqS
 
 altConfig :: [a]
 altConfig = []
 
-gameplay :: V.Vty -> IO V.Vty
-gameplay vty = do
+gameplay :: V.Vty  -> WreqS.Session -> IO V.Vty
+gameplay vty session = do
   chan <- newBChan 64
   _ <- forkIO $ forever $ do
     writeBChan chan Tick
     threadDelay (1_000_000 `div` 16) -- 16 ticks per second
-  snd <$> customMainWithVty vty (V.mkVty V.defaultConfig) (Just chan) gameApp defState
+  snd <$> customMainWithVty vty (V.mkVty V.defaultConfig) (Just chan) gameApp (defState {_sess = session})
 
 gameApp :: M.App GameplayState Tick MenuOptions
 gameApp =
@@ -66,8 +67,9 @@ gameApp =
       appAttrMap = const theMap
     }
 
+-- | Note that the session and seed are uninitialized.
 defState :: GameplayState
-defState = GameplayState Restarting Nothing (HighScoreFormState Nothing Nothing) 0 [] undefined
+defState = GameplayState Restarting Nothing (HighScoreFormState Nothing Nothing) 0 [] undefined undefined
 
 dialogShower :: GameState -> Maybe (Dialog GameState MenuOptions)
 dialogShower (Paused w) = Just $ D.dialog (Just (txt "PAUSE MENU")) (Just (Resume, options)) 40
@@ -137,6 +139,7 @@ eventHandler ::
 eventHandler (VtyEvent (V.EvKey (V.KChar 'c') [V.MCtrl])) = M.halt
 eventHandler ev = do
   gs <- use gameState
+  sess' <- use sess 
   case gs of
     Restarting -> do
       vals@(genVal :: SeedType, g) <- genSeed
@@ -162,13 +165,12 @@ eventHandler ev = do
     NewHighScore w -> do
       logGameEnd
       gps' <- get
-      h <- liftIO $ openFile "Seed-Events" WriteMode
-      liftIO $ hPrint h (gps' ^. gameSeed)
-      liftIO $ hPrint h (gps' ^. gameLog)
-      liftIO $ hClose h
+      liftIO $ withFile "Seed-Events" WriteMode $ \h -> do
+        hPrint h (gps' ^. gameSeed)
+        hPrint h (gps' ^. gameLog)
 
       -- hs <- liftIO $ withConnection dbPath $ \conn -> promptAddHighScore (score w) conn
-      hs <- liftIO $ highScoreRequest (score w)
+      hs <- liftIO $ highScoreRequest (score w) sess'
       if hs
         then do
           gameStateDialog .= Nothing
@@ -179,7 +181,7 @@ eventHandler ev = do
     NewHighScorePrompt w -> do
       seed <- use gameSeed
       evList <- use gameLog
-      zoom highScoreDialogs $ handleHighScorePromptEvent ev seed (score w) evList
+      zoom highScoreDialogs $ handleHighScorePromptEvent ev seed (score w) evList sess'
 
       hsd <- use highScoreDialogs
       case hsd of
@@ -189,8 +191,8 @@ eventHandler ev = do
       dia <- use gameStateDialog
       maybe (gameStateDialog .= dialogShower p) (const $ handleMenuEvent ev) dia
 
-handleHighScorePromptEvent :: BrickEvent MenuOptions Tick -> SeedType -> ScoreType -> EventList -> EventM MenuOptions HighScoreFormState ()
-handleHighScorePromptEvent (VtyEvent (V.EvKey V.KEnter [])) seed score evList = do
+handleHighScorePromptEvent :: BrickEvent MenuOptions Tick -> SeedType -> ScoreType -> EventList -> WreqS.Session -> EventM MenuOptions HighScoreFormState ()
+handleHighScorePromptEvent (VtyEvent (V.EvKey V.KEnter [])) seed score evList sess = do
   st <- get
   case st of
     HighScoreFormState (Just dia) Nothing ->
@@ -199,17 +201,18 @@ handleHighScorePromptEvent (VtyEvent (V.EvKey V.KEnter [])) seed score evList = 
     HighScoreFormState Nothing (Just form) -> do
       let HighScoreForm mC1 mC2 mC3 = F.formState form
           name = maybe Text.empty Text.pack (sequence [mC1, mC2, mC3])
-      liftIO $ postScoreLeaderBoard name score seed evList
+      
+      liftIO $ postScoreLeaderBoard name score seed evList sess
       put (HighScoreFormState Nothing Nothing)
     
     _ -> pure ()
-handleHighScorePromptEvent (VtyEvent ev) _ _ _ = do
+handleHighScorePromptEvent (VtyEvent ev) _ _ _ _ = do
   st <- get
   case st of
     HighScoreFormState (Just _) Nothing -> zoom (hsDialog . _Just) $ D.handleDialogEvent ev
     HighScoreFormState Nothing (Just _) -> zoom (hsForm . _Just) $ F.handleFormEvent (VtyEvent ev)
     _ -> return ()
-handleHighScorePromptEvent _ _ _ _ = return ()
+handleHighScorePromptEvent _ _ _ _ _ = return ()
 
 -- | Handles changes in Gameplay and steps the game forward.
 handleGameplayEvent' :: BrickEvent n1 Tick -> EventM n2 GameState ()
