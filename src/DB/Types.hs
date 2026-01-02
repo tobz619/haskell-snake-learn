@@ -85,6 +85,7 @@ type CIndex = Int
 
 type ClientConnection = TCPConn
 
+type OnlineStatus = Bool
 
 data ServerStateError
   = ConnectTimeout
