@@ -28,3 +28,4 @@ Seed-Events
 Kid-Replay
 Replay-Request-Log
 .direnv
+*.db
