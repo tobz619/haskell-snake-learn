@@ -54,6 +54,7 @@ import Network.HTTP.Client (HttpException)
 import qualified Network.Wreq.Session as WreqS
 import UI.ReplayPlayer
 import UI.Types (Tick (..))
+import Control.Concurrent.MVar (MVar, readMVar)
 
 data HSPageName = ScoreTable | HSDialogNum Int | ReplayIndex | InvalidIndex | ContinueConnect ConnectOpts
   deriving (Show, Eq, Ord)
@@ -86,7 +87,7 @@ data HighScoreState = HighScoreState
     _selectAmount :: ShowAmountStateDialog,
     _selectReplay :: Form ViewReplayForm Tick HSPageName,
     _connectPrompt :: Dialog ConnectOpts HSPageName,
-    _online :: Bool,
+    _online :: MVar Bool,
     _mode :: !Mode,
     _sess :: !WreqS.Session
   }
@@ -194,6 +195,7 @@ handleConnectPrompt (VtyEvent (V.EvKey V.KEnter [])) = do
   case maybe Disconnect snd $ D.dialogSelection d of
     Disconnect -> M.halt
     Retry -> do
+      mode .= FetchingScores
       attemptFetchScores (PageNumber 0) (PageHeight defHeight) =<< use sess
     Local ->
       fetchLocalScores (PageNumber 0) (PageHeight defHeight)
@@ -358,17 +360,18 @@ getPages (PageNumber n) (PageHeight h) dbConn = do
 changeScoreArr :: PageNumber -> PageHeight -> V.Vector (Int, ScoreField) -> WreqS.Session -> EventM n (HighScoreState) ()
 changeScoreArr pn@(PageNumber pNum) ph@(PageHeight pHei) scorePages session
   | Nothing <- V.find (== (pNum * pHei + 1)) (fst <$> scorePages) = do
-        onl <- use online
+        mode .= FetchingScores
+        onl <- liftIO . readMVar =<< use online 
         if onl
           then attemptFetchScores pn ph session
           else fetchLocalScores pn ph
   | otherwise = do
       scorePageList .= mkScoresList pn ph scorePages
 
-highScores :: V.Vty -> WreqS.Session -> IO V.Vty
-highScores vty session = do
+highScores :: MVar Bool -> V.Vty -> WreqS.Session -> IO V.Vty
+highScores mHeartBeat vty session = do
   chan <- newBChan 64
-  heartbeat <- heartbeatRequest session
+  heartbeat <- readMVar mHeartBeat
   _ <- forkIO $ forever $ do
     writeBChan chan Tick
     threadDelay (1 * 10 ^ 5)
@@ -389,7 +392,7 @@ highScores vty session = do
           defShowAmountStateDialog
           (selectReplayForm initialIndex)
           connectDialog
-          heartbeat
+          mHeartBeat
           (if heartbeat then Page else ConnectPrompt)
           session
       )
