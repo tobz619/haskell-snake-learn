@@ -11,7 +11,6 @@ import Control.Monad.State
   )
 import Data.Sequence.NonEmpty (NESeq ((:<||), (:||>)), (|>))
 import qualified Data.Sequence.NonEmpty as S
-import Database.SQLite.Simple (Connection)
 import Lens.Micro (over)
 import Linear.V2 (V2 (..), _x, _y)
 import System.Random (Random (..), StdGen)
@@ -97,16 +96,15 @@ stepGameState gs = gs
 advanceWorld :: World -> GameState
 advanceWorld w@World {..} = case die w of
   Playing _ ->
-    let newSnake =
-          if eatFood food snake
-            then
+    let newSnake
+          | eatFood food snake =
               execState nextFood $
                 w
                   { snake = (moveSnake dir . growSnake) snake,
                     score = score + 1,
                     foodEaten = Just food
                   }
-            else w {snake = moveSnake dir snake, foodEaten = Nothing}
+          | otherwise = w {snake = moveSnake dir snake, foodEaten = Nothing}
      in Playing newSnake
   gs -> gs
 

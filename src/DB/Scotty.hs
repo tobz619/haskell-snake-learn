@@ -39,7 +39,11 @@ scottyAPI :: TChan Text -> DB.Connection -> ScottyM ()
 scottyAPI msgChan conn = do
   get "/leaderboardQuery/:pageIndex/:pageSize" $ getScoreSlice' msgChan conn
   get "/lowestScoreQuery/:score" $ getLowestScore' conn
+  get "/heartbeat/" $ heartbeat
   post "/addScore/:name/:score/:seedValue" $ addScoreToDB' msgChan conn
+
+heartbeat :: ActionM ()
+heartbeat = status status200
 
 getLowestScore' :: DB.Connection ->   ActionM ()
 getLowestScore' dbConn = do

@@ -8,16 +8,18 @@ import UI.MainMenu (Choice (..), runMainMenu)
 import qualified Graphics.Vty.CrossPlatform as V
 import qualified Graphics.Vty as V
 import qualified Control.Exception as E
+import qualified Network.Wreq.Session as WreqS
 
 main :: IO ()
 main = do
   vty <- V.mkVty V.defaultConfig
-  E.onException (loop vty) (V.shutdown vty) 
+  sess <- WreqS.newSession
+  E.onException (loop sess vty) (V.shutdown vty) 
 
-  where loop v = do
+  where loop s v  = do
           !(choice, v') <- runMainMenu v
           case choice of
-            Play -> gameplay v' >>= loop 
-            HighScores -> highScores v' >>= loop
+            Play -> gameplay v' s >>= loop s
+            HighScores -> highScores v' s >>= loop s
             Quit -> V.shutdown v'
 

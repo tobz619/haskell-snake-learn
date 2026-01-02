@@ -4,6 +4,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeOperators #-}
@@ -22,16 +23,17 @@ import Brick.Widgets.Dialog (Dialog)
 import qualified Brick.Widgets.Dialog as D
 import qualified Brick.Widgets.List as L
 import Control.Concurrent (forkIO, threadDelay)
+import qualified Control.Exception as E
 import Control.Monad (forever, join, when)
 import Control.Monad.IO.Class (MonadIO (liftIO))
-import DB.Client (leaderBoardRequest, recvReplayData)
+import DB.Client (heartbeatRequest, leaderBoardRequest, recvReplayData)
 import DB.Highscores
   ( dbPath,
     getScoreSlice,
     getScores,
     maxDbSize,
   )
-import DB.Types (PageHeight (..), PageNumber (..), ScoreField (..))
+import DB.Types (PageHeight (..), PageNumber (..), ScoreField (..), ServerStateError)
 import Data.Coerce (coerce)
 import Data.Functor ((<&>))
 import Data.List (nub)
@@ -46,15 +48,26 @@ import qualified Database.SQLite.Simple as DB
 import qualified Graphics.Vty as V
 import qualified Graphics.Vty.CrossPlatform as V
 import Lens.Micro ((%~), (.~), (^.))
-import Lens.Micro.Mtl (preview, use, (%=), (.=))
+import Lens.Micro.Mtl (preuse, preview, use, (%=), (.=))
 import Lens.Micro.TH (makeLenses)
+import Network.HTTP.Client (HttpException)
+import qualified Network.Wreq.Session as WreqS
 import UI.ReplayPlayer
 import UI.Types (Tick (..))
 
-data HSPageName = ScoreTable | HSDialogNum Int | ReplayIndex | InvalidIndex
+data HSPageName = ScoreTable | HSDialogNum Int | ReplayIndex | InvalidIndex | ContinueConnect ConnectOpts
   deriving (Show, Eq, Ord)
 
-data Mode = Page | ShowingAmountStateDialog | ShowingViewReplayDialog | ReloadingScores | FetchingScores
+data ConnectOpts = Retry | Local | Disconnect
+  deriving (Show, Eq, Ord, Enum)
+
+data Mode
+  = Page
+  | ShowingAmountStateDialog
+  | ShowingViewReplayDialog
+  | ReloadingScores
+  | FetchingScores
+  | ConnectPrompt
 
 newtype ShowAmountStateDialog = ShowAmountStateDialog
   { _menuDialog :: Dialog Int HSPageName
@@ -72,7 +85,10 @@ data HighScoreState = HighScoreState
     _scorePageList :: L.List HSPageName (Int, ScoreField),
     _selectAmount :: ShowAmountStateDialog,
     _selectReplay :: Form ViewReplayForm Tick HSPageName,
-    _mode :: !Mode
+    _connectPrompt :: Dialog ConnectOpts HSPageName,
+    _online :: Bool,
+    _mode :: !Mode,
+    _sess :: !WreqS.Session
   }
 
 concat
@@ -89,17 +105,21 @@ defHeight = 5
 ui :: HighScoreState -> [Widget HSPageName]
 ui hss = case hss ^. mode of
   Page -> [stats, scores]
-  FetchingScores -> [stats, undefined, scores]
+  FetchingScores -> [stats, fetching, scores]
   ReloadingScores -> [stats, reload, scores]
   ShowingViewReplayDialog -> [formWidget, scores]
     where
       formWidget = C.centerLayer $ renderForm (hss ^. selectReplay)
   ShowingAmountStateDialog ->
     [diaWidget (hss ^. selectAmount), scores]
+  ConnectPrompt ->
+    [connectPromptWidget]
   where
     scores = allList (hss ^. pageHeight) (hss ^. pageNumber) (hss ^. scorePageList)
     diaWidget (ShowAmountStateDialog dia) = D.renderDialog dia emptyWidget
-    reload = C.centerLayer $ B.border $ str "Reloading scores"
+    connectPromptWidget = D.renderDialog (hss ^. connectPrompt) emptyWidget
+    fetching = C.centerLayer . B.border $ str "Fetching scores..."
+    reload = C.centerLayer $ B.border $ str "Reloading scores..."
     stats =
       vBox $
         [ str $ "PageNumber " ++ show (hss ^. pageNumber),
@@ -162,14 +182,49 @@ inputHandler ev = do
     ShowingAmountStateDialog -> handleEventDialog ev
     Page -> handleEventMain ev
     ReloadingScores -> do
-      pn <- use pageNumber
-      ph <- use pageHeight
-      s <- (liftIO . fmap V.fromList . withConnection dbPath) $ \conn -> (getPages pn ph conn)
-      scoreArr .= s
-      join $ changeScoreArr <$> use pageNumber <*> use pageHeight <*> use scoreArr
+      join $ changeScoreArr <$> use pageNumber <*> use pageHeight <*> use scoreArr <*> use sess
       mode .= Page
     FetchingScores -> handleEventMain ev
+    ConnectPrompt -> handleConnectPrompt ev
   pure ()
+
+handleConnectPrompt :: BrickEvent HSPageName Tick -> EventM HSPageName HighScoreState ()
+handleConnectPrompt (VtyEvent (V.EvKey V.KEnter [])) = do
+  d <- use connectPrompt
+  case maybe Disconnect snd $ D.dialogSelection d of
+    Disconnect -> M.halt
+    Retry -> do
+      attemptFetchScores (PageNumber 0) (PageHeight defHeight) =<< use sess
+    Local ->
+      fetchLocalScores (PageNumber 0) (PageHeight defHeight)
+handleConnectPrompt (VtyEvent ev) =
+  zoom connectPrompt $ D.handleDialogEvent ev
+handleConnectPrompt _ = pure ()
+
+attemptFetchScores :: PageNumber -> PageHeight -> WreqS.Session -> EventM n HighScoreState ()
+attemptFetchScores pn ph session = do
+  res <- liftIO $ V.fromList <$> (E.handle (\(_::ServerStateError) -> pure []) $ leaderBoardRequest pn ph session)
+  if null res
+    then 
+      mode .= ConnectPrompt
+    else do 
+      scoreArr .= res
+      updateScorePageList
+      mode .= Page
+
+fetchLocalScores :: PageNumber -> PageHeight -> EventM n HighScoreState ()
+fetchLocalScores pn ph = do
+  res <- liftIO . withConnection dbPath $ getPages pn ph
+  scoreArr .= (V.fromList res)
+  updateScorePageList
+  mode .= Page
+
+updateScorePageList :: EventM n HighScoreState ()
+updateScorePageList = do
+  l <- mkScoresList <$> use pageNumber <*> use pageHeight <*> use scoreArr
+  scorePageList .= l
+
+
 
 handleEventMain :: BrickEvent HSPageName Tick -> EventM HSPageName (HighScoreState) ()
 handleEventMain (VtyEvent (V.EvKey (V.KChar 'q') [])) = M.halt
@@ -183,17 +238,17 @@ handleEventMain (VtyEvent (V.EvKey (V.KChar 'h') [])) = do
   selectAmount .= defShowAmountStateDialog
 handleEventMain (VtyEvent (V.EvKey V.KLeft [])) = do
   pageNumber %= (\(PageNumber !n) -> PageNumber (max 0 (n - 1)))
-  join $ changeScoreArr <$> use pageNumber <*> use pageHeight <*> use scoreArr
+  join $ changeScoreArr <$> use pageNumber <*> use pageHeight <*> use scoreArr <*> use sess
 handleEventMain (VtyEvent (V.EvKey V.KRight [])) = do
   (PageHeight hei) <- use pageHeight
   pageNumber %= (\(PageNumber !n) -> PageNumber (min ((fromIntegral maxDbSize) `div` hei) (n + 1)))
-  join $ changeScoreArr <$> use pageNumber <*> use pageHeight <*> use scoreArr
+  join $ changeScoreArr <$> use pageNumber <*> use pageHeight <*> use scoreArr <*> use sess
 handleEventMain (VtyEvent ev) = zoom scorePageList $ L.handleListEvent ev
 handleEventMain _ = return ()
 
 handleEventDialog :: BrickEvent HSPageName Tick -> EventM HSPageName (HighScoreState) ()
 handleEventDialog (VtyEvent (V.EvKey V.KEnter [])) = do
-  d <- fromMaybe defDialog . preview (selectAmount . menuDialog) <$> get
+  d <- use (selectAmount . menuDialog)
   pageHeight .= (PageHeight . maybe defHeight snd . D.dialogSelection $ d)
   pageNumber .= 0
   ph <- use pageHeight
@@ -267,6 +322,19 @@ selectReplayForm =
     validations x = all ($ x) [(>= 1), (<= maxDbSize + 1) . fromIntegral]
     heading = (<=>) (padBottom (Pad 1) $ withAttr headerAttr $ txt "Select the number of the replay to watch: ")
 
+connectDialog :: Dialog ConnectOpts HSPageName
+connectDialog =
+  D.dialog
+    (Just $ txt "Could not connect to server. Retry connection?")
+    (Just (ContinueConnect Retry, options))
+    60
+  where
+    options =
+      [ ("Yes", ContinueConnect Retry, Retry),
+        ("Local", ContinueConnect Local, Local),
+        ("No", ContinueConnect Disconnect, Disconnect)
+      ]
+
 defDialog :: Dialog Int HSPageName
 defDialog =
   D.dialog
@@ -287,23 +355,25 @@ getPages (PageNumber n) (PageHeight h) dbConn = do
     scoreIx pn = [pn * h .. pn * h + h - 1]
     pns = [max 0 (n - 2) .. n + 2]
 
-changeScoreArr :: PageNumber -> PageHeight -> V.Vector (Int, ScoreField) -> EventM n (HighScoreState) ()
-changeScoreArr pn@(PageNumber pNum) ph@(PageHeight pHei) scorePages
+changeScoreArr :: PageNumber -> PageHeight -> V.Vector (Int, ScoreField) -> WreqS.Session -> EventM n (HighScoreState) ()
+changeScoreArr pn@(PageNumber pNum) ph@(PageHeight pHei) scorePages session
   | Nothing <- V.find (== (pNum * pHei + 1)) (fst <$> scorePages) = do
-      viewList <- liftIO (V.fromList <$> withConnection dbPath (getPages pn ph))
-      scoreArr .= viewList
-      scorePageList .= mkScoresList pn ph viewList
+        onl <- use online
+        if onl
+          then attemptFetchScores pn ph session
+          else fetchLocalScores pn ph
   | otherwise = do
       scorePageList .= mkScoresList pn ph scorePages
 
-highScores :: V.Vty -> IO V.Vty
-highScores vty = do
-  chan <- newBChan 256
+highScores :: V.Vty -> WreqS.Session -> IO V.Vty
+highScores vty session = do
+  chan <- newBChan 64
+  heartbeat <- heartbeatRequest session
   _ <- forkIO $ forever $ do
     writeBChan chan Tick
     threadDelay (1 * 10 ^ 5)
-  -- scoreArray <- V.fromList <$> withConnection dbPath (getPages (PageNumber 0) (PageHeight defHeight)) -- Local test func
-  scoreArray <- V.fromList <$> leaderBoardRequest (PageNumber 0) (PageHeight defHeight)
+  let s = V.fromList <$> withConnection dbPath (getPages (PageNumber 0) (PageHeight defHeight)) -- Local test func
+  scoreArray <- E.handle (\(_ :: HttpException) -> s) $ V.fromList <$> leaderBoardRequest (PageNumber 0) (PageHeight defHeight) session
   let initialIndex = ViewReplayForm 1
   snd
     <$> customMainWithVty
@@ -318,5 +388,8 @@ highScores vty = do
           (mkScoresList (PageNumber 0) (PageHeight defHeight) scoreArray)
           defShowAmountStateDialog
           (selectReplayForm initialIndex)
-          Page
+          connectDialog
+          heartbeat
+          (if heartbeat then Page else ConnectPrompt)
+          session
       )
