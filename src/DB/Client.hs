@@ -179,7 +179,7 @@ manyTestClients :: Int -> IO ()
 manyTestClients n = mapM_ (\(v, act) -> act >> print v) $ zip ([1 ..] :: [Int]) (replicate n testClient)
 
 heartbeatRequest :: WreqS.Session -> IO Bool
-heartbeatRequest sess = do
+heartbeatRequest sess = wrapRequest False $ do
   res <- WreqS.getWith opts sess (intercalate "/" ["https://" ++ serverName' ++ ":" ++ show leaderBoardPort', "heartbeat"])
   pure $ (== 200) (res ^. Wreq.responseStatus . Wreq.statusCode)
 
