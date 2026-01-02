@@ -205,8 +205,7 @@ highScoreRequest s sess = wrapRequest False $ do
     readRes = fromMaybe 0 . readMaybe @Int . BL8.unpack . BL.take 3 
 
 leaderBoardRequest :: PageNumber -> PageHeight -> WreqS.Session -> IO [(Int, ScoreField)]
-leaderBoardRequest (PageNumber pix) (PageHeight psize) sess =
-  wrapRequest [] $ do
+leaderBoardRequest (PageNumber pix) (PageHeight psize) sess = do
     res <- req
     let rcode = res ^. Wreq.responseStatus . Wreq.statusCode
         body = res ^. Wreq.responseBody

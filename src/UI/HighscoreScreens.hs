@@ -185,7 +185,7 @@ inputHandler ev = do
     ReloadingScores -> do
       join $ changeScoreArr <$> use pageNumber <*> use pageHeight <*> use scoreArr <*> use sess
       mode .= Page
-    FetchingScores -> handleEventMain ev
+    FetchingScores -> pure ()
     ConnectPrompt -> handleConnectPrompt ev
   pure ()
 
@@ -195,7 +195,6 @@ handleConnectPrompt (VtyEvent (V.EvKey V.KEnter [])) = do
   case maybe Disconnect snd $ D.dialogSelection d of
     Disconnect -> M.halt
     Retry -> do
-      mode .= FetchingScores
       attemptFetchScores (PageNumber 0) (PageHeight defHeight) =<< use sess
     Local ->
       fetchLocalScores (PageNumber 0) (PageHeight defHeight)
@@ -205,18 +204,21 @@ handleConnectPrompt _ = pure ()
 
 attemptFetchScores :: PageNumber -> PageHeight -> WreqS.Session -> EventM n HighScoreState ()
 attemptFetchScores pn ph session = do
-  res <- liftIO $ V.fromList <$> (E.handle (\(_::ServerStateError) -> pure []) $ leaderBoardRequest pn ph session)
-  if null res
-    then 
-      mode .= ConnectPrompt
-    else do 
-      scoreArr .= res
-      updateScorePageList
-      mode .= Page
+  mode .= FetchingScores
+  res <- liftIO $ fmap V.fromList <$> E.try (leaderBoardRequest pn ph session)
+  either 
+    (\(_ :: ServerStateError) -> mode .= ConnectPrompt)
+    rest
+    res
+
+  where rest v = do
+          scoreArr .= v
+          updateScorePageList
+          mode .= Page
 
 fetchLocalScores :: PageNumber -> PageHeight -> EventM n HighScoreState ()
 fetchLocalScores pn ph = do
-  res <- liftIO . withConnection dbPath $ getPages pn ph
+  res <- liftIO . withConnection dbPath $ getLocalPages pn ph
   scoreArr .= (V.fromList res)
   updateScorePageList
   mode .= Page
@@ -254,7 +256,7 @@ handleEventDialog (VtyEvent (V.EvKey V.KEnter [])) = do
   pageHeight .= (PageHeight . maybe defHeight snd . D.dialogSelection $ d)
   pageNumber .= 0
   ph <- use pageHeight
-  s <- liftIO $ V.fromList <$> withConnection dbPath (getPages (PageNumber 0) ph)
+  s <- liftIO $ V.fromList <$> withConnection dbPath (getLocalPages (PageNumber 0) ph)
   scoreArr .= s
   list <- mkScoresList <$> use pageNumber <*> use pageHeight <*> use scoreArr
   scorePageList .= list
@@ -349,8 +351,8 @@ defDialog =
 defShowAmountStateDialog :: ShowAmountStateDialog
 defShowAmountStateDialog = ShowAmountStateDialog defDialog
 
-getPages :: PageNumber -> PageHeight -> DB.Connection -> IO [(Int, ScoreField)]
-getPages (PageNumber n) (PageHeight h) dbConn = do
+getLocalPages :: PageNumber -> PageHeight -> DB.Connection -> IO [(Int, ScoreField)]
+getLocalPages (PageNumber n) (PageHeight h) dbConn = do
   let indices = concatMap scoreIx pns
   zip indices <$> getScoreSlice (length indices) (PageNumber n) (PageHeight h) dbConn
   where
@@ -375,8 +377,8 @@ highScores mHeartBeat vty session = do
   _ <- forkIO $ forever $ do
     writeBChan chan Tick
     threadDelay (1 * 10 ^ 5)
-  let s = V.fromList <$> withConnection dbPath (getPages (PageNumber 0) (PageHeight defHeight)) -- Local test func
-  scoreArray <- E.handle (\(_ :: HttpException) -> s) $ V.fromList <$> leaderBoardRequest (PageNumber 0) (PageHeight defHeight) session
+  let s = V.fromList <$> withConnection dbPath (getLocalPages (PageNumber 0) (PageHeight defHeight)) -- Local test func
+  scoreArray <- E.handle (\(_ :: ServerStateError) -> s) $ V.fromList <$> leaderBoardRequest (PageNumber 0) (PageHeight defHeight) session
   let initialIndex = ViewReplayForm 1
   snd
     <$> customMainWithVty
