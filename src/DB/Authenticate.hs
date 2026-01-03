@@ -4,13 +4,14 @@
 module DB.Authenticate where
 
 import DB.Types (BSMessage)
-import Data.Default.Class
+import Data.Default.Class ( Default(def) )
 import Data.Maybe (fromMaybe, listToMaybe)
 import Data.X509
+    ( CertificateChain(CertificateChain), SignedCertificate )
 import Data.X509.CertificateStore (listCertificates, readCertificateStore)
-import Data.X509.File
+import Data.X509.File ( readKeyFile, readSignedObject )
 import Network.TLS
-import Network.TLS.Extra
+import Network.TLS.Extra ( ciphersuite_default )
 import qualified Data.ByteString as BS
 
 {-

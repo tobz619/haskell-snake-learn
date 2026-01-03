@@ -7,8 +7,8 @@
 module DB.Receive where
 
 import Control.Concurrent (threadDelay)
-import Control.Concurrent.Async
-import Control.Concurrent.STM
+import Control.Concurrent.Async ( race )
+import Control.Concurrent.STM ( TChan, atomically, writeTChan )
 import qualified Control.Exception as E
 import Control.Monad (when)
 import qualified DB.Authenticate as Auth
@@ -16,6 +16,10 @@ import DB.Types
 import qualified Data.Bimap as BM
 import Data.Binary (decode)
 import Data.Binary.Get
+    ( getWord8,
+      Decoder(Fail, Done, Partial),
+      getWord16be,
+      runGetIncremental )
 import Data.Bits (finiteBitSize)
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString.Lazy.Internal as BL
@@ -29,7 +33,8 @@ import Network.Socket.ByteString.Lazy (recv)
 import Network.TLS (TLSException, contextClose, handshake, recvData)
 import System.Random.Stateful (mkStdGen)
 import UI.Types
-import Network.Socket
+    ( EventList, GameEvent(GameEvent), TickNumber(TickNumber) )
+import Network.Socket ( getPeerName )
 import Control.Concurrent.STM.TSem (waitTSem, signalTSem)
 
 lenBytes :: Int
