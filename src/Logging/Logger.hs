@@ -20,7 +20,7 @@ import GameLogic (Coord)
 import Graphics.Vty.CrossPlatform as V ()
 import qualified Graphics.Vty.Input as V
 import Lens.Micro ((^.))
-import Lens.Micro.Mtl ((%=), (.=))
+import Lens.Micro.Mtl ((%=), (.=), use)
 import UI.Keybinds
 import UI.Types
 
@@ -28,9 +28,7 @@ import UI.Types
 
 getKeyEvent :: (t -> Either a (K.KeyDispatcher KeyEvent m)) -> t -> BrickEvent n e -> Maybe KeyEvent
 getKeyEvent dispatcher altConfig (VtyEvent (V.EvKey k mods)) = do
-  disp <- case dispatcher altConfig of
-    Right disp -> return disp
-    Left _ -> error "Unbound keybind"
+  disp <- either (error "Unbound keybind") pure (dispatcher altConfig)
   matchKey k mods disp -- get the event that corresponds to the key on successful execution
   where
     matchKey key modifiers d = do
@@ -54,7 +52,6 @@ addKeyToLog st tick =
     (addToLog st tick) -- otherwise, write it to the logger
 
 -- Logging Functions
-
 -- | Log a move and add it to the overall EventList as an effect
 logMove :: BrickEvent n events -> EventM n GameplayState ()
 logMove = handleMovement gameplayDispatcher
@@ -77,8 +74,7 @@ logGameStart = addToLog' GameStarted
 
 addToLog' :: KeyEvent -> EventM n GameplayState ()
 addToLog' ev = do
-  gps <- get
-  let tick = gps ^. tickNo
+  tick <- use tickNo
   gameLog %= (GameEvent (TickNumber tick) ev :)
 
 -- | Reset the log to an empty list

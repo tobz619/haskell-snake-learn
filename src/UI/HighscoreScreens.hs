@@ -13,6 +13,7 @@
 module UI.HighscoreScreens where
 
 import Brick
+import qualified Brick as B
 import qualified Brick.AttrMap as A
 import Brick.BChan
 import Brick.Forms
@@ -27,18 +28,16 @@ import Control.Concurrent.MVar (MVar, readMVar)
 import qualified Control.Exception as E
 import Control.Monad (forever, join, when)
 import Control.Monad.IO.Class (MonadIO (liftIO))
-import DB.Client (heartbeatRequest, leaderBoardRequest, recvReplayData)
+import DB.Client (leaderBoardRequest, recvReplayData)
 import DB.Highscores
   ( dbPath,
     getScoreSlice,
-    getScores,
     maxDbSize,
   )
 import DB.Types (PageHeight (..), PageNumber (..), ScoreField (..), ServerStateError)
 import Data.Coerce (coerce)
-import Data.Functor ((<&>))
-import Data.List (nub)
-import Data.Maybe (fromJust, fromMaybe, isJust)
+import Data.List (intersperse)
+import Data.Maybe (fromJust, isJust)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Time
@@ -48,10 +47,9 @@ import Database.SQLite.Simple (withConnection)
 import qualified Database.SQLite.Simple as DB
 import qualified Graphics.Vty as V
 import qualified Graphics.Vty.CrossPlatform as V
-import Lens.Micro ((%~), (.~), (^.))
-import Lens.Micro.Mtl (preuse, preview, use, (%=), (.=), (<~))
+import Lens.Micro ((^.))
+import Lens.Micro.Mtl (use, (%=), (.=), (<~))
 import Lens.Micro.TH (makeLenses)
-import Network.HTTP.Client (HttpException)
 import qualified Network.Wreq.Session as WreqS
 import UI.ReplayPlayer
 import UI.Types (Tick (..))
@@ -106,23 +104,51 @@ defHeight = 5
 
 ui :: HighScoreState -> [Widget HSPageName]
 ui hss = case hss ^. mode of
-  Page -> [stats, scores]
-  FetchingScores -> [stats, fetching, scores]
-  ReloadingScores -> [stats, reload, scores]
+  Page -> [debugStats, scores]
+  FetchingScores -> [debugStats, fetching, scores]
+  ReloadingScores -> [debugStats, reload, scores]
   ShowingViewReplayDialog -> [formWidget, scores]
     where
-      formWidget = C.centerLayer $ renderForm (hss ^. selectReplay)
+      formWidget =
+        C.centerLayer . B.joinBorders . B.border . B.hLimit 75 $
+          vBox [renderForm (hss ^. selectReplay), B.hBorderWithLabel (txt "Controls"), formControls]
   ShowingAmountStateDialog ->
     [diaWidget (hss ^. selectAmount), scores]
   ConnectPrompt ->
-    [stats, connectPromptWidget, scores]
+    [debugStats, connectPromptWidget, scores]
   where
-    scores = allList (hss ^. pageHeight) (hss ^. pageNumber) (hss ^. scorePageList)
-    diaWidget (ShowAmountStateDialog dia) = D.renderDialog dia emptyWidget
+    scores =
+      allList (hss ^. pageHeight) (hss ^. pageNumber) (hss ^. online) (hss ^. scorePageList)
+        <+> controls
+    diaWidget (ShowAmountStateDialog dia) = C.centerLayer . B.vLimit 10 . B.hLimit 60 . B.joinBorders . B.freezeBorders . vBox $ [D.renderDialog dia emptyWidget, diaControls]
+      where
+        diaControls = C.hCenter . B.hLimit 40 . B.borderWithLabel (txt "Controls") . hBox . fmap C.hCenter $ [txt "\x2190: Left", txt "\x2192: Right", txt "\x21b2: Select"]
     connectPromptWidget = D.renderDialog (hss ^. connectPrompt) emptyWidget
     fetching = C.centerLayer . B.border $ str "Fetching scores..."
     reload = C.centerLayer $ B.border $ str "Reloading scores..."
-    stats =
+    formControls =
+      B.joinBorders . hBox . fmap C.hCenter $
+        [ txt "0-9: Enter numbers",
+          B.vBorder,
+          txt "\x21b2: Submit",
+          B.vBorder,
+          txt "q: Exit"
+        ]
+    controls =
+      C.vCenter . B.hLimit 44 . B.joinBorders . B.borderWithLabel (txt "Controls") $
+        vBox $
+          intersperse
+            B.hBorder
+            [ txt "\x2191 / \x2193: Previous / Next Record",
+              txt "\x2190 / \x2192: Previous / Next Page",
+              txt "h: Change number of records per page",
+              txt "r: Refresh scores from the database",
+              txt "c: Toggle Online/Offline leaderboards",
+              txt "/: Search for replay at index",
+              txt "\x21b2: View current replay",
+              txt "q, ESC: Leave page"
+            ]
+    debugStats =
       vBox $
         [ str $ "PageNumber " ++ show (hss ^. pageNumber),
           str $ "PageHeight " ++ show (hss ^. pageHeight),
@@ -133,18 +159,19 @@ ui hss = case hss ^. mode of
 mkScoresList :: PageNumber -> PageHeight -> V.Vector (Int, ScoreField) -> L.List HSPageName (Int, ScoreField)
 mkScoresList (PageNumber pn) (PageHeight ph) scores = L.list ScoreTable (V.take ph . V.dropWhile ((/= ph * pn) . fst) $ scores) 2
 
-allList :: (Traversable t, L.Splittable t, Ord n, Show n) => PageHeight -> PageNumber -> L.GenericList n t (Int, ScoreField) -> Widget n
-allList pHeight pNum scoreList =
+allList :: (Traversable t, L.Splittable t, Ord n, Show n) => PageHeight -> PageNumber -> Bool -> L.GenericList n t (Int, ScoreField) -> Widget n
+allList pHeight pNum scoreList onl =
   C.center . vBox . (hLimit 75 . B.border <$>) $
     [ C.hCenter . withAttr headerAttr $ txt "HIGH SCORES",
-      renderScoresList pHeight pNum scoreList
+      renderScoresList pHeight pNum scoreList onl
     ]
 
-renderScoresList :: (Traversable t, L.Splittable t, Ord n, Show n) => PageHeight -> PageNumber -> L.GenericList n t (Int, ScoreField) -> Widget n
-renderScoresList pHeight pNum l =
-  vBox $
+renderScoresList :: (Traversable t, L.Splittable t, Ord n, Show n) => PageHeight -> PageNumber -> Bool -> L.GenericList n t (Int, ScoreField) -> Widget n
+renderScoresList pHeight pNum onl l =
+  B.joinBorders . B.freezeBorders . vBox $
     [ vLimit (2 * coerce pHeight) . L.renderList f True $ l,
-      str ("Page: " ++ show (pNum + 1))
+      B.hBorder,
+      C.hCenter . hBox . fmap (padRight (Pad 3)) $ [str ("Page: " ++ show (pNum + 1)), str ("Online: " ++ show onl)]
     ]
   where
     f sel s
@@ -195,20 +222,20 @@ inputHandler ev = do
       join $ changeScoreArr <$> use pageNumber <*> use pageHeight <*> use scoreArr <*> use sess
       mode .= Page
     FetchingScores -> pure ()
-    ConnectPrompt -> handleConnectPrompt ev
+    ConnectPrompt -> join $ handleConnectPrompt <$> use pageNumber <*> use pageHeight <*> pure ev
 
-handleConnectPrompt :: BrickEvent HSPageName Tick -> EventM HSPageName HighScoreState ()
-handleConnectPrompt (VtyEvent (V.EvKey V.KEnter [])) = do
+handleConnectPrompt :: PageNumber -> PageHeight -> BrickEvent HSPageName Tick -> EventM HSPageName HighScoreState ()
+handleConnectPrompt pn ph (VtyEvent (V.EvKey V.KEnter [])) = do
   d <- use connectPrompt
   case maybe Disconnect snd $ D.dialogSelection d of
     Disconnect -> M.halt
     Retry -> do
-      attemptFetchScores (PageNumber 0) (PageHeight defHeight) =<< use sess
+      attemptFetchScores pn ph =<< use sess
     Local ->
-      fetchLocalScores (PageNumber 0) (PageHeight defHeight)
-handleConnectPrompt (VtyEvent ev) =
+      fetchLocalScores pn ph
+handleConnectPrompt _ _ (VtyEvent ev) =
   zoom connectPrompt $ D.handleDialogEvent ev
-handleConnectPrompt _ = pure ()
+handleConnectPrompt _ _ _ = pure ()
 
 attemptFetchScores :: PageNumber -> PageHeight -> WreqS.Session -> EventM n HighScoreState ()
 attemptFetchScores pn ph session = do
@@ -335,7 +362,7 @@ selectReplayForm =
     fields = [heading @@= editShowableField replayIndex ReplayIndex]
     validations :: Word8 -> Bool
     validations x = all ($ x) [(>= 1), (<= maxDbSize + 1) . fromIntegral]
-    heading = (<=>) (padBottom (Pad 1) $ withAttr headerAttr $ txt "Select the number of the replay to watch: ")
+    heading = (<=>) (padBottom (Pad 1) . C.hCenter $ withAttr headerAttr $ txt "Select the index of the replay to watch: ")
 
 connectDialog :: Dialog ConnectOpts HSPageName
 connectDialog =

@@ -24,10 +24,6 @@ import Network.Socket (Socket)
 import UI.Types
 import Network.TLS (Context)
 import Control.Concurrent.STM.TSem (TSem)
-import qualified Data.ByteString.Lazy.Char8 as B8
-import Network.HTTP.Media (MediaType, (//), (/:))
-import Data.Data (Proxy)
-import Text.Read (readEither)
 
 type Score = ScoreType
 

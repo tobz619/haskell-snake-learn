@@ -9,22 +9,20 @@ import Brick
     ( App(..),
       BrickEvent(AppEvent, VtyEvent),
       EventM,
-      customMain,
       neverShowCursor,
-      modify, customMainWithVty, customMainWithDefaultVty )
+      modify, customMainWithDefaultVty )
 import Brick.BChan (newBChan, writeBChan)
 import Brick.Main (halt)
 import Brick.Types (Widget)
 import Brick.Widgets.Center (center)
-import Brick.Widgets.Core
+import Brick.Widgets.Core ( (<=>), hBox, hLimit, txt, vBox )
 import Control.Concurrent (MVar, forkIO, modifyMVar_, newMVar, readMVar, threadDelay)
-import Control.Monad (forever, void)
+import Control.Monad (forever)
 import Control.Monad.IO.Class (liftIO)
 import qualified Data.Text as Text
 import qualified Data.Vector.Strict as Vec
 import GameLogic (GameState (GameOver, NewHighScore), pauseToggle)
 import qualified Graphics.Vty as V
-import qualified Graphics.Vty.CrossPlatform as V
 import Linear.V2 (V2 (..))
 import Logging.Replay (ReplayState (..), handleSpeed, initState)
 import System.Random (StdGen, mkStdGen)
@@ -34,7 +32,7 @@ import Data.List (uncons)
 import Text.Read (readMaybe)
 import Data.Maybe (fromMaybe)
 import DB.Types (ReplayData (ReplayData))
-import DB.Receive
+import DB.Receive ( handleEventList )
 
 
 runReplayApp :: StdGen -> InputList -> MVar Double -> IO ()

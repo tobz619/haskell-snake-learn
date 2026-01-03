@@ -17,39 +17,37 @@ import qualified Brick.Forms as F
 import qualified Brick.Keybindings as K
 import qualified Brick.Main as M
 import qualified Brick.Widgets.Border as B
-import qualified Brick.Widgets.Border.Style as BS
+import qualified Brick.Widgets.Border.Style as BBS
 import qualified Brick.Widgets.Center as C
 import Brick.Widgets.Dialog (Dialog)
 import qualified Brick.Widgets.Dialog as D
 import qualified Brick.Widgets.List as L
 import Control.Concurrent (forkIO, threadDelay)
-import Control.Monad (forever, void, join)
+import Control.Monad (forever, void)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Control.Monad.State.Class (MonadState)
-import DB.Highscores as DBHS (addScore, promptAddHighScore, addScoreWithReplay, dbPath)
+import DB.Client (highScoreRequest, postScoreLeaderBoard)
 import Data.Maybe (fromMaybe)
 import qualified Data.Text as Text
 import qualified Data.Vector as Vector
-import Data.Word (Word16, Word64)
-import Database.SQLite.Simple (Connection, withConnection)
 import GameLogic
 import qualified Graphics.Vty as V
 import qualified Graphics.Vty.CrossPlatform as V
-import Lens.Micro
-import Lens.Micro.Mtl
+import Lens.Micro ( (^.), _Just )
+import Lens.Micro.Mtl ( (%=), (.=), use )
 import Linear.V2 (V2 (..))
 import Logging.Logger
-import System.IO
-import System.Random
+    ( logGameEnd, logGameStart, logMove, resetLog )
+import qualified Network.Wreq.Session as WreqS
+import System.IO ( withFile, hPrint, IOMode(WriteMode) )
+import System.Random ( StdGen, randomRIO, mkStdGen )
 import UI.Keybinds (gameplayDispatcher)
 import UI.Types
-import DB.Client (runClientAppSTM, postScoreLeaderBoard, highScoreRequest)
-import qualified Network.Wreq.Session as WreqS
 
 altConfig :: [a]
 altConfig = []
 
-gameplay :: V.Vty  -> WreqS.Session -> IO V.Vty
+gameplay :: V.Vty -> WreqS.Session -> IO V.Vty
 gameplay vty session = do
   chan <- newBChan 64
   _ <- forkIO $ forever $ do
@@ -139,7 +137,7 @@ eventHandler ::
 eventHandler (VtyEvent (V.EvKey (V.KChar 'c') [V.MCtrl])) = M.halt
 eventHandler ev = do
   gs <- use gameState
-  sess' <- use sess 
+  sess' <- use sess
   case gs of
     Restarting -> do
       vals@(genVal :: SeedType, g) <- genSeed
@@ -161,7 +159,7 @@ eventHandler ev = do
       dia <- use gameStateDialog
       case dia of
         Nothing -> gameStateDialog .= dialogShower (Starting w)
-        _ -> handleStartGameEvent ev 
+        _ -> handleStartGameEvent ev
     NewHighScore w -> do
       logGameEnd
       gps' <- get
@@ -177,7 +175,6 @@ eventHandler ev = do
           highScoreDialogs .= HighScoreFormState (Just $ highScoreAskDialog w) Nothing
           gameState .= NewHighScorePrompt w
         else gameState .= GameOver w
-
     NewHighScorePrompt w -> do
       seed <- use gameSeed
       evList <- use gameLog
@@ -192,26 +189,23 @@ eventHandler ev = do
       maybe (gameStateDialog .= dialogShower p) (const $ handleMenuEvent ev) dia
 
 handleHighScorePromptEvent :: BrickEvent MenuOptions Tick -> SeedType -> ScoreType -> EventList -> WreqS.Session -> EventM MenuOptions HighScoreFormState ()
-handleHighScorePromptEvent (VtyEvent (V.EvKey V.KEnter [])) seed score evList sess = do
-  st <- get
-  case st of
-    HighScoreFormState (Just dia) Nothing ->
-      let result = maybe st snd (D.dialogSelection dia)
-       in put result
-    HighScoreFormState Nothing (Just form) -> do
-      let HighScoreForm mC1 mC2 mC3 = F.formState form
-          name = maybe Text.empty Text.pack (sequence [mC1, mC2, mC3])
-      
-      liftIO $ postScoreLeaderBoard name score seed evList sess
-      put (HighScoreFormState Nothing Nothing)
-    
-    _ -> pure ()
+handleHighScorePromptEvent (VtyEvent (V.EvKey V.KEnter [])) seed score evList sessio = do
+  dia <- use hsDialog
+  form <- use hsForm
+  put =<< maybe get (\d -> maybe <$> get <*> pure snd <*> pure (D.dialogSelection d)) dia
+  let chars = Text.pack <$> (F.formState <$> form >>= \(HighScoreForm a b c) -> sequence [a, b, c])
+  maybe
+    (pure ())
+    ( \cs ->
+        (liftIO $ postScoreLeaderBoard cs score seed evList sessio)
+          >> put (HighScoreFormState Nothing Nothing)
+    )
+    chars
 handleHighScorePromptEvent (VtyEvent ev) _ _ _ _ = do
-  st <- get
-  case st of
-    HighScoreFormState (Just _) Nothing -> zoom (hsDialog . _Just) $ D.handleDialogEvent ev
-    HighScoreFormState Nothing (Just _) -> zoom (hsForm . _Just) $ F.handleFormEvent (VtyEvent ev)
-    _ -> return ()
+  form <- use hsForm
+  dia <- use hsDialog
+  maybe (pure ()) (\_ -> zoom (hsDialog . _Just) $ D.handleDialogEvent ev) dia
+  maybe (pure ()) (\_ -> zoom (hsForm . _Just) $ F.handleFormEvent (VtyEvent ev)) form
 handleHighScorePromptEvent _ _ _ _ _ = return ()
 
 -- | Handles changes in Gameplay and steps the game forward.
@@ -273,8 +267,8 @@ drawGS :: GameState -> [Widget MenuOptions]
 drawGS Restarting = [emptyWidget]
 drawGS ToMenu = [emptyWidget]
 drawGS (GameOver gs) =
-  [ padRight (Pad 2) (drawStats gs)
-      <=> padLeft (Pad 1) (withAttr gameOverAttr (txt "GAME OVER"))
+  [ (padRight (Pad 2) (drawStats gs)
+      <=> padLeft (Pad 1) (withAttr gameOverAttr (txt "GAME OVER")))
       <+> drawGrid gs
   ]
 drawGS (Paused gs) =
@@ -299,7 +293,7 @@ drawStats w =
 
 drawScore :: (Show a, Num a) => a -> Widget n
 drawScore n =
-  withBorderStyle BS.unicodeBold $
+  withBorderStyle BBS.unicodeBold $
     B.borderWithLabel (txt "Score") $
       C.hCenter $
         padAll 1 $
@@ -309,7 +303,7 @@ drawScore n =
 
 drawGrid :: World -> Widget MenuOptions
 drawGrid World {..} =
-  withBorderStyle BS.unicodeBold $
+  withBorderStyle BBS.unicodeBold $
     B.borderWithLabel (txt "Tobz-Snek") $
       vBox rows
   where
@@ -349,5 +343,3 @@ theMap =
       (L.listSelectedAttr, V.green `on` V.white),
       (L.listAttr, bg V.magenta)
     ]
-
-
