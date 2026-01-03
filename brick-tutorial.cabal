@@ -22,6 +22,7 @@ library
                       UI.ReplayPlayer,
                       UI.Keybinds, 
                       UI.Types,
+                      UI.Options,
                       DB.Authenticate, 
                       DB.Client,
                       DB.Highscores,
