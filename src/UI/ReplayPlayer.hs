@@ -1,39 +1,44 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE BangPatterns #-}
 
 module UI.ReplayPlayer where
 
 import Brick
-    ( App(..),
-      BrickEvent(AppEvent, VtyEvent),
-      EventM,
-      neverShowCursor,
-      modify, customMainWithDefaultVty )
+  ( App (..),
+    BrickEvent (AppEvent, VtyEvent),
+    EventM,
+    customMainWithDefaultVty,
+    hBox,
+    modify,
+    neverShowCursor,
+  )
 import Brick.BChan (newBChan, writeBChan)
 import Brick.Main (halt)
 import Brick.Types (Widget)
-import Brick.Widgets.Center (center)
-import Brick.Widgets.Core ( (<=>), hBox, hLimit, txt, vBox )
+import qualified Brick.Widgets.Border as B
+import qualified Brick.Widgets.Center as C
+import Brick.Widgets.Core (hLimit, txt, vBox, (<=>), (<+>), Padding (..), padLeft)
+import qualified Brick.Widgets.Core as B
 import Control.Concurrent (MVar, forkIO, modifyMVar_, newMVar, readMVar, threadDelay)
 import Control.Monad (forever)
 import Control.Monad.IO.Class (liftIO)
+import DB.Receive (handleEventList)
+import DB.Types (ReplayData (ReplayData))
+import Data.List (intersperse, uncons)
+import Data.Maybe (fromMaybe)
 import qualified Data.Text as Text
 import qualified Data.Vector.Strict as Vec
-import GameLogic (GameState (GameOver, NewHighScore), pauseToggle)
+import GameLogic (GameState (GameOver, NewHighScore, Paused), pauseToggle)
 import qualified Graphics.Vty as V
 import Linear.V2 (V2 (..))
 import Logging.Replay (ReplayState (..), handleSpeed, initState)
 import System.Random (StdGen, mkStdGen)
+import Text.Read (readMaybe)
 import UI.Gameplay (drawGS, theMap)
 import UI.Types
-import Data.List (uncons)
-import Text.Read (readMaybe)
-import Data.Maybe (fromMaybe)
-import DB.Types (ReplayData (ReplayData))
-import DB.Receive ( handleEventList )
-
+import GHC.IO.Unsafe (unsafePerformIO)
 
 runReplayApp :: StdGen -> InputList -> MVar Double -> IO ()
 runReplayApp seed mEvList mSpeedMod = do
@@ -42,13 +47,13 @@ runReplayApp seed mEvList mSpeedMod = do
     speedModifier <- readMVar mSpeedMod
     writeBChan chan Tick
     threadDelay $ ceiling (1 / abs speedModifier * (1_000_000 / 16))
-  (!a,!v) <- customMainWithDefaultVty (Just chan) (replayApp mEvList mSpeedMod) (initState seed)
+  (!_, !v) <- customMainWithDefaultVty (Just chan) (replayApp mEvList mSpeedMod) (initState seed)
   V.shutdown v
 
 replayApp :: InputList -> MVar Double -> App ReplayState Tick MenuOptions
 replayApp evs speedMod =
   App
-    { appDraw = flip drawUI evs,
+    { appDraw = drawUI speedMod evs,
       appChooseCursor = neverShowCursor,
       appHandleEvent = \brickEv -> replayEventHandler brickEv evs speedMod,
       appStartEvent = replayEventHandler (AppEvent Tick) evs speedMod,
@@ -56,36 +61,50 @@ replayApp evs speedMod =
     }
 
 replayEventHandler :: BrickEvent n Tick -> InputList -> MVar Double -> EventM n ReplayState ()
-replayEventHandler (VtyEvent (V.EvKey (V.KChar 'p') [])) _ _ = do
-  modify (\r -> r {rGameState = pauseToggle (rGameState r)} )
-  -- gs <- gets rGameState
-  -- case gs of
-  --   Playing w -> stepGameState gs
-
-replayEventHandler (VtyEvent (V.EvKey (V.KChar 'c') [V.MCtrl])) _ _ = halt
+replayEventHandler (VtyEvent (V.EvKey (V.KEsc) [])) _ _ = halt
 replayEventHandler (VtyEvent (V.EvKey (V.KChar 'q') [])) _ _ = halt
 replayEventHandler (VtyEvent (V.EvKey k [V.MCtrl])) _ _ = do
   case k of
     V.KLeft -> modify prevCheckPoint
     V.KRight -> modify nextCheckPoint
     _ -> pure ()
-replayEventHandler (VtyEvent (V.EvKey k _)) _ mSpeedMod = liftIO $ do
+replayEventHandler (VtyEvent (V.EvKey k _)) _ mSpeedMod = do
   case k of
-    V.KChar 'n' -> modifyMVar_ mSpeedMod (pure . normalSpeed)
-    V.KChar 'r' -> modifyMVar_ mSpeedMod (pure . negate)
-    V.KLeft -> modifyMVar_ mSpeedMod (pure . speedDown)
-    V.KRight -> modifyMVar_ mSpeedMod (pure . speedUp)
+    V.KChar 'n' -> liftIO $ modifyMVar_ mSpeedMod (pure . normalSpeed)
+    V.KChar 'r' -> liftIO $ modifyMVar_ mSpeedMod (pure . negate)
+    V.KChar 'p' -> modify (\r -> r {rGameState = pauseToggle (rGameState r)})
+    V.KLeft -> liftIO $  modifyMVar_ mSpeedMod (pure . speedDown)
+    V.KRight -> liftIO $  modifyMVar_ mSpeedMod (pure . speedUp)
     _ -> pure ()
 replayEventHandler (AppEvent Tick) evList mSpeedMod = do
   speed <- liftIO $ readMVar mSpeedMod
   handleSpeed speed evList
 replayEventHandler _ _ _ = pure ()
 
-
-
-drawUI :: ReplayState -> InputList -> [Widget MenuOptions]
-drawUI rps evList = [drawDebug rps evList] <> (center <$> drawGS gs)
+drawUI :: MVar Double -> InputList -> ReplayState -> [Widget MenuOptions]
+drawUI d evList rps  = [drawDebug rps evList,  C.centerLayer (padLeft (Pad 14) playStatus <=> drawGS gs) <+> controls]
   where
+    playStatus = let
+      speed = unsafePerformIO (readMVar d) -- Had to be done: no way to thread this purely. Is only a read so is safe.
+      ws = rGameState rps
+      in txt ((Text.pack $ show speed) <> "x speed") <=> icon speed ws
+      where icon s w
+              | Paused _ <- w = txt "\x23f8"
+              | s >= 2 = hBox . replicate (ceiling (s/2)) $ (txt "\x23e9")
+              | s < 0 = hBox . replicate (ceiling (negate s/2)) $ txt "\x23ea" 
+              | otherwise = txt "\x23f5"
+    controls =
+      C.vCenter . B.hLimit 44 . B.joinBorders . B.borderWithLabel (txt "Controls") $
+        vBox $
+          intersperse
+            B.hBorder
+            [ txt "\x2190 / \x2192: Slow Down / Speed Up",
+              txt "p: Pause playback",
+              txt "n: Return to normal speed",
+              txt "r: Reverse",
+              txt "Ctrl + (\x2190 / \x2192): Previous / Next Checkpoint",
+              txt "q, ESC: Leave page"
+            ]
     gs = case rGameState rps of
       NewHighScore w -> GameOver w -- Short circuit the GameState to GameOver so it renders properly
       g -> g
@@ -105,26 +124,26 @@ drawDebug gps evList = currentTick <=> nextEvTick <=> evIndex <=> rIndex <=> arr
 -- currentLog = vLimit 20 $ hLimit 45 $ vBox $ txt . Text.pack . show <$> take 20 (rEventList gps)
 
 nextCheckPoint :: ReplayState -> ReplayState
-nextCheckPoint rps = let tNow = rTickNo rps
-                         cpVec = rCheckPoint rps
-                         finder _ (Just x) = Just x
-                         finder r Nothing
-                          | rTickNo r > tNow  = Just (r {rCheckPoint = cpVec, rGameStateVec = Right []})
-                          | otherwise = Nothing
-                      in fromMaybe rps $
-                          Vec.foldr finder Nothing cpVec
-
+nextCheckPoint rps =
+  let tNow = rTickNo rps
+      cpVec = rCheckPoint rps
+      finder _ (Just x) = Just x
+      finder r Nothing
+        | rTickNo r > tNow = Just (r {rCheckPoint = cpVec, rGameStateVec = Right []})
+        | otherwise = Nothing
+   in fromMaybe rps $
+        Vec.foldr finder Nothing cpVec
 
 prevCheckPoint :: ReplayState -> ReplayState
-prevCheckPoint rps = let tNow = rTickNo rps
-                         cpVec = rCheckPoint rps
-                         finder _ (Just x) = Just x
-                         finder r Nothing
-                          | tNow - rTickNo r < 80 = Just (r {rCheckPoint = cpVec, rGameStateVec = Right []})
-                          | otherwise = Nothing
-                      in fromMaybe rps $
-                          Vec.foldr finder Nothing cpVec
-
+prevCheckPoint rps =
+  let tNow = rTickNo rps
+      cpVec = rCheckPoint rps
+      finder _ (Just x) = Just x
+      finder r Nothing
+        | tNow - rTickNo r < 80 = Just (r {rCheckPoint = cpVec, rGameStateVec = Right []})
+        | otherwise = Nothing
+   in fromMaybe rps $
+        Vec.foldr finder Nothing cpVec
 
 replayExample :: IO ()
 replayExample = do
@@ -154,10 +173,9 @@ readReplayFromFile = do
   speed <- newMVar 1
   runReplayApp (mkStdGen seed) evs speed
 
-
 speedUp, speedDown, normalSpeed :: Double -> Double
 speedUp x
-  | x >= 16 = x
+  | abs x >= 16 = x
   | otherwise = x * 2
 speedDown x
   | abs x <= (1 / 8) = x
@@ -179,7 +197,4 @@ evs3 =
   mkEvs
     [GameEvent 574 GameEnded, GameEvent 568 MoveRight, GameEvent 563 MoveUp, GameEvent 559 (FoodEaten (V2 10 2)), GameEvent 557 MoveLeft, GameEvent 540 MoveDown, GameEvent 531 MoveRight, GameEvent 528 MoveUp, GameEvent 527 (FoodEaten (V2 4 16)), GameEvent 522 MoveLeft, GameEvent 517 MoveUp, GameEvent 510 MoveRight, GameEvent 508 (FoodEaten (V2 1 8)), GameEvent 504 MoveUp, GameEvent 490 MoveLeft, GameEvent 486 MoveUp, GameEvent 475 MoveRight, GameEvent 475 (FoodEaten (V2 4 2)), GameEvent 473 MoveDown, GameEvent 467 MoveLeft, GameEvent 459 MoveDown, GameEvent 452 MoveRight, GameEvent 448 (FoodEaten (V2 3 6)), GameEvent 444 MoveUp, GameEvent 436 MoveLeft, GameEvent 434 MoveDown, GameEvent 427 MoveRight, GameEvent 426 (FoodEaten (V2 4 7)), GameEvent 423 MoveDown, GameEvent 408 MoveLeft, GameEvent 404 (FoodEaten (V2 19 14)), GameEvent 400 MoveDown, GameEvent 396 MoveRight, GameEvent 382 MoveUp, GameEvent 380 (FoodEaten (V2 12 3)), GameEvent 374 MoveRight, GameEvent 370 MoveDown, GameEvent 366 MoveLeft, GameEvent 364 (FoodEaten (V2 11 10)), GameEvent 359 MoveDown, GameEvent 349 MoveRight, GameEvent 345 (FoodEaten (V2 1 9)), GameEvent 339 MoveUp, GameEvent 329 MoveLeft, GameEvent 326 MoveUp, GameEvent 320 (FoodEaten (V2 4 1)), GameEvent 319 MoveRight, GameEvent 315 MoveDown, GameEvent 302 MoveLeft, GameEvent 301 MoveUp, GameEvent 291 (FoodEaten (V2 6 4)), GameEvent 289 MoveRight, GameEvent 286 MoveUp, GameEvent 278 (FoodEaten (V2 14 1)), GameEvent 277 MoveLeft, GameEvent 267 MoveDown, GameEvent 258 MoveRight, GameEvent 254 (FoodEaten (V2 5 6)), GameEvent 249 MoveUp, GameEvent 237 MoveLeft, GameEvent 237 (FoodEaten (V2 17 3)), GameEvent 229 MoveDown, GameEvent 215 MoveRight, GameEvent 211 MoveDown, GameEvent 208 (FoodEaten (V2 7 14)), GameEvent 206 MoveLeft, GameEvent 195 MoveUp, GameEvent 186 (FoodEaten (V2 18 3)), GameEvent 184 MoveLeft, GameEvent 183 MoveUp, GameEvent 169 MoveRight, GameEvent 169 (FoodEaten (V2 5 3)), GameEvent 165 MoveDown, GameEvent 163 MoveLeft, GameEvent 158 MoveDown, GameEvent 155 MoveRight, GameEvent 151 MoveUp, GameEvent 149 (FoodEaten (V2 7 7)), GameEvent 146 MoveLeft, GameEvent 137 MoveDown, GameEvent 131 (FoodEaten (V2 2 16)), GameEvent 129 MoveRight, GameEvent 124 MoveUp, GameEvent 113 (FoodEaten (V2 13 11)), GameEvent 108 MoveLeft, GameEvent 102 MoveDown, GameEvent 98 (FoodEaten (V2 12 17)), GameEvent 89 MoveRight, GameEvent 75 MoveUp, GameEvent 74 (FoodEaten (V2 6 3)), GameEvent 72 MoveLeft, GameEvent 59 MoveDown, GameEvent 48 MoveLeft, GameEvent 45 MoveDown, GameEvent 45 (FoodEaten (V2 17 19)), GameEvent 38 MoveRight, GameEvent 35 MoveUp, GameEvent 31 MoveRight, GameEvent 29 MoveDown, GameEvent 17 MoveLeft, GameEvent 15 (FoodEaten (V2 19 15)), GameEvent 9 MoveUp, GameEvent 0 MoveRight, GameEvent 0 GameStarted]
 
-
-
-  -- [xs Vec.!! y | y <- [0, n .. length xs - 1]]
-
+-- [xs Vec.!! y | y <- [0, n .. length xs - 1]]

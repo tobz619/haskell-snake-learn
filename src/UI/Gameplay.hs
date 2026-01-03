@@ -251,32 +251,32 @@ handleStartGameEvent _ = return ()
 -- | Draws the overall UI of the game
 drawUI :: GameplayState -> [Widget MenuOptions]
 drawUI gps =
-  [drawDebug gps]
-    <> gpdia
-    <> hsdia
-    <> form
-    <> (C.centerLayer <$> drawGS gs)
+  [drawDebug gps,
+    gpdia,
+    hsdia,
+    form,
+    C.centerLayer (drawGS gs)]
   where
     gs = gps ^. gameState
-    gpdia = maybe [] (pure . C.centerLayer . (`D.renderDialog` emptyWidget)) (gps ^. gameStateDialog)
-    hsdia = maybe [] (pure . C.centerLayer . (`D.renderDialog` emptyWidget)) (gps ^. highScoreDialogs . hsDialog)
-    form = maybe [] (pure . C.centerLayer . F.renderForm) (gps ^. highScoreDialogs . hsForm)
+    gpdia = maybe emptyWidget ((`D.renderDialog` emptyWidget)) (gps ^. gameStateDialog)
+    hsdia = maybe emptyWidget ((`D.renderDialog` emptyWidget)) (gps ^. highScoreDialogs . hsDialog)
+    form = maybe emptyWidget (C.centerLayer . F.renderForm) (gps ^. highScoreDialogs . hsForm)
 
 -- | Draws the game depending on the state of the game
-drawGS :: GameState -> [Widget MenuOptions]
-drawGS Restarting = [emptyWidget]
-drawGS ToMenu = [emptyWidget]
+drawGS :: GameState -> Widget MenuOptions
+drawGS Restarting = emptyWidget
+drawGS ToMenu = emptyWidget
 drawGS (GameOver gs) =
-  [ (padRight (Pad 2) (drawStats gs)
-      <=> padLeft (Pad 1) (withAttr gameOverAttr (txt "GAME OVER")))
-      <+> drawGrid gs
-  ]
+  (padRight (Pad 2) (drawStats gs)
+  <=> padLeft (Pad 1) (withAttr gameOverAttr (txt "GAME OVER")))
+  <+> drawGrid gs
+  
 drawGS (Paused gs) =
-  [ vLimit defaultHeight $ C.centerLayer (padLeft (Pad 12) $ txt "PAUSED"),
-    padRight (Pad 2) (drawStats gs)
-      <+> drawGrid gs
-  ]
-drawGS gs = [padRight (Pad 2) (drawStats (getWorld gs)) <+> drawGrid (getWorld gs)]
+  (padRight (Pad 2) (drawStats gs) 
+  <=> (padLeft (Pad 1) . withAttr pausedAttr $ txt "PAUSED"))
+  <+> drawGrid gs
+
+drawGS gs = padRight (Pad 2) (drawStats (getWorld gs)) <+> drawGrid (getWorld gs)
 
 drawDebug :: GameplayState -> Widget n
 drawDebug gps = currentTick <=> currentLog
@@ -320,11 +320,12 @@ drawCell Snake = withAttr snakeAttr cell
 drawCell Food = withAttr foodAttr cell
 drawCell Empty = withAttr emptyAttr cell
 
-snakeAttr, foodAttr, emptyAttr, gameOverAttr :: AttrName
+snakeAttr, foodAttr, emptyAttr, gameOverAttr, pausedAttr :: AttrName
 snakeAttr = attrName "snakeAttr"
 foodAttr = attrName "foodAttr"
 emptyAttr = attrName "emptyAttr"
 gameOverAttr = attrName "gameOver"
+pausedAttr = attrName "paused"
 
 cell :: Widget MenuOptions
 cell = txt "  "
@@ -336,6 +337,7 @@ theMap =
     [ (snakeAttr, V.white `on` V.white),
       (foodAttr, bg V.red),
       (gameOverAttr, V.red `on` V.white `V.withStyle` V.bold),
+      (pausedAttr, V.white `on` V.blue `V.withStyle` V.bold),
       (D.buttonSelectedAttr, V.white `on` V.red),
       (D.buttonAttr, V.red `on` V.white),
       (D.dialogAttr, fg V.white),

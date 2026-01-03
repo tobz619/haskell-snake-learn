@@ -28,7 +28,7 @@ import qualified Brick.Widgets.Border as B
 import qualified Brick as B
 import Data.List (intersperse)
 
-data Choice = Play | HighScores | Quit
+data Choice = Play | HighScores | Options |Quit
     deriving (Eq, Show, Ord)
 
 data DialogState = DialogState
@@ -57,6 +57,7 @@ drawDialogUI d = pure $ vBox [ui, controls]
 widgetTitle :: Choice -> Widget n
 widgetTitle Play = txt "Play the game"
 widgetTitle HighScores = txt "View highscores"
+widgetTitle Options =  txt "Change some options"
 widgetTitle Quit = txt "Quit the game"
 
 appEvent :: T.BrickEvent Choice e -> T.EventM Choice DialogState ()
@@ -79,6 +80,7 @@ initialState = DialogState d Nothing
     options =
         [ ("play", Play, Play)
         , ("high scores", HighScores, HighScores)
+        , ("options", Options, Options)
         , ("quit game", Quit, Quit)
         ]
 

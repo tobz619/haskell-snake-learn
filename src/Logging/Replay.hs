@@ -97,8 +97,9 @@ handleSpeed s evList
 
 -- | Runs the move found in the pairs library
 runMove :: InputList -> ReplayState -> Maybe ReplayState
-runMove evList rps =
-
+runMove evList rps
+  | Paused _ <- rGameState rps = Nothing -- Prevents bug that causes replay to misalign if paused at the right moment 
+  | otherwise = 
         (\(GameEvent _ kev) ->
           rps {
             rGameState = executeMove kev (rGameState rps) pairs,

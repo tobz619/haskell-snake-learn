@@ -20,15 +20,16 @@ main = do
   vty <- V.mkVty V.defaultConfig
   sess <- WreqS.newSession
   mHB <- newMVar False
-  _ <- forkIO . forever $ do
-    _ <- join $ swapMVar <$> pure mHB <*> heartbeatRequest sess
-    threadDelay (1*10^6)
   E.onException (loop mHB sess vty) (V.shutdown vty) 
 
   where loop mv s v  = do
+          _ <- forkIO . forever $ do
+            _ <- join $ swapMVar <$> pure mv <*> heartbeatRequest s
+            threadDelay (1*10^9)
           !(choice, v') <- runMainMenu v
           case choice of
             Play -> gameplay v' s >>= loop mv s
             HighScores -> highScores mv v' s >>= loop mv s
+            Options -> optionsApp v' >>= loop mv s
             Quit -> V.shutdown v'
 

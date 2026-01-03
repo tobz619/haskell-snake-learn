@@ -51,7 +51,7 @@ import Lens.Micro ((^.))
 import Lens.Micro.Mtl (use, (%=), (.=), (<~))
 import Lens.Micro.TH (makeLenses)
 import qualified Network.Wreq.Session as WreqS
-import UI.ReplayPlayer
+import UI.ReplayPlayer ( replayFromReplayData )
 import UI.Types (Tick (..))
 
 data HSPageName = ScoreTable | HSDialogNum Int | ReplayIndex | InvalidIndex | ContinueConnect ConnectOpts
@@ -161,7 +161,7 @@ mkScoresList (PageNumber pn) (PageHeight ph) scores = L.list ScoreTable (V.take 
 
 allList :: (Traversable t, L.Splittable t, Ord n, Show n) => PageHeight -> PageNumber -> Bool -> L.GenericList n t (Int, ScoreField) -> Widget n
 allList pHeight pNum scoreList onl =
-  C.center . vBox . (hLimit 75 . B.border <$>) $
+  C.centerLayer . vBox . (hLimit 75 . B.border <$>) $
     [ C.hCenter . withAttr headerAttr $ txt "HIGH SCORES",
       renderScoresList pHeight pNum scoreList onl
     ]
