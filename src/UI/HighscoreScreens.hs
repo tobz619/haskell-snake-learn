@@ -48,11 +48,13 @@ import qualified Database.SQLite.Simple as DB
 import qualified Graphics.Vty as V
 import qualified Graphics.Vty.CrossPlatform as V
 import Lens.Micro ((^.))
-import Lens.Micro.Mtl (use, (%=), (.=), (<~))
+import Lens.Micro.Mtl (use, (%=), (.=), (<~), view)
 import Lens.Micro.TH (makeLenses)
 import qualified Network.Wreq.Session as WreqS
 import UI.ReplayPlayer ( replayFromReplayData )
 import UI.Types (Tick (..))
+import Options.Options (getOpts)
+import qualified Options.Options as Opts
 
 data HSPageName = ScoreTable | HSDialogNum Int | ReplayIndex | InvalidIndex | ContinueConnect ConnectOpts
   deriving (Show, Eq, Ord)
@@ -230,8 +232,10 @@ handleConnectPrompt pn ph (VtyEvent (V.EvKey V.KEnter [])) = do
   case maybe Disconnect snd $ D.dialogSelection d of
     Disconnect -> M.halt
     Retry -> do
+      online .= True
       attemptFetchScores pn ph =<< use sess
-    Local ->
+    Local -> do
+      online .= False
       fetchLocalScores pn ph
 handleConnectPrompt _ _ (VtyEvent ev) =
   zoom connectPrompt $ D.handleDialogEvent ev
@@ -411,6 +415,7 @@ changeScoreArr pn@(PageNumber pNum) ph@(PageHeight pHei) scorePages session
 highScores :: MVar Bool -> V.Vty -> WreqS.Session -> IO V.Vty
 highScores mHeartBeat vty session = do
   chan <- newBChan 64
+  onl <- view Opts.online <$> getOpts
   heartbeat <- readMVar mHeartBeat
   _ <- forkIO $ forever $ do
     writeBChan chan Tick
@@ -434,6 +439,6 @@ highScores mHeartBeat vty session = do
           connectDialog
           mHeartBeat
           heartbeat
-          (if heartbeat then Page else ConnectPrompt)
+          (if heartbeat || (not onl) then Page else ConnectPrompt)
           session
       )

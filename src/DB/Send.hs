@@ -68,8 +68,11 @@ sendScoreMessage c = sendBSMessage c . scoreToMessage
     scoreToMessage = encode
 
 sendEventList :: SendData a => a -> EventList -> IO ()
-sendEventList c evList = sendBSMessage c $ runPut (mapM_ gameEvPutter evList)
-  where gameEvPutter (GameEvent t ev) = do
+sendEventList c = sendBSMessage c . evListEncoder
+
+evListEncoder :: Foldable t => t GameEvent -> BSMessage EventList
+evListEncoder evList = runPut (mapM_ gameEvPutter evList)
+  where gameEvPutter (GameEvent t ev) = do 
           maybe (putLazyByteString BL.empty) putWord8 (BM.lookup ev keyEvBytesMap)
           putWord16be (fromIntegral t)
 
