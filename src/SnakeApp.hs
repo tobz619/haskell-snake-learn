@@ -26,13 +26,9 @@ main = do
   E.onException (loop mHB sess vty) (V.shutdown vty)
   where
     loop mv s v = do
-      onl <- view online <$> getOpts
-      t <- forkIO . forever $ do
-        _ <- join $ swapMVar <$> pure mv <*> (if onl then heartbeatRequest s else pure False)
-        threadDelay (5 * 10 ^ 6)
       !(choice, v') <- runMainMenu v
       case choice of
-        Play -> E.finally (gameplay v' mv s) (killThread t) >>= loop mv s
-        HighScores -> E.finally (highScores mv v' s) (killThread t) >>= loop mv s
-        Options -> E.finally (options v') (killThread t) >>= loop mv s
+        Play -> gameplay v' mv s >>= loop mv s
+        HighScores -> highScores mv v' s >>= loop mv s
+        Options -> options v' >>= loop mv s
         Quit -> V.shutdown v'

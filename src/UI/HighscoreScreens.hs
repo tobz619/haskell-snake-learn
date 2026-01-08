@@ -28,7 +28,7 @@ import Control.Concurrent.MVar (MVar, readMVar)
 import qualified Control.Exception as E
 import Control.Monad (forever, join, when)
 import Control.Monad.IO.Class (MonadIO (liftIO))
-import DB.Client (leaderBoardRequest, recvReplayData)
+import DB.Client (leaderBoardRequest, recvReplayData, heartbeatRequest)
 import DB.Highscores
   ( dbPath,
     getScoreSlice,
@@ -53,8 +53,9 @@ import Lens.Micro.TH (makeLenses)
 import qualified Network.Wreq.Session as WreqS
 import UI.ReplayPlayer ( replayFromReplayData )
 import UI.Types (Tick (..))
-import Options.Options (getOpts)
+import Options.Options (getOpts, online)
 import qualified Options.Options as Opts
+import Control.Concurrent (swapMVar)
 
 data HSPageName = ScoreTable | HSDialogNum Int | ReplayIndex | InvalidIndex | ContinueConnect ConnectOpts
   deriving (Show, Eq, Ord)
@@ -88,7 +89,7 @@ data HighScoreState = HighScoreState
     _selectReplay :: Form ViewReplayForm Tick HSPageName,
     _connectPrompt :: Dialog ConnectOpts HSPageName,
     _connection :: MVar Bool,
-    _online :: !Bool,
+    _options :: !Opts.Options,
     _mode :: !Mode,
     _sess :: !WreqS.Session
   }
@@ -120,7 +121,7 @@ ui hss = case hss ^. mode of
     [debugStats, connectPromptWidget, scores]
   where
     scores =
-      allList (hss ^. pageHeight) (hss ^. pageNumber) (hss ^. online) (hss ^. scorePageList)
+      allList (hss ^. pageHeight) (hss ^. pageNumber) (hss ^. (options . online)) (hss ^. scorePageList)
         <+> controls
     diaWidget (ShowAmountStateDialog dia) = C.centerLayer . B.vLimit 10 . B.hLimit 60 . B.joinBorders . B.freezeBorders . vBox $ [D.renderDialog dia emptyWidget, diaControls]
       where
@@ -155,7 +156,7 @@ ui hss = case hss ^. mode of
         [ str $ "PageNumber " ++ show (hss ^. pageNumber),
           str $ "PageHeight " ++ show (hss ^. pageHeight),
           str $ "ScoreArrIxs" ++ show (fst <$> hss ^. scoreArr),
-          str $ "Online: " ++ show (hss ^. online)
+          str $ "Online: " ++ show (hss ^. (options . online))
         ]
 
 mkScoresList :: PageNumber -> PageHeight -> V.Vector (Int, ScoreField) -> L.List HSPageName (Int, ScoreField)
@@ -207,11 +208,12 @@ formatDbIntToTime posixTime =
 
 inputHandler :: BrickEvent HSPageName Tick -> EventM HSPageName (HighScoreState) ()
 inputHandler (AppEvent Tick) = do
-  !heartbeat <- liftIO . readMVar =<< use connection
-  !connectionLost <- liftA2 (&&) (use online) (pure (not heartbeat))
+  onl <- use (options . online)
+  !heartbeat <- if not onl then pure True else liftIO . readMVar =<< use connection 
+  let !connectionLost = foldr1 (&&) [onl, heartbeat, heartbeat == False]
   if connectionLost
     then do
-      online .= False
+      options . online .= False
       mode .= ConnectPrompt
     else pure ()
 inputHandler ev = do
@@ -232,10 +234,10 @@ handleConnectPrompt pn ph (VtyEvent (V.EvKey V.KEnter [])) = do
   case maybe Disconnect snd $ D.dialogSelection d of
     Disconnect -> M.halt
     Retry -> do
-      online .= True
+      (options . online) .= True
       attemptFetchScores pn ph =<< use sess
     Local -> do
-      online .= False
+      (options . online) .= False
       fetchLocalScores pn ph
 handleConnectPrompt _ _ (VtyEvent ev) =
   zoom connectPrompt $ D.handleDialogEvent ev
@@ -273,8 +275,8 @@ handleEventMain (VtyEvent (V.EvKey V.KEsc [])) = M.halt
 handleEventMain (VtyEvent (V.EvKey (V.KChar 'r') [])) = do
   mode .= ReloadingScores
 handleEventMain (VtyEvent (V.EvKey (V.KChar 'c') [])) = do
-  online %= not
-  join $ when <$> (not <$> use online) <*> (pure $ mode .= ReloadingScores)
+  (options . online) %= not
+  mode .= ReloadingScores
 handleEventMain (VtyEvent (V.EvKey (V.KChar '/') [])) = do
   mode .= ShowingViewReplayDialog
 handleEventMain (VtyEvent (V.EvKey (V.KChar 'h') [])) = do
@@ -405,7 +407,7 @@ changeScoreArr :: PageNumber -> PageHeight -> V.Vector (Int, ScoreField) -> Wreq
 changeScoreArr pn@(PageNumber pNum) ph@(PageHeight pHei) scorePages session
   | Nothing <- V.find (== (pNum * pHei + 1)) (fst <$> scorePages) = do
       mode .= FetchingScores
-      onl <- use online
+      onl <- use (options . online)
       if onl
         then attemptFetchScores pn ph session
         else fetchLocalScores pn ph
@@ -415,16 +417,18 @@ changeScoreArr pn@(PageNumber pNum) ph@(PageHeight pHei) scorePages session
 highScores :: MVar Bool -> V.Vty -> WreqS.Session -> IO V.Vty
 highScores mHeartBeat vty session = do
   chan <- newBChan 64
-  onl <- view Opts.online <$> getOpts
-  heartbeat <- readMVar mHeartBeat
+  opts <- getOpts
+  let onl = opts ^. online 
+  heartbeat <- if onl then heartbeatRequest session else pure True
   _ <- forkIO $ forever $ do
     writeBChan chan Tick
-    threadDelay (1 * 10 ^ 5)
-  eScoreArray <- E.try $ V.fromList <$> leaderBoardRequest (PageNumber 0) (PageHeight defHeight) session
+    threadDelay (1 * 10 ^ 6)
+  eScoreArray <- if onl 
+    then E.try $ V.fromList <$> leaderBoardRequest (PageNumber 0) (PageHeight defHeight) session
+    else Right .  V.fromList  <$> withConnection dbPath (getLocalPages (PageNumber 0) (PageHeight defHeight))
   let scoreArray = (either (\(_ :: ServerStateError) -> V.empty) id eScoreArray)
       initialIndex = ViewReplayForm 1
-  snd
-    <$> customMainWithVty
+  (gs, vty')<- customMainWithVty
       vty
       (V.mkVty V.defaultConfig)
       (Just chan)
@@ -438,7 +442,9 @@ highScores mHeartBeat vty session = do
           (selectReplayForm initialIndex)
           connectDialog
           mHeartBeat
-          heartbeat
-          (if heartbeat || (not onl) then Page else ConnectPrompt)
+          opts
+          (if heartbeat then Page else ConnectPrompt)
           session
       )
+  _ <-Opts.saveOpts (gs ^. options)  
+  pure vty'
