@@ -47,8 +47,7 @@ openOpts = do
     pure $ Toml.decodeExact optionsCodec hText
 
   where doesFileExist p = do
-          res <- IOE.tryIOError $ withFile p ReadMode  $ \_ -> pure ()
-          either (const $ pure False) (const $ pure True) res
+          flip IOE.catchIOError (\_ -> pure False) $ withFile p ReadMode  $ \_ -> pure True
  
 getOpts :: IO Options
 getOpts = either (const defOptions) id <$> openOpts
