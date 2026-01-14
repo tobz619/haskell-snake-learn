@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Options.Options 
  (Options(..),
@@ -10,13 +11,15 @@ module Options.Options
  )
 where
 
-import Lens.Micro
 import Lens.Micro.TH ( makeLenses )
 import qualified Toml
-import qualified Toml.Parser as TomlP
 import Toml.Codec ((.=), TomlDecodeError, TomlCodec)
 import Data.Text (Text)
 import System.IO
+import qualified Data.Text.IO as TextIO
+import Control.Monad (when, join)
+import qualified Control.Exception as E
+import qualified System.IO.Error as IOE
 
 data Options = Options {_online :: Bool}
   deriving (Show)
@@ -26,7 +29,10 @@ concat <$> mapM makeLenses [
   ]
 
 optionsFile :: FilePath
-optionsFile = "./options.toml"
+optionsFile = "./.options.toml"
+
+defOptions :: Options
+defOptions = Options False
 
 optionsCodec :: TomlCodec Options
 optionsCodec =
@@ -35,12 +41,19 @@ optionsCodec =
 
 openOpts :: IO (Either [TomlDecodeError] Options)
 openOpts = do
-  withFile optionsFile ReadWriteMode $ \_ -> pure ()
-  Toml.decodeFileEither optionsCodec optionsFile
+  join $ when <$> (not <$> doesFileExist optionsFile) <*> pure (() <$ saveOpts defOptions)
+  withFile optionsFile ReadWriteMode $ \h -> do
+    hText <- TextIO.hGetContents h
+    pure $ Toml.decodeExact optionsCodec hText
 
+  where doesFileExist p = do
+          res <- IOE.tryIOError $ withFile p ReadMode  $ \_ -> pure ()
+          either (const $ pure False) (const $ pure True) res
+ 
 getOpts :: IO Options
-getOpts = Toml.decodeFile optionsCodec optionsFile
+getOpts = either (const defOptions) id <$> openOpts
 
 saveOpts :: Options -> IO Text
 saveOpts = 
   Toml.encodeToFile optionsCodec optionsFile 
+

@@ -1,5 +1,4 @@
-{ 
-  pkgs
+{ pkgs
 , cabal-pkg
 , shell-dir
 }:
@@ -12,12 +11,12 @@ in
 
 haskell-packages.shellFor {
   pname = "snake-game";
-  
+
   version = "0.0.1";
 
   src = ./.;
 
-  packages = hpkgs: [ (hpkgs.callPackage ./brick-tutorial.nix {}) ];
+  packages = hpkgs: [ (hpkgs.callPackage ./brick-tutorial.nix { }) ];
 
   buildInputs = (with haskell-packages; [
     haskell-language-server
@@ -29,12 +28,12 @@ haskell-packages.shellFor {
     zlib
     go
     nss
-    openssl 
+    openssl
     sqlitebrowser
     caddy
     xcaddy
   ]) ++
-  [ cabal-pkg ] ;
+  [ cabal-pkg ];
 
   shellHook = '' 
     echo "... updating ${pname}.nix ..."
@@ -44,10 +43,10 @@ haskell-packages.shellFor {
     # ${pkgs.haskellPackages.implicit-hie}/bin/gen-hie > hie.yaml
   '';
 
-  certificateFiles = [ 
-    "./.certs/snake_server_auth.crt" 
+  certificateFiles = [
+    "./.certs/snake_server_auth.crt"
     "./.certs/snake_server_auth.key"
   ];
-  
+
   distribution_nixpkgs_datadir = toString ./distribution-nixpkgs;
 }

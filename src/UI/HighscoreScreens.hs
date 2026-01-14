@@ -418,14 +418,16 @@ highScores vty session = do
   chan <- newBChan 64
   opts <- getOpts
   let onl = opts ^. online
+      defPage = PageNumber 0
+      defPHeight = PageHeight defHeight
   heartbeat <- if onl then heartbeatRequest session else pure True
   _ <- forkIO $ forever $ do
     writeBChan chan Tick
     threadDelay (1 * 10 ^ 6)
   eScoreArray <-
     if onl
-      then E.try $ V.fromList <$> leaderBoardRequest (PageNumber 0) (PageHeight defHeight) session
-      else Right . V.fromList <$> withConnection dbPath (getLocalPages (PageNumber 0) (PageHeight defHeight))
+      then E.try $ V.fromList <$> leaderBoardRequest defPage defPHeight session
+      else Right . V.fromList <$> withConnection dbPath (getLocalPages defPage defPHeight)
   let scoreArray = (either (\(_ :: ServerStateError) -> V.empty) id eScoreArray)
       initialIndex = ViewReplayForm 1
   (gs, vty') <-
@@ -435,10 +437,10 @@ highScores vty session = do
       (Just chan)
       highScoresApp
       ( HighScoreState
-          (PageNumber 0)
-          (PageHeight defHeight)
+          defPage
+          defPHeight
           scoreArray
-          (mkScoresList (PageNumber 0) (PageHeight defHeight) scoreArray)
+          (mkScoresList defPage defPHeight scoreArray)
           defShowAmountStateDialog
           (selectReplayForm initialIndex)
           connectDialog
