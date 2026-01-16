@@ -58,11 +58,11 @@ altConfig = []
 gameplay :: V.Vty -> WreqS.Session -> IO V.Vty
 gameplay vty session = do
   chan <- newBChan 64
-  opts <- getOpts
+  userOpts <- getOpts
   _ <- forkIO $ forever $ do
     writeBChan chan Tick
     threadDelay (1_000_000 `div` 16) -- 16 ticks per second
-  snd <$> customMainWithVty vty (V.mkVty V.defaultConfig) (Just chan) (gameApp session) (defState opts)
+  snd <$> customMainWithVty vty (V.mkVty V.defaultConfig) (Just chan) (gameApp session) (defState userOpts)
 
 gameApp :: WreqS.Session -> App GameplayState Tick MenuOptions
 gameApp sess =
@@ -177,7 +177,7 @@ eventHandler sess' ev = do
       allowsOnline <- (^. online) <$> use opts 
       connected <- liftA2 (&&) (pure allowsOnline) (liftIO $ heartbeatRequest sess')
       hs <-
-        if connected
+        if not connected
           then liftIO $ withConnection dbPath $ \conn -> promptAddHighScore (score w) conn
           else liftIO $ highScoreRequest (score w) sess'
       if hs
@@ -189,7 +189,8 @@ eventHandler sess' ev = do
     NewHighScorePrompt w -> do
       seed <- fromMaybe 0 <$> use gameSeed
       evList <- use gameLog
-      zoom highScoreDialogs $ handleHighScorePromptEvent sess' seed (score w) evList sess' ev
+      useOnline <- (^. online) <$> use opts
+      zoom highScoreDialogs $ handleHighScorePromptEvent sess' useOnline seed (score w) evList sess' ev
 
       hsd <- use highScoreDialogs
       case hsd of
@@ -199,13 +200,13 @@ eventHandler sess' ev = do
       dia <- use gameStateDialog
       maybe (gameStateDialog .= dialogShower p) (const $ handleMenuEvent ev) dia
 
-handleHighScorePromptEvent :: WreqS.Session -> SeedType -> ScoreType -> EventList -> WreqS.Session -> BrickEvent MenuOptions Tick -> EventM MenuOptions HighScoreFormState ()
-handleHighScorePromptEvent sess seed score evList sessio (VtyEvent (V.EvKey V.KEnter [])) = do
+handleHighScorePromptEvent :: WreqS.Session -> Bool -> SeedType -> ScoreType -> EventList -> WreqS.Session -> BrickEvent MenuOptions Tick -> EventM MenuOptions HighScoreFormState ()
+handleHighScorePromptEvent sess setOnline seed score evList sessio (VtyEvent (V.EvKey V.KEnter [])) = do
   dia <- use hsDialog
   form <- use hsForm
   put =<< maybe get (\d -> maybe <$> get <*> pure snd <*> pure (D.dialogSelection d)) dia
   let chars = Text.pack <$> (F.formState <$> form >>= \(HighScoreForm a b c) -> sequence [a, b, c])
-  con <- liftIO $ heartbeatRequest sess
+  con <- pure setOnline >>= \b -> if b then liftIO (heartbeatRequest sess) else pure b  
   t <- liftIO . fmap floor $ getPOSIXTime
   maybe
     (pure ())
@@ -219,12 +220,12 @@ handleHighScorePromptEvent sess seed score evList sessio (VtyEvent (V.EvKey V.KE
             >> put (HighScoreFormState Nothing Nothing)
       )
       chars
-handleHighScorePromptEvent _ _ _ _ _ (VtyEvent ev) = do
+handleHighScorePromptEvent _ _ _ _ _ _ (VtyEvent ev) = do
   form <- use hsForm
   dia <- use hsDialog
   maybe (pure ()) (\_ -> zoom (hsDialog . _Just) $ D.handleDialogEvent ev) dia
   maybe (pure ()) (\_ -> zoom (hsForm . _Just) $ F.handleFormEvent (VtyEvent ev)) form
-handleHighScorePromptEvent _ _ _ _ _ _ = return ()
+handleHighScorePromptEvent _ _ _ _ _ _ _ = return ()
 
 -- | Handles changes in Gameplay and steps the game forward.
 handleGameplayEvent' :: BrickEvent n1 Tick -> EventM n2 GameState ()
