@@ -22,13 +22,12 @@ main :: IO ()
 main = do
   vty <- V.mkVty V.defaultConfig
   sess <- WreqS.newSession
-  mHB <- newMVar False
-  E.onException (loop mHB sess vty) (V.shutdown vty)
+  E.onException (loop sess vty) (V.shutdown vty)
   where
-    loop mv s v = do
+    loop s v = do
       !(choice, v') <- runMainMenu v
       case choice of
-        Play -> gameplay v' mv s >>= loop mv s
-        HighScores -> highScores v' s >>= loop mv s
-        Options -> options v' >>= loop mv s
+        Play -> gameplay v' s >>= loop s
+        HighScores -> highScores v' s >>= loop s
+        Options -> options v' >>= loop s
         Quit -> V.shutdown v'

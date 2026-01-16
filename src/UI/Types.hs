@@ -17,6 +17,7 @@ import GameLogic hiding (Stream)
 import Lens.Micro.TH (makeLenses)
 import Linear.V2 (V2)
 import qualified Network.Wreq.Session as WreqS
+import Options.Options (Options)
 
 type ConfigBinding = (KeyEvent, K.BindingState)
 
@@ -79,7 +80,8 @@ data GameplayState = GameplayState
     _tickNo :: TickType,
     _gameLog :: EventList,
     _gameSeed :: Maybe SeedType,
-    _mode :: GameplayStateMode
+    _mode :: GameplayStateMode,
+    _opts :: Options
   }
 
 data HighScoreFormState = HighScoreFormState

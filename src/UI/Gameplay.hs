@@ -24,7 +24,7 @@ import Control.Concurrent.MVar (readMVar)
 import Control.Monad (forever, join, void, when)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Control.Monad.State.Class (MonadState)
-import DB.Client (highScoreRequest, postScoreLeaderBoard)
+import DB.Client (highScoreRequest, postScoreLeaderBoard, heartbeatRequest)
 import DB.Highscores (addScoreWithReplay, dbPath, promptAddHighScore)
 import DB.Send (evListEncoder)
 import Data.Maybe (fromMaybe)
@@ -45,35 +45,37 @@ import Logging.Logger
     resetLog,
   )
 import qualified Network.Wreq.Session as WreqS
-import Options.Options (getOpts)
+import Options.Options (getOpts, online)
 import System.IO (IOMode (WriteMode), hPrint, withFile)
 import System.Random (StdGen, mkStdGen, randomRIO)
 import UI.Keybinds (gameplayDispatcher)
 import UI.Types
+import qualified Options.Options as Options
 
 altConfig :: [a]
 altConfig = []
 
-gameplay :: V.Vty -> MVar Bool -> WreqS.Session -> IO V.Vty
-gameplay vty mhb session = do
+gameplay :: V.Vty -> WreqS.Session -> IO V.Vty
+gameplay vty session = do
   chan <- newBChan 64
+  opts <- getOpts
   _ <- forkIO $ forever $ do
     writeBChan chan Tick
     threadDelay (1_000_000 `div` 16) -- 16 ticks per second
-  snd <$> customMainWithVty vty (V.mkVty V.defaultConfig) (Just chan) (gameApp mhb session) defState
+  snd <$> customMainWithVty vty (V.mkVty V.defaultConfig) (Just chan) (gameApp session) (defState opts)
 
-gameApp :: MVar Bool -> WreqS.Session -> App GameplayState Tick MenuOptions
-gameApp mHB sess =
+gameApp :: WreqS.Session -> App GameplayState Tick MenuOptions
+gameApp sess =
   App
     { appDraw = drawUI,
       appChooseCursor = focusRingCursor F.formFocus . fromMaybe highScoreMkForm . _hsForm . _highScoreDialogs,
-      appHandleEvent = eventHandler mHB sess,
+      appHandleEvent = eventHandler sess,
       appStartEvent = return (),
       appAttrMap = const theMap
     }
 
 -- | Note that the session and seed are uninitialized.
-defState :: GameplayState
+defState :: Options.Options -> GameplayState
 defState = GameplayState Restarting Nothing (HighScoreFormState Nothing Nothing) 0 [] undefined StartingMode
 
 dialogShower :: GameState -> Maybe (Dialog GameState MenuOptions)
@@ -138,13 +140,13 @@ genSeed = do
   a <- randomRIO (minBound :: SeedType, maxBound :: SeedType)
   pure (a, mkStdGen a)
 
-eventHandler :: MVar Bool -> WreqS.Session -> BrickEvent MenuOptions Tick -> EventM MenuOptions GameplayState ()
-eventHandler _ _ (VtyEvent (V.EvKey (V.KChar 'c') [V.MCtrl])) = M.halt
-eventHandler mHB sess' ev = do
+eventHandler :: WreqS.Session -> BrickEvent MenuOptions Tick -> EventM MenuOptions GameplayState ()
+eventHandler _ (VtyEvent (V.EvKey (V.KChar 'c') [V.MCtrl])) = M.halt
+eventHandler sess' ev = do
   gs <- use gameState
   case gs of
     Restarting -> do
-      vals@(genVal :: SeedType, g) <- genSeed
+      (genVal :: SeedType, g) <- genSeed
       let w = initWorld defaultHeight defaultWidth g
       -- sendGenToServer serverLocation g
       tickNo .= 0 -- Reset the tick number to 0.
@@ -171,7 +173,9 @@ eventHandler mHB sess' ev = do
         hPrint h (gps' ^. gameSeed)
         hPrint h (gps' ^. gameLog)
 
-      connected <- liftIO . readMVar $ mHB
+
+      allowsOnline <- (^. online) <$> use opts 
+      connected <- liftA2 (&&) (pure allowsOnline) (liftIO $ heartbeatRequest sess')
       hs <-
         if connected
           then liftIO $ withConnection dbPath $ \conn -> promptAddHighScore (score w) conn
@@ -185,7 +189,7 @@ eventHandler mHB sess' ev = do
     NewHighScorePrompt w -> do
       seed <- fromMaybe 0 <$> use gameSeed
       evList <- use gameLog
-      zoom highScoreDialogs $ handleHighScorePromptEvent mHB seed (score w) evList sess' ev
+      zoom highScoreDialogs $ handleHighScorePromptEvent sess' seed (score w) evList sess' ev
 
       hsd <- use highScoreDialogs
       case hsd of
@@ -195,13 +199,13 @@ eventHandler mHB sess' ev = do
       dia <- use gameStateDialog
       maybe (gameStateDialog .= dialogShower p) (const $ handleMenuEvent ev) dia
 
-handleHighScorePromptEvent :: MVar Bool -> SeedType -> ScoreType -> EventList -> WreqS.Session -> BrickEvent MenuOptions Tick -> EventM MenuOptions HighScoreFormState ()
-handleHighScorePromptEvent mHB seed score evList sessio (VtyEvent (V.EvKey V.KEnter [])) = do
+handleHighScorePromptEvent :: WreqS.Session -> SeedType -> ScoreType -> EventList -> WreqS.Session -> BrickEvent MenuOptions Tick -> EventM MenuOptions HighScoreFormState ()
+handleHighScorePromptEvent sess seed score evList sessio (VtyEvent (V.EvKey V.KEnter [])) = do
   dia <- use hsDialog
   form <- use hsForm
   put =<< maybe get (\d -> maybe <$> get <*> pure snd <*> pure (D.dialogSelection d)) dia
   let chars = Text.pack <$> (F.formState <$> form >>= \(HighScoreForm a b c) -> sequence [a, b, c])
-  con <- liftIO . readMVar $ mHB
+  con <- liftIO $ heartbeatRequest sess
   t <- liftIO . fmap floor $ getPOSIXTime
   maybe
     (pure ())
@@ -332,10 +336,10 @@ drawGrid World {..} =
       | c == food = Food
       | otherwise = Empty
 
-drawCell :: Cell -> Widget MenuOptions
-drawCell Snake = withAttr snakeAttr cell
-drawCell Food = withAttr foodAttr cell
-drawCell Empty = withAttr emptyAttr cell
+    drawCell :: Cell -> Widget MenuOptions
+    drawCell Snake = withAttr snakeAttr cell
+    drawCell Food = withAttr foodAttr cell
+    drawCell Empty = withAttr emptyAttr cell
 
 snakeAttr, foodAttr, emptyAttr, gameOverAttr, pausedAttr :: AttrName
 snakeAttr = attrName "snakeAttr"

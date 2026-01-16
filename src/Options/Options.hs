@@ -6,7 +6,9 @@ module Options.Options
  (Options(..),
   getOpts,
   openOpts,
+  setOpts,
   saveOpts,
+  toggleOnline,
   online,
  )
 where
@@ -20,6 +22,8 @@ import qualified Data.Text.IO as TextIO
 import Control.Monad (when, join)
 import qualified Control.Exception as E
 import qualified System.IO.Error as IOE
+import Data.Functor (($>))
+import Lens.Micro ((.~), (%~))
 
 data Options = Options {_online :: Bool}
   deriving (Show)
@@ -51,6 +55,12 @@ openOpts = do
  
 getOpts :: IO Options
 getOpts = either (const defOptions) id <$> openOpts
+
+setOpts :: (Options -> Options) -> IO ()
+setOpts f = (f <$> getOpts >>= saveOpts) $> ()
+
+toggleOnline :: Options -> Options
+toggleOnline = online %~ not  
 
 saveOpts :: Options -> IO Text
 saveOpts = 
