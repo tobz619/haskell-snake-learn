@@ -27,7 +27,7 @@ import Control.Concurrent (forkIO, threadDelay)
 import qualified Control.Exception as E
 import Control.Monad (forever, join, when)
 import Control.Monad.IO.Class (MonadIO (liftIO))
-import DB.Client (leaderBoardRequest, recvReplayData)
+import DB.Client (leaderBoardRequest, recvReplayData, heartbeatRequest)
 import DB.Highscores
   ( dbPath,
     getReplayData,
