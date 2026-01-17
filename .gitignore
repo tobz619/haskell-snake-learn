@@ -30,3 +30,4 @@ Replay-Request-Log
 .direnv
 *.db
 .options.toml
+highscores.db
