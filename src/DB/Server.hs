@@ -119,13 +119,7 @@ runTCPServer host p app = withSocketsDo $ forever $ do
 runHTTPApp :: PortNumber -> Application -> IO ()
 runHTTPApp port = run (fromIntegral port)
 
-runTLSApp ::
-  HostName ->
-  PortNumber ->
-  ThreadPool ->
-  TChan Text ->
-  (TCPConn -> TLSConn -> IO ()) ->
-  IO ()
+runTLSApp :: HostName -> PortNumber -> ThreadPool -> TChan Text -> (TCPConn -> TLSConn -> IO ()) -> IO ()
 runTLSApp host p tp msgChan actions = do
   runTCPServer host p app
   where
@@ -140,6 +134,7 @@ runTLSApp host p tp msgChan actions = do
         )
         (app sock)
 
+runTCPApp :: HostName -> PortNumber -> (TCPConn -> IO a) -> IO ()
 runTCPApp host p actions = do
   runTCPServer host p app
   where

@@ -4,7 +4,7 @@ version:         0.1.0.0
 license:         BSD-3-Clause
 license-file:    LICENSE
 author:          Tobi Oloke
-maintainer:      toloke@yahoo.co.uk
+maintainer:      tobi@tobioloke.com 
 category:        Text
 build-type:      Simple
 extra-doc-files: CHANGELOG.md
@@ -20,9 +20,10 @@ library
                       UI.HighscoreScreens, 
                       UI.MainMenu,
                       UI.ReplayPlayer,
-                      UI.Keybinds, 
+                      UI.Keybinds,
+                      UI.Options, 
                       UI.Types,
-                      UI.Options,
+                      Options.Options,
                       DB.Authenticate, 
                       DB.Client,
                       DB.Highscores,
@@ -44,6 +45,7 @@ library
                       crypton-x509,
                       crypton-x509-system,
                       crypton-x509-store,
+                      free,
                       vty,
                       vty-crossplatform,
                       brick,
@@ -70,6 +72,7 @@ library
                       sqlite-simple,
                       stm,
                       time,
+                      tomland,
                       text,
                       tls,
                       utf8-string,

@@ -1,9 +1,6 @@
 {-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
@@ -22,27 +19,38 @@ import qualified Brick.Widgets.Center as C
 import Brick.Widgets.Dialog (Dialog)
 import qualified Brick.Widgets.Dialog as D
 import qualified Brick.Widgets.List as L
-import Control.Concurrent (forkIO, threadDelay)
-import Control.Monad (forever, void)
+import Control.Concurrent (MVar, forkIO, threadDelay)
+import Control.Concurrent.MVar (readMVar)
+import Control.Monad (forever, join, void, when)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Control.Monad.State.Class (MonadState)
-import DB.Client (highScoreRequest, postScoreLeaderBoard)
+import DB.Client (highScoreRequest, postScoreLeaderBoard, heartbeatRequest)
+import DB.Highscores (addScoreWithReplay, dbPath, promptAddHighScore)
+import DB.Send (evListEncoder)
 import Data.Maybe (fromMaybe)
 import qualified Data.Text as Text
+import Data.Time.Clock.POSIX (getPOSIXTime)
 import qualified Data.Vector as Vector
+import Database.SQLite.Simple (withConnection)
 import GameLogic
 import qualified Graphics.Vty as V
 import qualified Graphics.Vty.CrossPlatform as V
-import Lens.Micro ( (^.), _Just )
-import Lens.Micro.Mtl ( (%=), (.=), use )
+import Lens.Micro ((^.), _Just)
+import Lens.Micro.Mtl (use, (%=), (.=))
 import Linear.V2 (V2 (..))
 import Logging.Logger
-    ( logGameEnd, logGameStart, logMove, resetLog )
+  ( logGameEnd,
+    logGameStart,
+    logMove,
+    resetLog,
+  )
 import qualified Network.Wreq.Session as WreqS
-import System.IO ( withFile, hPrint, IOMode(WriteMode) )
-import System.Random ( StdGen, randomRIO, mkStdGen )
+import Options.Options (getOpts, online)
+import System.IO (IOMode (WriteMode), hPrint, withFile)
+import System.Random (StdGen, mkStdGen, randomRIO)
 import UI.Keybinds (gameplayDispatcher)
 import UI.Types
+import qualified Options.Options as Options
 
 altConfig :: [a]
 altConfig = []
@@ -50,24 +58,27 @@ altConfig = []
 gameplay :: V.Vty -> WreqS.Session -> IO V.Vty
 gameplay vty session = do
   chan <- newBChan 64
+  userOpts <- getOpts
   _ <- forkIO $ forever $ do
     writeBChan chan Tick
     threadDelay (1_000_000 `div` 16) -- 16 ticks per second
-  snd <$> customMainWithVty vty (V.mkVty V.defaultConfig) (Just chan) gameApp (defState {_sess = session})
+  v <- snd <$> customMainWithVty vty (V.mkVty V.defaultConfig) (Just chan) (gameApp session) (defState userOpts)
+  () <$ Options.saveOpts userOpts
+  pure v
 
-gameApp :: M.App GameplayState Tick MenuOptions
-gameApp =
+gameApp :: WreqS.Session -> App GameplayState Tick MenuOptions
+gameApp sess =
   App
     { appDraw = drawUI,
       appChooseCursor = focusRingCursor F.formFocus . fromMaybe highScoreMkForm . _hsForm . _highScoreDialogs,
-      appHandleEvent = eventHandler,
+      appHandleEvent = eventHandler sess,
       appStartEvent = return (),
       appAttrMap = const theMap
     }
 
 -- | Note that the session and seed are uninitialized.
-defState :: GameplayState
-defState = GameplayState Restarting Nothing (HighScoreFormState Nothing Nothing) 0 [] undefined undefined
+defState :: Options.Options -> GameplayState
+defState = GameplayState Restarting Nothing (HighScoreFormState Nothing Nothing) 0 [] undefined StartingMode
 
 dialogShower :: GameState -> Maybe (Dialog GameState MenuOptions)
 dialogShower (Paused w) = Just $ D.dialog (Just (txt "PAUSE MENU")) (Just (Resume, options)) 40
@@ -88,8 +99,8 @@ dialogShower (Starting w) = Just $ D.dialog (Just (txt "PRESS A DIRECTION OR ENT
     options = [("GO", Yes, Playing w)]
 dialogShower _ = Nothing
 
-highScoreAskDialog :: World -> Dialog HighScoreFormState MenuOptions
-highScoreAskDialog w =
+highScoreAskDialog :: World -> Bool -> Dialog HighScoreFormState MenuOptions
+highScoreAskDialog w isOnline =
   D.dialog
     ( Just
         ( txt $
@@ -97,7 +108,7 @@ highScoreAskDialog w =
               [ "NEW HIGH SCORE OF ",
                 Text.pack . show $ score w,
                 " ACHIEVED.",
-                " ADD TO LEADERBOARD?"
+                " ADD TO " <> (if isOnline then "ONLINE " else "LOCAL ") <> "LEADERBOARD?"
               ]
         )
     )
@@ -131,22 +142,19 @@ genSeed = do
   a <- randomRIO (minBound :: SeedType, maxBound :: SeedType)
   pure (a, mkStdGen a)
 
-eventHandler ::
-  BrickEvent MenuOptions Tick ->
-  EventM MenuOptions GameplayState ()
-eventHandler (VtyEvent (V.EvKey (V.KChar 'c') [V.MCtrl])) = M.halt
-eventHandler ev = do
+eventHandler :: WreqS.Session -> BrickEvent MenuOptions Tick -> EventM MenuOptions GameplayState ()
+eventHandler _ (VtyEvent (V.EvKey (V.KChar 'c') [V.MCtrl])) = M.halt
+eventHandler sess' ev = do
   gs <- use gameState
-  sess' <- use sess
   case gs of
     Restarting -> do
-      vals@(genVal :: SeedType, g) <- genSeed
+      (genVal :: SeedType, g) <- genSeed
       let w = initWorld defaultHeight defaultWidth g
       -- sendGenToServer serverLocation g
       tickNo .= 0 -- Reset the tick number to 0.
       resetLog
       gameState .= Starting w
-      gameSeed .= genVal
+      gameSeed .= Just genVal
       logGameStart
     ToMenu -> M.halt
     Frozen _ -> do zoom gameState $ handleGameplayEvent' ev
@@ -167,18 +175,24 @@ eventHandler ev = do
         hPrint h (gps' ^. gameSeed)
         hPrint h (gps' ^. gameLog)
 
-      -- hs <- liftIO $ withConnection dbPath $ \conn -> promptAddHighScore (score w) conn
-      hs <- liftIO $ highScoreRequest (score w) sess'
+
+      allowsOnline <- (^. online) <$> use opts 
+      connected <- liftA2 (&&) (pure allowsOnline) (liftIO $ heartbeatRequest sess')
+      hs <-
+        if not connected
+          then liftIO $ withConnection dbPath $ \conn -> promptAddHighScore (score w) conn
+          else liftIO $ highScoreRequest (score w) sess'
       if hs
         then do
           gameStateDialog .= Nothing
-          highScoreDialogs .= HighScoreFormState (Just $ highScoreAskDialog w) Nothing
+          highScoreDialogs .= HighScoreFormState (Just $ highScoreAskDialog w connected) Nothing
           gameState .= NewHighScorePrompt w
         else gameState .= GameOver w
     NewHighScorePrompt w -> do
-      seed <- use gameSeed
+      seed <- fromMaybe 0 <$> use gameSeed
       evList <- use gameLog
-      zoom highScoreDialogs $ handleHighScorePromptEvent ev seed (score w) evList sess'
+      useOnline <- (^. online) <$> use opts
+      zoom highScoreDialogs $ handleHighScorePromptEvent sess' useOnline seed (score w) evList sess' ev
 
       hsd <- use highScoreDialogs
       case hsd of
@@ -188,34 +202,43 @@ eventHandler ev = do
       dia <- use gameStateDialog
       maybe (gameStateDialog .= dialogShower p) (const $ handleMenuEvent ev) dia
 
-handleHighScorePromptEvent :: BrickEvent MenuOptions Tick -> SeedType -> ScoreType -> EventList -> WreqS.Session -> EventM MenuOptions HighScoreFormState ()
-handleHighScorePromptEvent (VtyEvent (V.EvKey V.KEnter [])) seed score evList sessio = do
+handleHighScorePromptEvent :: WreqS.Session -> Bool -> SeedType -> ScoreType -> EventList -> WreqS.Session -> BrickEvent MenuOptions Tick -> EventM MenuOptions HighScoreFormState ()
+handleHighScorePromptEvent sess setOnline seed score evList sessio (VtyEvent (V.EvKey V.KEnter [])) = do
   dia <- use hsDialog
   form <- use hsForm
   put =<< maybe get (\d -> maybe <$> get <*> pure snd <*> pure (D.dialogSelection d)) dia
   let chars = Text.pack <$> (F.formState <$> form >>= \(HighScoreForm a b c) -> sequence [a, b, c])
+  con <- pure setOnline >>= \b -> if b then liftIO (heartbeatRequest sess) else pure b  
+  t <- liftIO . fmap floor $ getPOSIXTime
   maybe
     (pure ())
-    ( \cs ->
-        (liftIO $ postScoreLeaderBoard cs score seed evList sessio)
-          >> put (HighScoreFormState Nothing Nothing)
-    )
+    (\cs -> liftIO $ withConnection dbPath $ addScoreWithReplay cs score t seed (evListEncoder evList))
     chars
-handleHighScorePromptEvent (VtyEvent ev) _ _ _ _ = do
+  when con $
+    maybe
+      (pure ())
+      ( \cs ->
+          (liftIO $ postScoreLeaderBoard cs score seed evList sessio)
+            >> put (HighScoreFormState Nothing Nothing)
+      )
+      chars
+handleHighScorePromptEvent _ _ _ _ _ _ (VtyEvent ev) = do
   form <- use hsForm
   dia <- use hsDialog
   maybe (pure ()) (\_ -> zoom (hsDialog . _Just) $ D.handleDialogEvent ev) dia
   maybe (pure ()) (\_ -> zoom (hsForm . _Just) $ F.handleFormEvent (VtyEvent ev)) form
-handleHighScorePromptEvent _ _ _ _ _ = return ()
+handleHighScorePromptEvent _ _ _ _ _ _ _ = return ()
 
 -- | Handles changes in Gameplay and steps the game forward.
 handleGameplayEvent' :: BrickEvent n1 Tick -> EventM n2 GameState ()
 handleGameplayEvent' (AppEvent Tick) = modify stepGameState
 handleGameplayEvent' (VtyEvent (V.EvKey k mods)) = do
-  disp <- case gameplayDispatcher altConfig of
-    Right disp -> return disp
-    Left _ -> error "Somehow didn't get a dispatcher: this is impossible"
-  void $ K.handleKey disp k mods
+  disp <-
+    either
+      (error "Somehow didn't get a dispatcher: this is impossible")
+      pure
+      (gameplayDispatcher altConfig)
+  () <$ K.handleKey disp k mods
 handleGameplayEvent' _ = return ()
 
 -- | Handles controls for most dialogue menus
@@ -251,11 +274,12 @@ handleStartGameEvent _ = return ()
 -- | Draws the overall UI of the game
 drawUI :: GameplayState -> [Widget MenuOptions]
 drawUI gps =
-  [drawDebug gps,
+  [ drawDebug gps,
     gpdia,
     hsdia,
     form,
-    C.centerLayer (drawGS gs)]
+    C.centerLayer (drawGS gs)
+  ]
   where
     gs = gps ^. gameState
     gpdia = maybe emptyWidget ((`D.renderDialog` emptyWidget)) (gps ^. gameStateDialog)
@@ -267,15 +291,15 @@ drawGS :: GameState -> Widget MenuOptions
 drawGS Restarting = emptyWidget
 drawGS ToMenu = emptyWidget
 drawGS (GameOver gs) =
-  (padRight (Pad 2) (drawStats gs)
-  <=> padLeft (Pad 1) (withAttr gameOverAttr (txt "GAME OVER")))
-  <+> drawGrid gs
-  
+  ( padRight (Pad 2) (drawStats gs)
+      <=> padLeft (Pad 1) (withAttr gameOverAttr (txt "GAME OVER"))
+  )
+    <+> drawGrid gs
 drawGS (Paused gs) =
-  (padRight (Pad 2) (drawStats gs) 
-  <=> (padLeft (Pad 1) . withAttr pausedAttr $ txt "PAUSED"))
-  <+> drawGrid gs
-
+  ( padRight (Pad 2) (drawStats gs)
+      <=> (padLeft (Pad 1) . withAttr pausedAttr $ txt "PAUSED")
+  )
+    <+> drawGrid gs
 drawGS gs = padRight (Pad 2) (drawStats (getWorld gs)) <+> drawGrid (getWorld gs)
 
 drawDebug :: GameplayState -> Widget n
@@ -315,10 +339,10 @@ drawGrid World {..} =
       | c == food = Food
       | otherwise = Empty
 
-drawCell :: Cell -> Widget MenuOptions
-drawCell Snake = withAttr snakeAttr cell
-drawCell Food = withAttr foodAttr cell
-drawCell Empty = withAttr emptyAttr cell
+    drawCell :: Cell -> Widget MenuOptions
+    drawCell Snake = withAttr snakeAttr cell
+    drawCell Food = withAttr foodAttr cell
+    drawCell Empty = withAttr emptyAttr cell
 
 snakeAttr, foodAttr, emptyAttr, gameOverAttr, pausedAttr :: AttrName
 snakeAttr = attrName "snakeAttr"
