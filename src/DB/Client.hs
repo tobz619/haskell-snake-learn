@@ -187,6 +187,7 @@ heartbeatRequest sess = wrapRequest False $ do
 wrapRequest :: a -> IO a -> IO a
 wrapRequest def = E.handle requestHandler
   where requestHandler ConnectFailure = pure def
+        requestHandler ConnectTimeout = pure def
         requestHandler _ = pure def
 
 highScoreRequest :: ScoreType -> WreqS.Session -> IO Bool

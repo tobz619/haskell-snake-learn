@@ -62,7 +62,9 @@ gameplay vty session = do
   _ <- forkIO $ forever $ do
     writeBChan chan Tick
     threadDelay (1_000_000 `div` 16) -- 16 ticks per second
-  snd <$> customMainWithVty vty (V.mkVty V.defaultConfig) (Just chan) (gameApp session) (defState userOpts)
+  v <- snd <$> customMainWithVty vty (V.mkVty V.defaultConfig) (Just chan) (gameApp session) (defState userOpts)
+  () <$ Options.saveOpts userOpts
+  pure v
 
 gameApp :: WreqS.Session -> App GameplayState Tick MenuOptions
 gameApp sess =
@@ -97,8 +99,8 @@ dialogShower (Starting w) = Just $ D.dialog (Just (txt "PRESS A DIRECTION OR ENT
     options = [("GO", Yes, Playing w)]
 dialogShower _ = Nothing
 
-highScoreAskDialog :: World -> Dialog HighScoreFormState MenuOptions
-highScoreAskDialog w =
+highScoreAskDialog :: World -> Bool -> Dialog HighScoreFormState MenuOptions
+highScoreAskDialog w isOnline =
   D.dialog
     ( Just
         ( txt $
@@ -106,7 +108,7 @@ highScoreAskDialog w =
               [ "NEW HIGH SCORE OF ",
                 Text.pack . show $ score w,
                 " ACHIEVED.",
-                " ADD TO LEADERBOARD?"
+                " ADD TO " <> (if isOnline then "ONLINE " else "LOCAL ") <> "LEADERBOARD?"
               ]
         )
     )
@@ -183,7 +185,7 @@ eventHandler sess' ev = do
       if hs
         then do
           gameStateDialog .= Nothing
-          highScoreDialogs .= HighScoreFormState (Just $ highScoreAskDialog w) Nothing
+          highScoreDialogs .= HighScoreFormState (Just $ highScoreAskDialog w connected) Nothing
           gameState .= NewHighScorePrompt w
         else gameState .= GameOver w
     NewHighScorePrompt w -> do
