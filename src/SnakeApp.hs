@@ -2,17 +2,10 @@
 
 module SnakeApp where
 
-import Control.Concurrent (killThread, threadDelay)
-import Control.Concurrent.MVar (newMVar, swapMVar)
 import qualified Control.Exception as E
-import Control.Monad (forever, join, when)
-import DB.Client (heartbeatRequest)
-import GHC.Conc (forkIO)
 import qualified Graphics.Vty as V
 import qualified Graphics.Vty.CrossPlatform as V
-import Lens.Micro.Mtl (view)
 import qualified Network.Wreq.Session as WreqS
-import Options.Options (getOpts, online)
 import UI.Gameplay (gameplay)
 import UI.HighscoreScreens (highScores)
 import UI.MainMenu (Choice (..), runMainMenu)
